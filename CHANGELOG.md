@@ -1,9 +1,7 @@
 # Changelog
 
 Round-by-round history of ARPES viewer, newest first. Each entry says what
-changed and, more usefully, *why* -- the measurement that settled a format
-choice, the bug that a check now prevents, the assumption in the MATLAB
-original that turned out not to hold on real data.
+changed and, more usefully, *why* .
 
 What the program does and how to use it is in [README.md](README.md); this
 file is the record of how it got that way.
