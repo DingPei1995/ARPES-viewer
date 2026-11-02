@@ -1511,12 +1511,33 @@ la fenêtre de la structure cristalline.
 
 ## 26. Ajustement de liaisons fortes
 
-> **Ceci ajuste une seule bande.** Le modèle est une bande unique sur un
-> réseau de Bravais (une orbitale par site) : E(k) = e0 + Σ t_n Σ cos(k·R).
-> Il ne peut décrire ni deux bandes, ni leur croisement, ni un gap
-> d'hybridation. Avec plusieurs bandes, ajustez-les une à une et lisez les
-> sauts comme les paramètres effectifs de cette bande, non comme des sauts
-> microscopiques entre orbitales.
+> **Une bande, ou deux bandes hybridées — au choix à l'étape 1 (*Bands*).**
+> **Une bande** : une bande unique sur un réseau de Bravais (une orbitale
+> par site) : E(k) = e0 + Σ t_n Σ cos(k·R). Elle ne peut décrire ni deux
+> bandes, ni leur croisement, ni un gap d'hybridation ; ajustez chaque
+> bande à part et lisez les sauts comme ses paramètres effectifs, non comme
+> des sauts microscopiques entre orbitales.
+>
+> **Deux bandes hybridées** : ajuste à la fois deux telles bandes, ε_a(k)
+> et ε_b(k), et leur couplage V(k) = v0 + Σ v_n S_n(k) ; les bandes
+> mesurées sont E± = (ε_a+ε_b)/2 ± √(((ε_a−ε_b)/2)² + V²). Pour un
+> anticroisement, un gap d'hybridation ou un dédoublement de bicouche
+> (t_⊥). V a toute la symétrie du réseau (deux orbitales de même parité) ;
+> un couplage impair, s–p par exemple, n'est pas de cette forme.
+
+**Deux bandes, pas à pas.** À l'étape 1, fixez les couches de la bande a
+(*Shells of neighbours*), de la bande b (*Shells, band b*) et du couplage
+au-delà de v0 (*Coupling shells*, 0 pour un V constant). À l'étape 2,
+tracez les deux bandes à deux énergies ou plus avec *New points on* sur
+*either band*, puis cliquez quelques points de chaque bande avec *the
+lower band* ou *the upper band* (bleu / rose) ; un fichier de points peut
+porter une colonne `branch` (`lower` / `upper` / vide). À l'étape 3,
+l'ajustement — non linéaire, lancé depuis de nombreux modèles puis affiné —
+donne la bande a, la bande b et v0, v1… avec leurs erreurs, trace les deux
+bandes (rouge, orange), indique à quelle bande va chaque point, et donne le
+**plus petit gap** entre elles et où il se trouve : 2|V| là où les bandes
+nues se croisent. *Model to list* contient les deux bandes ; *Save
+parameters* écrit les trois jeux de paramètres, leurs couches et le gap.
 
 **Les couches sont des orbites de symétrie.** Chaque saut t_n correspond à
 un ensemble de voisins que la symétrie rend équivalents : le groupe ponctuel

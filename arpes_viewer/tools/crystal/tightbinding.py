@@ -58,7 +58,8 @@ ILL_CONDITIONED = 300.0
 
 __all__ = ["ILL_CONDITIONED", "shells", "design_matrix", "TBFit", "fit", "evaluate",
            "fit_azimuth", "rotate", "lattice_2d", "read_points",
-           "lattice_symmetry", "integer_coordinates"]
+           "lattice_symmetry", "integer_coordinates", "TwoBandFit",
+           "fit_two_band", "two_band_energies", "LOWER", "UPPER", "AUTO"]
 
 
 def lattice_2d(a: float, b: float, gamma_deg: float) -> np.ndarray:
@@ -247,6 +248,10 @@ class TBFit:
         return design_matrix(k_points, self.shells) @ np.concatenate(
             [[self.e0], self.t])
 
+    def bands(self, k_points) -> list:
+        """Every band of the model at ``k_points``: here the one."""
+        return [self.energy(k_points)]
+
     def table(self):
         """``[(name, value, error, unit), ...]`` for display."""
         rows = [("e0", self.e0, self.e0_err, "eV")]
@@ -354,13 +359,16 @@ def fit(k_points, energies, vectors, n_shells: int, *, weights=None,
 
 
 def fit_azimuth(k_points, energies, vectors, n_shells: int, *, around=0.0,
-                span=10.0, steps=81, **options) -> TBFit:
+                span=10.0, steps=81, fitter=None, **options) -> TBFit:
     """Fit with the lattice turned by every azimuth in ``around +- span``
     degrees (in-plane, about z) and keep the best; then refine to a tenth
-    of the step."""
+    of the step. ``fitter`` is :func:`fit` (the default) or
+    :func:`fit_two_band`."""
+    fitter = fitter or fit
+
     def trial(angle):
-        model = fit(k_points, energies, rotate(vectors, angle), n_shells,
-                    **options)
+        model = fitter(k_points, energies, rotate(vectors, angle), n_shells,
+                       **options)
         model.azimuth_deg = angle
         return model
 
@@ -371,6 +379,301 @@ def fit_azimuth(k_points, energies, vectors, n_shells: int, *, around=0.0,
     fine = np.linspace(angles[best] - step, angles[best] + step, 21)
     models = [trial(a) for a in fine]
     return models[int(np.argmin([m.score for m in models]))]
+
+
+# ==========================================================================
+# Two bands, hybridised
+# ==========================================================================
+#: Which branch a band point is on: the lower or the upper of the two
+#: eigenvalues, or AUTO (whichever the model puts nearer, decided again at
+#: every round of the fit).
+LOWER, UPPER, AUTO = -1, 1, 0
+
+
+def two_band_energies(design, params, n_a: int, n_b: int, n_v: int):
+    """``(lower, upper, eps_a, eps_b, v)`` at the k points of ``design``
+    (columns 1, S_1, S_2, ...) for the parameters ``[e_a, t_a..., e_b,
+    t_b..., v0, v...]``."""
+    params = np.asarray(params, dtype=float)
+    pa = params[:1 + n_a]
+    pb = params[1 + n_a:2 + n_a + n_b]
+    pv = params[2 + n_a + n_b:3 + n_a + n_b + n_v]
+    eps_a = design[:, :1 + n_a] @ pa
+    eps_b = design[:, :1 + n_b] @ pb
+    v = design[:, :1 + n_v] @ pv
+    mean, half = (eps_a + eps_b) / 2.0, (eps_a - eps_b) / 2.0
+    root = np.sqrt(half ** 2 + v ** 2)
+    return mean - root, mean + root, eps_a, eps_b, v
+
+
+def _two_band_jacobian(design, params, n_a, n_b, n_v, sign):
+    """d E_branch / d params, ``sign`` -1 (lower) or +1 (upper) per point."""
+    _lo, _hi, eps_a, eps_b, v = two_band_energies(design, params, n_a, n_b, n_v)
+    half = (eps_a - eps_b) / 2.0
+    root = np.maximum(np.sqrt(half ** 2 + v ** 2), 1e-12)
+    d_a = 0.5 + sign * half / (2.0 * root)
+    d_b = 0.5 - sign * half / (2.0 * root)
+    d_v = sign * v / root
+    return np.column_stack([design[:, :1 + n_a] * d_a[:, None],
+                            design[:, :1 + n_b] * d_b[:, None],
+                            design[:, :1 + n_v] * d_v[:, None]])
+
+
+class TwoBandFit:
+    """Two bands on one lattice, hybridised: ``eps_a(k)`` and ``eps_b(k)``,
+    each ``e + sum_n t_n S_n(k)`` over symmetry-orbit shells, coupled by
+    ``V(k) = v0 + sum_n v_n S_n(k)``; the measured bands are the two
+    eigenvalues
+
+        E_+-(k) = (eps_a + eps_b)/2 +- sqrt(((eps_a - eps_b)/2)^2 + V^2).
+
+    ``V`` carries the full symmetry of the lattice (a coupling between two
+    orbitals of the same parity -- two d orbitals, bonding and antibonding
+    combinations of a bilayer); an odd coupling (s with p) is not this
+    form. Where the bare bands cross, the gap is ``2 |V|``.
+    """
+
+    def __init__(self, vectors, shells_a, shells_b, shells_v, params, errors,
+                 rms, n_points, branch, azimuth_deg=0.0):
+        self.vectors = np.asarray(vectors, dtype=float)
+        self.shells_a, self.shells_b, self.shells_v = shells_a, shells_b, shells_v
+        self.params = np.asarray(params, dtype=float)
+        self.errors = np.asarray(errors, dtype=float)
+        self.rms = float(rms)
+        self.n_points = int(n_points)
+        self.branch = np.asarray(branch, dtype=int)
+        self.azimuth_deg = float(azimuth_deg)
+        self.shape_only = False
+        self.condition = 1.0
+        self.warning = ""
+        self.outliers = 0
+        self.weights = None
+        self.score = 0.0
+        # one-band names, so code that reads a single-band fit still works
+        self.shells = shells_a
+
+    @property
+    def sizes(self):
+        return len(self.shells_a), len(self.shells_b), len(self.shells_v)
+
+    def _design(self, k_points):
+        # the three shell lists are prefixes of one; the longest serves all
+        longest = max((self.shells_a, self.shells_b, self.shells_v), key=len)
+        return design_matrix(k_points, longest)
+
+    def solve(self, k_points):
+        """``(lower, upper, eps_a, eps_b, v)`` at ``k_points`` (rows)."""
+        return two_band_energies(self._design(k_points), self.params, *self.sizes)
+
+    def bands(self, k_points) -> list:
+        lower, upper, *_ = self.solve(k_points)
+        return [lower, upper]
+
+    def energy(self, k_points) -> np.ndarray:
+        """The lower band (what a one-band caller asks for)."""
+        return self.solve(k_points)[0]
+
+    def bare(self, k_points):
+        """The two bands before hybridisation, ``(eps_a, eps_b)``."""
+        _lo, _hi, eps_a, eps_b, _v = self.solve(k_points)
+        return eps_a, eps_b
+
+    def gap(self, k_points):
+        """The smallest direct gap ``E_+ - E_-`` over ``k_points`` and where
+        it is: ``(gap, k)``."""
+        lower, upper, *_ = self.solve(k_points)
+        i = int(np.argmin(upper - lower))
+        return float(upper[i] - lower[i]), np.atleast_2d(k_points)[i]
+
+    def groups(self):
+        """``[(prefix, shells, values, errors), ...]`` for band a, band b and
+        the coupling."""
+        n_a, n_b, n_v = self.sizes
+        cut = (0, 1 + n_a, 2 + n_a + n_b, 3 + n_a + n_b + n_v)
+        names = (("a", self.shells_a), ("b", self.shells_b), ("v", self.shells_v))
+        return [(prefix, shells, self.params[cut[i]:cut[i + 1]],
+                 self.errors[cut[i]:cut[i + 1]])
+                for i, (prefix, shells) in enumerate(names)]
+
+    def table(self):
+        rows = []
+        for prefix, shells, values, errors in self.groups():
+            head = "v0 (on-site coupling)" if prefix == "v" else f"e_{prefix}"
+            rows.append((head, values[0], errors[0], "eV"))
+            for i, ((distance, vectors), value, error) in enumerate(
+                    zip(shells, values[1:], errors[1:]), start=1):
+                name = f"v{i}" if prefix == "v" else f"t{i}_{prefix}"
+                rows.append((f"{name}  (|R| = {distance:.4g} Å, {len(vectors)} "
+                             f"neighbours, {shell_label(self.vectors, vectors)})",
+                             value, error, "eV"))
+        return rows
+
+
+def fit_two_band(k_points, energies, vectors, n_shells: int, *,
+                 n_shells_b: int = None, n_hybrid: int = 0, branch=None,
+                 symmetry=None, robust: bool = True, rounds: int = 25,
+                 starts: int = 24, seed: int = 0,
+                 energy_tolerance: float = 1e-6) -> TwoBandFit:
+    """Fit two hybridised bands (:class:`TwoBandFit`) to band points.
+
+    ``n_shells`` / ``n_shells_b``: hoppings of band a / band b (b defaults
+    to a's); ``n_hybrid``: shells in the coupling beyond the constant v0.
+    ``branch``: per point :data:`LOWER`, :data:`UPPER` or :data:`AUTO`
+    (None: all AUTO). An AUTO point is put on whichever branch the current
+    model puts nearer, again at every round, so labelling a few points
+    (one contour, say) is enough to tell the fit which is which.
+
+    The fit is nonlinear. ``starts`` random starting models (seeded by
+    ``seed``, so a fit is repeatable) and two from one-band fits are first
+    fitted with each point scored against the nearer band; the best three
+    are refined with the points assigned and the stray ones reweighted, and
+    the one with the smallest mean misfit over every point is kept.
+    Points at a single energy cannot fix the energy scale and are refused.
+    """
+    from scipy.optimize import least_squares
+
+    k_points = np.atleast_2d(np.asarray(k_points, dtype=float))
+    energies = np.asarray(energies, dtype=float).ravel()
+    if len(k_points) != len(energies):
+        raise ValueError("as many energies as k points are needed")
+    if energies.size and float(np.ptp(energies)) <= energy_tolerance:
+        raise ValueError("two bands need points at two or more energies: "
+                         "one contour fixes no energy scale")
+    n_a = int(n_shells)
+    n_b = int(n_shells if n_shells_b is None else n_shells_b)
+    n_v = int(n_hybrid)
+    widest = max(n_a, n_b, n_v, 1)
+    shell_list = shells(vectors, widest, symmetry=symmetry)
+    design = design_matrix(k_points, shell_list)
+    n_params = 3 + n_a + n_b + n_v
+    if len(energies) < n_params + 1:
+        raise ValueError(f"{n_params} parameters need at least {n_params + 1} "
+                         f"points; there are {len(energies)}")
+    branch = (np.zeros(len(energies), dtype=int) if branch is None
+              else np.asarray(branch, dtype=int).ravel())
+    fixed = branch != AUTO
+
+    # -- starting points ---------------------------------------------------
+    # Which band a point is on is not known in advance, so the start is
+    # searched for: from many starting models, each point is scored against
+    # the nearer band (a labelled point against its own), with a loss that
+    # forgives the odd stray point, and the best few are refined below.
+    def one_band(mask, n):
+        a = design[mask][:, :1 + n]
+        if mask.sum() < a.shape[1] + 1:
+            return np.linalg.lstsq(design[:, :1 + n], energies, rcond=None)[0]
+        return np.linalg.lstsq(a, energies[mask], rcond=None)[0]
+
+    common = np.linalg.lstsq(design[:, :1 + max(n_a, n_b)], energies, rcond=None)[0]
+    misfit = energies - design[:, :1 + max(n_a, n_b)] @ common
+    split = np.where(fixed, branch, np.where(misfit >= 0, UPPER, LOWER))
+    spread = float(np.std(energies)) or 0.1
+    lo_e, hi_e = float(energies.min()), float(energies.max())
+    pa, pb = one_band(split == LOWER, n_a), one_band(split == UPPER, n_b)
+    candidates = [np.concatenate([pa, pb, [v0 * spread], np.zeros(n_v)])
+                  for v0 in (0.05, 0.3)]
+    rng = np.random.default_rng(seed)
+    for _ in range(int(starts)):
+        candidates.append(np.concatenate([
+            [rng.uniform(lo_e - spread, hi_e + spread)], rng.normal(0, spread, n_a),
+            [rng.uniform(lo_e - spread, hi_e + spread)], rng.normal(0, spread, n_b),
+            [rng.uniform(0, spread)], rng.normal(0, 0.2 * spread, n_v)]))
+    noise = max(1e-4, 0.05 * spread)
+
+    def nearest_misfit(params):
+        lower, upper, *_ = two_band_energies(design, params, n_a, n_b, n_v)
+        near = np.minimum(np.abs(energies - lower), np.abs(energies - upper))
+        own = np.abs(energies - np.where(branch == UPPER, upper, lower))
+        return np.where(fixed, own, near)
+
+    searched = []
+    for start in candidates:
+        try:
+            found = least_squares(nearest_misfit, start, loss="soft_l1",
+                                  f_scale=noise, max_nfev=300).x
+        except ValueError:
+            continue
+        searched.append((float(np.mean(nearest_misfit(found))), found))
+    searched.sort(key=lambda item: item[0])
+    starts_kept = [params for _score, params in searched[:3]] or candidates[:1]
+
+    def assign(params):
+        lower, upper, *_ = two_band_energies(design, params, n_a, n_b, n_v)
+        near = np.where(np.abs(energies - lower) <= np.abs(energies - upper),
+                        LOWER, UPPER)
+        return np.where(fixed, branch, near)
+
+    def residual_of(params, side):
+        lower, upper, *_ = two_band_energies(design, params, n_a, n_b, n_v)
+        return energies - np.where(side == UPPER, upper, lower)
+
+    def run(start):
+        params = start.copy()
+        weights = np.ones(len(energies))
+        side = assign(params)
+        for _round in range(rounds if robust else 3):
+            sw = np.sqrt(weights)
+            result = least_squares(
+                lambda p: sw * residual_of(p, side), params,
+                jac=lambda p: -sw[:, None] * _two_band_jacobian(
+                    design, p, n_a, n_b, n_v, side.astype(float)),
+                method="lm" if len(energies) > n_params else "trf")
+            params = result.x
+            new_side = assign(params)
+            residual = residual_of(params, new_side)
+            new_weights = np.ones(len(energies))
+            if robust:
+                scale = 1.4826 * float(np.median(np.abs(residual - np.median(residual))))
+                if scale > 0:
+                    u = residual / (4.685 * scale)
+                    new_weights = np.where(np.abs(u) < 1, (1 - u ** 2) ** 2, 0.0)
+            done = np.array_equal(new_side, side) and np.allclose(
+                new_weights, weights, atol=1e-4)
+            side, weights = new_side, new_weights
+            if done:
+                break
+        residual = residual_of(params, side)
+        # Ranked by the mean misfit over *every* point: a start that ends by
+        # declaring many points outliers (a flat band through one contour,
+        # say) cannot win by doing so.
+        score = float(np.mean(np.abs(residual)))
+        return score, params, side, weights, residual
+
+    best = min((run(s) for s in starts_kept), key=lambda r: r[0])
+    score, params, side, weights, residual = best
+    # Conventions that do not change the bands: v0 >= 0 (only V^2 enters),
+    # and, when the two have as many shells, band a the lower on average.
+    if params[2 + n_a + n_b] < 0:
+        params[2 + n_a + n_b:] = -params[2 + n_a + n_b:]
+    if n_a == n_b:
+        pa, pb = params[:1 + n_a], params[1 + n_a:2 + 2 * n_a]
+        if np.mean(design[:, :1 + n_a] @ pa) > np.mean(design[:, :1 + n_b] @ pb):
+            params = np.concatenate([pb, pa, params[2 + 2 * n_a:]])
+
+    jac = _two_band_jacobian(design, params, n_a, n_b, n_v, side.astype(float))
+    jw = jac * np.sqrt(weights)[:, None]
+    dof = max(1, len(energies) - n_params)
+    sigma2 = float(np.sum(weights * residual ** 2) / dof)
+    try:
+        errors = np.sqrt(np.clip(np.diag(sigma2 * np.linalg.inv(jw.T @ jw)), 0, None))
+    except np.linalg.LinAlgError:
+        errors = np.full(n_params, np.nan)
+    kept = weights > 0
+    rms = float(np.sqrt(np.mean(residual[kept] ** 2))) if kept.any() else 0.0
+    model = TwoBandFit(vectors, shell_list[:n_a], shell_list[:n_b],
+                       shell_list[:n_v], params, errors, rms, len(energies), side)
+    model.outliers = int(np.sum(~kept)) if robust else 0
+    model.weights = weights
+    model.score = score
+    scaled = jw / np.maximum(np.linalg.norm(jw, axis=0), 1e-300)
+    model.condition = float(np.linalg.cond(scaled))
+    if model.condition > ILL_CONDITIONED:
+        model.warning = (
+            f"The points do not pin down every parameter (condition number "
+            f"{model.condition:.3g}): other bands and couplings describe the "
+            f"same points about as well. Use fewer shells, points at more "
+            f"energies, or points near where the two bands meet.")
+    return model
 
 
 def evaluate(model: TBFit, kx, ky, kz: float = 0.0) -> np.ndarray:
@@ -384,8 +687,11 @@ def evaluate(model: TBFit, kx, ky, kz: float = 0.0) -> np.ndarray:
     return model.energy(np.column_stack(columns)).reshape(gx.shape)
 
 
-def read_points(path: str):
-    """Band points from a CSV (or whitespace) table: ``(k (N, d), E (N,))``.
+def read_points(path: str, with_branch: bool = False):
+    """Band points from a CSV (or whitespace) table: ``(k (N, d), E (N,))``,
+    and with ``with_branch`` a third array: each point's branch, from a
+    ``branch`` or ``band`` column (``lower``/``upper``, -1/+1, or 0 / blank
+    for either), :data:`AUTO` throughout if there is none.
 
     The columns are found by their header -- ``kx``, ``ky``, ``kz`` and an
     energy column ("E", "Energy...", "E - E_F...") -- so the ridge points
@@ -409,12 +715,35 @@ def read_points(path: str):
             return False
 
     header = None if numeric(rows[0]) else [h.strip().lower() for h in rows[0]]
-    data = np.array([[float(v) for v in row] for row in rows[header is not None:]
-                     if numeric(row)], dtype=float)
+    ib = None
+    if header is not None:
+        ib = next((i for i, name in enumerate(header)
+                   if re.match(r"^(branch|band)\b", name)), None)
+
+    def cell(i, value):
+        if i == ib:
+            text = str(value).strip().lower()
+            if text in ("lower", "low", "-1", "-1.0", "l"):
+                return float(LOWER)
+            if text in ("upper", "up", "1", "+1", "1.0", "u"):
+                return float(UPPER)
+            return float(AUTO)
+        return float(value)
+
+    def parse(row):
+        try:
+            return [cell(i, v) for i, v in enumerate(row)]
+        except ValueError:
+            return None
+
+    parsed = [parse(row) for row in rows[header is not None:]]
+    data = np.array([row for row in parsed if row is not None], dtype=float)
     if header is None:
         if data.shape[1] < 3:
             raise ValueError("need at least kx, ky and E columns")
-        return data[:, :-1], data[:, -1]
+        k, energies = data[:, :-1], data[:, -1]
+        return (k, energies, np.zeros(len(energies), dtype=int)) if with_branch \
+            else (k, energies)
 
     def find(pattern):
         for i, name in enumerate(header):
@@ -428,4 +757,8 @@ def read_points(path: str):
         raise ValueError("could not find kx, ky and energy columns in: "
                          + ", ".join(header))
     columns = [ix, iy] + ([iz] if iz is not None else [])
-    return data[:, columns], data[:, ie]
+    if not with_branch:
+        return data[:, columns], data[:, ie]
+    branch = (data[:, ib].astype(int) if ib is not None
+              else np.zeros(len(data), dtype=int))
+    return data[:, columns], data[:, ie], branch

@@ -256,6 +256,62 @@ def test_a_symmetry_that_does_not_fit_the_lattice_is_refused():
     with pytest.raises(ValueError, match="does not map the lattice"):
         TB.lattice_symmetry(np.diag([3.0, 4.0, 5.0]), quarter_turn)
 
+
+def _two_band_points(energies=(-0.3, -0.15, 0.0, 0.1), noise=0.002, seed=1):
+    """Contour points of two hybridised bands on a square lattice: band a
+    with one shell, band b with two, a constant coupling."""
+    vectors = TB.lattice_2d(3.5, 3.5, 90)
+    true = np.array([-0.4, -0.25, 0.3, 0.2, 0.03, 0.06])
+    kx = np.linspace(-0.9, 0.9, 181)
+    grid = np.array(np.meshgrid(kx, kx, indexing="ij")).reshape(2, -1).T
+    lower, upper, *_ = TB.two_band_energies(
+        TB.design_matrix(grid, TB.shells(vectors, 2)), true, 1, 2, 0)
+    rng = np.random.default_rng(seed)
+    k, energy, side = [], [], []
+    for e in energies:
+        for band, label in ((lower, TB.LOWER), (upper, TB.UPPER)):
+            near = np.abs(band - e) < 0.004
+            k.append(grid[near])
+            energy.append(np.full(near.sum(), e) + rng.normal(0, noise, near.sum()))
+            side.append(np.full(near.sum(), label))
+    return (vectors, true, grid, np.vstack(k), np.concatenate(energy),
+            np.concatenate(side))
+
+
+def test_two_hybridised_bands_are_recovered_without_labels():
+    vectors, true, grid, k, energy, side = _two_band_points()
+    fit = TB.fit_two_band(k, energy, vectors, 1, n_shells_b=2, n_hybrid=0)
+    assert fit.params == pytest.approx(true, abs=0.003)
+    assert np.mean(fit.branch == side) > 0.97
+    gap, _where = fit.gap(grid)
+    assert gap == pytest.approx(2 * 0.06, abs=0.004)       # 2|V| at the crossing
+    assert not fit.warning and fit.rms < 0.005
+    names = [row[0] for row in fit.table()]
+    assert names[0] == "e_a" and any(n.startswith("t2_b") for n in names)
+    assert names[-1].startswith("v0")
+    # a few labelled points are honoured, the rest decided by the fit
+    labels = np.where(np.arange(len(side)) % 20 == 0, side, TB.AUTO)
+    labelled = TB.fit_two_band(k, energy, vectors, 1, n_shells_b=2, branch=labels)
+    assert labelled.params == pytest.approx(true, abs=0.003)
+    assert np.all(labelled.branch[labels != TB.AUTO] == side[labels != TB.AUTO])
+
+
+def test_two_bands_need_two_energies_and_enough_points():
+    vectors, _true, _grid, k, energy, _side = _two_band_points(energies=(-0.15,), noise=0.0)
+    with pytest.raises(ValueError, match="two or more energies"):
+        TB.fit_two_band(k, energy, vectors, 1)
+    with pytest.raises(ValueError, match="parameters need at least"):
+        TB.fit_two_band(k[:3], np.array([0.0, 0.1, 0.2]), vectors, 2)
+
+
+def test_branch_column_is_read(tmp_path):
+    path = tmp_path / "pts.csv"
+    path.write_text("kx,ky,E,branch\n0.1,0.2,-0.1,lower\n0.3,0.1,0.0,upper\n"
+                    "0.2,0.2,0.1,\n")
+    k, energy, branch = TB.read_points(str(path), with_branch=True)
+    assert branch.tolist() == [TB.LOWER, TB.UPPER, TB.AUTO]
+    assert len(TB.read_points(str(path))) == 2
+
 def _true_model(azimuth=0.0):
     vectors = TB.rotate(TB.lattice_2d(3.5, 3.5, 90), azimuth)
     return TB.TBFit(vectors, TB.shells(vectors, 2), 0.1, [-0.3, 0.05], 0,

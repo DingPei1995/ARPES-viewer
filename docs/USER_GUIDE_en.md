@@ -1362,11 +1362,32 @@ of the crystal-structure window.
 
 ## 26. Tight-binding fit
 
-> **This fits one band.** The model is a single band on a Bravais lattice
-> (one orbital per site): E(k) = e0 + Σ t_n Σ cos(k·R). It cannot describe
-> two bands, their crossing or a hybridisation gap. With several bands, fit
-> each one on its own and read its hoppings as that band's effective
-> parameters, not as microscopic orbital-to-orbital hoppings.
+> **One band, or two hybridised bands — chosen in step 1 (*Bands*).**
+> **One band** is a single band on a Bravais lattice (one orbital per
+> site): E(k) = e0 + Σ t_n Σ cos(k·R). It cannot describe two bands, their
+> crossing or a hybridisation gap; fit each band on its own and read its
+> hoppings as that band's effective parameters, not as microscopic
+> orbital-to-orbital hoppings.
+>
+> **Two bands, hybridised** fits two such bands, ε_a(k) and ε_b(k), and the
+> coupling V(k) = v0 + Σ v_n S_n(k) between them at once; the measured
+> bands are E± = (ε_a+ε_b)/2 ± √(((ε_a−ε_b)/2)² + V²). Use it for an
+> anticrossing, a hybridisation gap, or a bilayer splitting (t_⊥). V has the
+> lattice's full symmetry (two orbitals of the same parity); an odd
+> coupling such as s–p is not this form.
+
+**Two bands, step by step.** In step 1 set the shells of band a (*Shells
+of neighbours*), of band b (*Shells, band b*) and of the coupling beyond
+v0 (*Coupling shells*, 0 for a constant V). In step 2 trace both bands at
+two or more energies with *New points on* left at *either band*, then
+click a few points of each band with it set to *the lower band* or *the
+upper band* (blue / pink); a points file may carry a `branch` column
+(`lower` / `upper` / blank). In step 3 the fit — nonlinear, started from
+many models and refined — gives band a, band b and v0, v1… with errors,
+draws both bands (red, orange), says which band each point went to, and
+gives the **smallest gap** between the bands and where it is: 2|V| where
+the bare bands cross. *Model to list* holds both bands; *Save parameters*
+writes the three sets of parameters, their shells and the gap.
 
 **Shells are symmetry orbits.** Each hopping t_n belongs to one set of
 neighbours that symmetry makes equivalent: the space group's point group

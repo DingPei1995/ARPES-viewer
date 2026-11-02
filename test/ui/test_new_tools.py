@@ -224,6 +224,43 @@ def test_tight_binding_says_it_fits_one_band_and_uses_the_space_group(app):
     assert [len(v) for _, v in dialog._shells()] == [8, 4]
 
 
+
+def test_tight_binding_fits_two_hybridised_bands_from_a_file(app, tmp_path):
+    from arpes_viewer.ui.panels.tightbinding import TightBindingDialog
+    vectors = TB.lattice_2d(3.5, 3.5, 90)
+    true = np.array([-0.4, -0.25, 0.3, 0.2, 0.03, 0.06])
+    kx = np.linspace(-0.9, 0.9, 151)
+    grid = np.array(np.meshgrid(kx, kx, indexing="ij")).reshape(2, -1).T
+    lower, upper, *_ = TB.two_band_energies(
+        TB.design_matrix(grid, TB.shells(vectors, 2)), true, 1, 2, 0)
+    rows = []
+    for e in (-0.3, -0.15, 0.0, 0.1):
+        for band, label in ((lower, "lower"), (upper, "upper")):
+            near = np.abs(band - e) < 0.004
+            for i, (a, b) in enumerate(grid[near]):
+                rows.append(f"{a},{b},{e},{label if i % 10 == 0 else ''}")
+    path = tmp_path / "two.csv"
+    path.write_text("kx,ky,E,branch\n" + "\n".join(rows))
+    dialog = TightBindingDialog(None)
+    dialog.a2.setValue(3.5)
+    dialog.b2.setValue(3.5)
+    dialog.n_shells.setValue(1)
+    dialog.n_shells_b.setValue(2)
+    assert dialog.read_file(str(path)) == len(rows)
+    assert dialog.two_bands.isChecked()          # the file's labels say so
+    assert dialog.shell_label.text().startswith("Two bands, hybridised")
+    assert dialog.stepper.refresh() == ""
+    model = dialog.run_fit()
+    assert isinstance(model, TB.TwoBandFit)
+    assert model.params == pytest.approx(true, abs=0.01)
+    assert "smallest gap" in dialog.fit_label.text()
+    saved = dialog.parameters()
+    assert saved["model"].startswith("two bands")
+    assert saved["coupling"]["v0_eV"] == pytest.approx(0.06, abs=0.004)
+    assert saved["smallest_gap_eV"] == pytest.approx(0.12, abs=0.008)
+    result = dialog.model_to_list()
+    assert result.kind == "k_map"
+
 def test_tight_binding_from_a_file_alone(app, tmp_path):
     from arpes_viewer.ui.panels.tightbinding import TightBindingDialog
     vectors = TB.lattice_2d(3.0, 3.0, 120)

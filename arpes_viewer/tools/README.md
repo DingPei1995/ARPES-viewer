@@ -65,7 +65,9 @@ What each analysis does and what it assumes. The computations are in this folder
   per axis in its own unit so eV or meV gives the same answer (within
   0.2 meV on a synthetic band). The ridge image to the list, the points to
   a CSV.
-- **Tight-binding fit** (Figure tab) -- **one band**: E(k) = e0 + Σ t_n Σ
+- **Tight-binding fit** (Figure tab) -- **one band**, or **two hybridised
+  bands** (E± from ε_a, ε_b and a coupling V(k), fitted together, with the
+  smallest gap between them): E(k) = e0 + Σ t_n Σ
   cos(k·R) on any 2-D or 3-D lattice (space group first), one hopping per
   symmetry orbit of neighbours (the space group's point group, or the
   lattice's own symmetry), fitted to band points from ridge detection,

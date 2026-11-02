@@ -71,6 +71,23 @@ AI agents of any model can use the program.
   length alone. Each shell is listed with a representative vector
   (⟨1 0 0⟩), and *Save parameters* writes the space group and every shell's
   vectors. Every step now says the model is **one band**.
+- **Tight-binding fit: two hybridised bands** (step 1, *Bands*). Two bands
+  ε_a, ε_b on one lattice and their coupling V(k) = v0 + Σ v_n S_n(k),
+  fitted together to the two eigenvalues E± (`tightbinding.fit_two_band`,
+  `TwoBandFit`): a search from many starting models with each point scored
+  against the nearer band, then refinement with the points assigned and
+  stray ones reweighted. Points can be labelled lower / upper (by clicking,
+  or a `branch` column in a points file); unlabelled ones go to the nearer
+  band. The result gives both bands with errors, the coupling, which band
+  each point went to and the smallest gap (2|V| where the bare bands
+  cross); both bands are drawn, listed as a map and saved.
+- **`loader/nxs_file.py` is split** into `loader/scan.py` (`NxsScan`, the
+  kinds and axis slots, the lazy arrays and file handles),
+  `loader/native.py` (this program's saved format) and
+  `loader/beamlines/antares.py` (the SOLEIL ANTARES reader and loader, which
+  absorbs `beamlines/soleil.py`). Code that imported from `nxs_file`
+  imports from these. The loaders now register on first use rather than
+  when the registry is imported, which also removes an import-order trap.
 - Code comments and docstrings describe each tool by what it does, without
   the comparisons with the MATLAB programs it started from.
 - **The Calculation tab is now "Figure"**: the figure composer at its top
