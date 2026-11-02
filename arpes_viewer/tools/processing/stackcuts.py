@@ -34,8 +34,8 @@ import numpy as np
 
 from arpes_viewer.tools.processing.cutops import axis_unit
 
-__all__ = ["compatibility", "stack_axis", "stack", "axis_label",
-           "kind_for_role"]
+__all__ = ["compatibility", "truncation_plan", "truncated_frames",
+           "stack_axis", "stack", "axis_label", "kind_for_role"]
 
 #: How far two axes may differ, as a fraction of their step, and still be
 #: called the same grid. Readbacks jitter; a real offset does not.
@@ -88,6 +88,114 @@ def compatibility(cuts) -> str:
             if problem:
                 return f"“{name}” does not match “{name0}”: {problem}."
     return ""
+
+
+def _same_axis(first, other) -> bool:
+    first = np.asarray(first, dtype=float)
+    other = np.asarray(other, dtype=float)
+    if first.size != other.size:
+        return False
+    if first.size < 2:
+        return True
+    step = np.median(np.abs(np.diff(first))) or 1.0
+    off = float(np.nanmax(np.abs(first - other)))
+    return bool(np.isfinite(off) and off <= TOLERANCE * step)
+
+
+#: the least share of each cut's range the common range must keep for the
+#: cuts to be a series to stack; less, and they are pieces to join
+MIN_SHARED = 0.5
+
+
+def truncation_plan(cuts, min_shared: float = MIN_SHARED):
+    """How to stack cuts that share one axis but not the other.
+
+    Cuts measured in one series often have the same angles but energy
+    windows a little apart (a photon energy, a work function or a Fermi
+    level that moved between them). They can still be stacked: the axis
+    that differs is cut down to the range every cut covers, and each cut
+    is resampled onto the first cut's points inside it.
+
+    ``cuts`` is as for :func:`compatibility`. Returns ``None`` when the
+    cuts already share both axes (stack them as they are), else a dict:
+    ``slot`` ("x" or "y"), ``index`` (0 or 1), ``values`` (the common
+    points), ``lo``/``hi`` and ``note``. Raises ``ValueError`` saying why
+    when they cannot be stacked even so: both axes differ, the units
+    disagree, or the ranges overlap by less than ``min_shared`` of a cut's
+    own range (pieces of one measurement, to be joined rather than
+    stacked).
+    """
+    if len(cuts) < 2:
+        raise ValueError("Select at least two cuts to combine.")
+    name0, axes0, _v0, labels0 = cuts[0]
+    differing = []
+    for index, (slot, what) in enumerate((("x", "angle / momentum"),
+                                          ("y", "energy"))):
+        for name, axes, _values, labels in cuts[1:]:
+            a, b = axis_unit(labels0.get(slot, "")), axis_unit(
+                labels.get(slot, ""))
+            if a and b and a != b:
+                raise ValueError(f"“{name}”'s {what} axis is in {b}, but "
+                                 f"“{name0}”'s is in {a}.")
+        if not all(_same_axis(axes0[index], axes[index])
+                   for _n, axes, _v, _l in cuts[1:]):
+            differing.append((index, slot, what))
+    if not differing:
+        return None
+    if len(differing) > 1:
+        raise ValueError("both axes differ between the cuts; at least one "
+                         "of them must be the same, point for point.")
+    index, slot, what = differing[0]
+    lo = max(float(np.nanmin(axes[index])) for _n, axes, _v, _l in cuts)
+    hi = min(float(np.nanmax(axes[index])) for _n, axes, _v, _l in cuts)
+    if not hi > lo:
+        raise ValueError(f"the cuts' {what} axes do not overlap: there is no "
+                         f"range all of them cover.")
+    for name, axes, _v, _l in cuts:
+        span = float(np.nanmax(axes[index]) - np.nanmin(axes[index]))
+        if span > 0 and (hi - lo) / span < float(min_shared):
+            raise ValueError(
+                f"the range all the cuts' {what} axes cover ({lo:.4g} to "
+                f"{hi:.4g}) is less than {min_shared:.0%} of “{name}”'s -- "
+                f"pieces of one measurement are joined, not stacked.")
+    reference = np.asarray(axes0[index], dtype=float)
+    step = np.median(np.abs(np.diff(reference))) if reference.size > 1 else 0.0
+    margin = TOLERANCE * step
+    keep = (reference >= lo - margin) & (reference <= hi + margin)
+    values = np.clip(reference[keep], lo, hi)
+    if values.size < 2:
+        raise ValueError(f"the range all the cuts' {what} axes cover "
+                         f"({lo:.4g} to {hi:.4g}) holds fewer than two "
+                         f"points of “{name0}”.")
+    note = (f"The {what} axes differ: every cut is truncated to "
+            f"{values.min():.4g} to {values.max():.4g} -- the range all of "
+            f"them cover -- and resampled onto “{name0}”'s {values.size} "
+            f"points there.")
+    return {"slot": slot, "index": index, "values": values, "lo": lo,
+            "hi": hi, "note": note}
+
+
+def truncated_frames(frames, axes, plan):
+    """Each cut's ``(x, y)`` frame on the plan's common points.
+
+    ``frames`` are the cuts' 2-D arrays and ``axes`` their ``(x, y)``
+    axis pairs; ``plan`` is :func:`truncation_plan`'s. Linear
+    interpolation along the differing axis only.
+    """
+    index = int(plan["index"])
+    target = np.asarray(plan["values"], dtype=float)
+    out = []
+    for frame, pair in zip(frames, axes):
+        frame = np.asarray(frame, dtype=float)
+        source = np.asarray(pair[index], dtype=float)
+        order = np.argsort(source)
+        source = source[order]
+        moved = np.moveaxis(frame, index, -1)[..., order]
+        result = np.empty(moved.shape[:-1] + (target.size,))
+        for row in np.ndindex(moved.shape[:-1]):
+            result[row] = np.interp(target, source, moved[row])
+        out.append(np.moveaxis(result, -1, index))
+    return out
 
 
 def stack_axis(count: int, start: float, step: float) -> np.ndarray:

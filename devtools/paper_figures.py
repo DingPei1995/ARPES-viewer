@@ -141,12 +141,16 @@ def crystal_pictures(folder, size=900):
     dialog.scale_box.setValue(0.5)
     dialog.view.camera.azimuth, dialog.view.camera.elevation = -62.0, 12.0
     crystal = _trim(_qimage_array(dialog.view.render_image(size, int(size * 1.25))))
-    dialog.stepper.go(3)
-    dialog.path_edit.setText("Γ-M-K-Γ-A-L-H-A")
-    dialog._zone_changed()
-    dialog.view.camera.azimuth, dialog.view.camera.elevation = -32.0, 16.0
-    dialog.view.font_px = 30
-    zone = _trim(_qimage_array(dialog.view.render_image(size, size)))
+    from arpes_viewer.ui.panels.bz3d import BrillouinZone3DDialog
+    zone_dialog = BrillouinZone3DDialog()
+    zone_dialog.read_cif(os.path.join(folder, "demo_crystal.cif"))
+    zone_dialog.add_plane((0, 0, 1), 0.5)
+    zone_dialog.path_rows[0].edit.setText("Γ-M-K-Γ-A-L-H-A")
+    zone_dialog.refresh()
+    zone_dialog.view.camera.azimuth, zone_dialog.view.camera.elevation = -32.0, 16.0
+    zone_dialog.view.font_px = 30
+    zone = _trim(_qimage_array(zone_dialog.view.render_image(size, size)))
+    zone_dialog.close()
     return crystal, zone
 
 

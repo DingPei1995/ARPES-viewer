@@ -2,7 +2,7 @@
 
 *[English version](USER_GUIDE_en.md) · [中文版](USER_GUIDE_zh.md)*
 
-*Dernière mise à jour : 30 octobre 2026 — pour ARPES viewer v1.2.3*
+*Dernière mise à jour : 2 novembre 2026 — pour ARPES viewer v1.2.4*
 
 La version et sa date figurent dans la barre de titre et en bas de la fenêtre
 principale. Signaler un bogue, poser une question, obtenir la dernière version :
@@ -266,7 +266,39 @@ et **Auto Exp. log** côte à côte (voir [le journal d'expérience](#le-journal
 **Rename**, **Save** et **Remove** sur une ligne, **Sum repeated scans...**
 et **Session log...**. Ses boutons se grisent comme les outils.
 
-### Où se trouvent les choses maintenant (v1.2.3)
+### Ce qui change en v1.2.4
+
+- **k conversion (map) / (cut)** : l'*Energy offset* est derrière une case à
+  cocher, décochée par défaut (ce n'est pas le niveau de Fermi : seulement
+  pour un axe qui n'est pas une vraie énergie cinétique). Une ligne au-dessus,
+  **Energy axis as E − E_F** (décochée par défaut), donne au résultat un axe
+  E − E_F, avec E_F tel qu'il est sur l'axe du jeu de données ; les moments
+  ne changent pas.
+- **Vues 3-D** (3D slices, Notched cube...) d'une carte k : les plans vides
+  aux bords de k_x / k_y sont retirés, la vue commence au premier plan rempli
+  (*Change sampling... → Whole range* rend tout).
+- **Slice series figure** : la figure d'une carte non affichée (une carte k,
+  souvent) n'est plus refermée aussitôt faite.
+- **Combine...** : *Sum repeated scans* (autrefois dans le cadre Datasets)
+  en est la troisième façon ; des coupes dont un axe est identique sont
+  empilées même si l'autre (souvent l'énergie) diffère : il est d'abord
+  tronqué à la plage commune.
+- **Liste** : une recherche au-dessus (seules les lignes contenant les mots
+  tapés restent affichées) ; clic droit → **Sort by name**, **Sort by data
+  type**.
+- **Crystal structure** : saisie d'abord du groupe d'espace, qui contraint
+  les paramètres de maille ; **Read a CIF file...** est un bouton et remplit
+  le tout ; les CIF à plusieurs blocs (FullProf) sont lus ; « From the
+  Brillouin-zone tool » disparaît.
+- **3D BZ...** (Basic) : la zone de Brillouin en 3-D, qui était l'étape 4 de
+  Crystal structure, avec autant de plans (**Add a plane in 3D BZ**) et de
+  chemins colorés (**Add path**) que voulu, et l'envoi au composeur de
+  figures. L'ancien **Brillouin zone...** s'appelle **BZ overlap...**.
+- **Tight-binding fit** : le réseau 3-D se saisit aussi groupe d'espace
+  d'abord.
+- **Figure composer...** passe dans l'onglet Basic.
+
+### Où se trouvent les choses maintenant (v1.2.4)
 
 Pour qui a utilisé une version antérieure : les outils ont quitté le menu
 contextuel et les menus *Functions* des fenêtres pour le panneau d'outils ;
@@ -278,7 +310,9 @@ chacun a ainsi une seule entrée, toujours visible.
 | Panneau → Basic → **Remove detector grid...** | fenêtre *Functions → Remove detector grid* |
 | Panneau → Basic → **k conversion (cut)** / **(map)**, **kz conversion** | fenêtre *Functions → Convert to momentum* |
 | Panneau → Basic → **Align Fermi levels (kz)...** | fenêtre *Functions → Align Fermi levels (kz map)* |
-| Panneau → Basic → **Brillouin zone...** | carte k *Functions → Brillouin zone* |
+| Panneau → Basic → **BZ overlap...** | **Brillouin zone...** (v1.2.3) ; carte k *Functions → Brillouin zone* |
+| Panneau → Basic → **3D BZ...** | Crystal structure, étape 4 *Brillouin zone* |
+| **Combine...** → *Sum repeated scans* | cadre Datasets → **Sum repeated scans...** (v1.2.3) |
 | Panneau → Basic → **Core-level check...** | clic droit → Core-level check |
 | Panneau → Basic/Advanced → **Background subtraction**, **Smooth**, **Second derivative**, **Curvature**, **Symmetrise** (une fenêtre chacun) | **Smooth / derivative...** (une fenêtre à onglets) |
 | **Truncate...**, **Compress...**, **Self-normalise...** sous la liste | **Crop / bin / normalise...** |
@@ -286,7 +320,7 @@ chacun a ainsi une seule entrée, toujours visible.
 | Panneau → Advanced → **Cut arithmetic (two cuts)** | clic droit / fenêtre *Functions → Cut arithmetic* |
 | Panneau → Advanced → **Slice series figure...** | carte *Functions → Multi-slice figure* |
 | Panneau → Advanced → **3D slices**, **Notched cube**, **Volume projection** | clic droit → 3D view (une fenêtre, trois modes) |
-| Panneau → Advanced → **Figure composer...** | clic droit → Open in figure composer |
+| Panneau → Basic → **Figure composer...** | Panneau → Advanced (v1.2.3) ; clic droit → Open in figure composer |
 | Clic droit → **Open scan-axis cut**, bouton **Scan-axis cut** | Open deflector cut, Deflector cut |
 | Cadre Memory → **Free RAM**, **Close all**, **Autosaves** (une ligne) | sous la liste ; puis Free memory, Close all viewers, Open auto-save folder |
 | Cadre Datasets → **Experiment info** | clic droit → Show information |
@@ -1569,7 +1603,7 @@ et, pour finir, deux figures construites pas à pas.
 
 ## 28. Le composeur de figures
 
-Panneau → Advanced → **Figure composer...** **sans rien sélectionner** ouvre
+Panneau → Basic → **Figure composer...** **sans rien sélectionner** ouvre
 une page vierge, comme une figure d'article : quatre panneaux vides (a),
 (b), (c), (d) à la largeur de colonne d'une revue. Avec des coupes (ou des
 courbes) sélectionnées, chacune devient un panneau (de même pour le bouton

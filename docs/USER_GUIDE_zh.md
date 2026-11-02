@@ -2,7 +2,7 @@
 
 *[English version / 英文版](USER_GUIDE_en.md) · [Version française / 法文版](USER_GUIDE_fr.md)*
 
-*最后更新：2026 年 10 月 30 日——对应 ARPES viewer v1.2.3*
+*最后更新：2026 年 11 月 2 日——对应 ARPES viewer v1.2.4*
 
 程序的版本号和更新日期显示在主窗口标题栏和主窗口最下方。报告 bug、提问或获取最新版本：
 <https://github.com/DingPei1995/ARPES-viewer>（报告 bug 时请注明版本号）。
@@ -216,7 +216,27 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 同一行的 **Rename**、**Save**、**Remove**，以及 **Sum repeated scans...** 和
 **Session log...**。这些按钮和工具按钮一样，会随选择变灰。
 
-### 功能现在的位置（v1.2.3）
+### v1.2.4 的变化
+
+- **k conversion (map) / (cut)**：*Energy offset* 改为勾选框控制，默认关闭（它不是费米能级，
+  只在能量轴不是真正的动能时才需要）；其上方新增一行 **Energy axis as E − E_F**（默认关闭），
+  勾选后输入 E_F 在该数据能量轴上的位置，输出数据的能量轴即为 E − E_F，动量不受影响。
+- **3D slices、Notched cube 等 3-D 视图**：对 k map 自动截掉 k_x / k_y 两侧的空白边界，
+  从第一个充满数据的平面开始显示（*Change sampling... → Whole range* 可恢复全部范围）。
+- **Slice series figure**：修复了对未打开的 map（如 k map）点击 *Make the figure* 后窗口关闭却不出图的问题。
+- **Combine...**：合并了原 Datasets 区的 *Sum repeated scans*（作为第三种方式）；
+  堆叠 cut 时，只要一个轴完全相同，另一个轴（通常是能量窗口略有差异）会先截取到共同范围再合并。
+- **数据列表**：上方新增搜索框（输入关键词，只显示匹配的行）；右键新增 **Sort by name**、**Sort by data type**。
+- **Crystal structure**：默认手动输入，先输入空间群，再按对称性限制晶格常数和角度；
+  *Read a CIF file...* 改为按钮，读取后自动刷新晶格；修复了含多个 data block 的 CIF（如 FullProf 输出）无法读取的问题；
+  取消 “From the Brillouin-zone tool”。
+- **3D BZ...**（Basic）：原 Crystal structure 第 4 步的布里渊区独立成工具；可添加多个平面
+  （**Add a plane in 3D BZ**，各自 hkl、高度、颜色）和多段不同颜色的路径（**Add path**），可输出到作图器。
+  原 **Brillouin zone...** 更名为 **BZ overlap...**。
+- **Tight-binding fit** 的 3-D 晶格：同样先输入空间群，再按对称性限制晶格参数。
+- **Figure composer...** 移到 Basic 标签页。
+
+### 功能现在的位置（v1.2.4）
 
 如果你用过早期版本：工具已从右键菜单和查看窗口的 *Functions* 菜单移到了工具面板，
 每个工具只有一个入口，且始终可见。
@@ -227,7 +247,9 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 | 工具面板 → Basic → **Remove detector grid...** | 查看窗口 *Functions → Remove detector grid* |
 | 工具面板 → Basic → **k conversion (cut)** / **(map)**、**kz conversion** | 查看窗口 *Functions → Convert to momentum* |
 | 工具面板 → Basic → **Align Fermi levels (kz)...** | 查看窗口 *Functions → Align Fermi levels (kz map)* |
-| 工具面板 → Basic → **Brillouin zone...** | k-map 窗口 *Functions → Brillouin zone* |
+| 工具面板 → Basic → **BZ overlap...** | **Brillouin zone...**（v1.2.3）；k-map 窗口 *Functions → Brillouin zone* |
+| 工具面板 → Basic → **3D BZ...** | Crystal structure 第 4 步 *Brillouin zone* |
+| **Combine...** → *Sum repeated scans* | Datasets 区 → **Sum repeated scans...**（v1.2.3） |
 | 工具面板 → Basic → **Core-level check...** | 右键 → Core-level check |
 | 工具面板 → Basic/Advanced → **Background subtraction**、**Smooth**、**Second derivative**、**Curvature**、**Symmetrise**（各自独立窗口） | **Smooth / derivative...**（一个带标签页的窗口） |
 | 列表下方的 **Truncate...**、**Compress...**、**Self-normalise...** | **Crop / bin / normalise...** |
@@ -235,7 +257,7 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 | 工具面板 → Advanced → **Cut arithmetic (two cuts)** | 右键 / 查看窗口 *Functions → Cut arithmetic* |
 | 工具面板 → Advanced → **Slice series figure...** | map 窗口 *Functions → Multi-slice figure* |
 | 工具面板 → Advanced → **3D slices**、**Notched cube**、**Volume projection** | 右键 → 3D view（一个窗口三种模式） |
-| 工具面板 → Advanced → **Figure composer...** | 右键 → Open in figure composer |
+| 工具面板 → Basic → **Figure composer...** | 工具面板 → Advanced（v1.2.3）；右键 → Open in figure composer |
 | 右键 → **Open scan-axis cut**，查看窗口按钮 **Scan-axis cut** | Open deflector cut、Deflector cut |
 | Memory 区 → **Free RAM**、**Close all**、**Autosaves**（同一行） | 列表下方；后为 Free memory、Close all viewers、Open auto-save folder |
 | Datasets 区 → **Experiment info** | 右键 → Show information |
@@ -1238,7 +1260,7 @@ E_F）。
 
 ## 28. 作图器（Figure composer）
 
-**不选中任何数据**时，工具面板 → Advanced → **Figure composer...** 打开一张空白画板，
+**不选中任何数据**时，工具面板 → Basic → **Figure composer...** 打开一张空白画板，
 就像论文中的一张图：按期刊栏宽排好四个空面板 (a)、(b)、(c)、(d)。选中若干 cut（或
 曲线）时，每个数据集成为一个面板（冻结切片窗口的 **Figure composer...** 按钮同理；
 堆叠图和三维视图各有自己的 **To figure composer** 按钮）。

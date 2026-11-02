@@ -210,18 +210,24 @@ class Shots:
         crystal.lengths_box.setChecked(True)
         crystal.view.camera.azimuth, crystal.view.camera.elevation = -68.0, 14.0
         shot(crystal, "crystal_structure", (1180, 760))
-        crystal.read_cif(os.path.join(folder, "demo_crystal.cif"))
-        crystal.stepper.go(3)
-        crystal.path_edit.setText("K-H")
-        crystal.zone_left_edit.setText("L, M")
-        for (box, _h, _c, source, energy), name, e in zip(
-                crystal.plane_rows, ("Γ-plane map", "A-plane map"), (-0.65, -0.55)):
-            source.setCurrentText(name)
-            energy.setValue(e)
-        crystal._zone_changed()
-        crystal.view.camera.azimuth, crystal.view.camera.elevation = -28.0, 22.0
-        shot(crystal, "crystal_zone", (1180, 760))
         crystal.close()
+        # the 3-D zone (Basic -> 3D BZ), with the maps on its planes
+        from arpes_viewer.ui.panels.bz3d import BrillouinZone3DDialog
+        zone = BrillouinZone3DDialog(datasets=[(n, d) for n, d in datasets
+                                               if d.kind == "k_map"],
+                                     colormap="blue", flip=True)
+        zone.read_cif(os.path.join(folder, "demo_crystal.cif"))
+        zone.add_plane((0, 0, 1), 0.5)
+        zone.path_rows[0].edit.setText("K-H")
+        zone.left_edit.setText("L, M")
+        for row, name, e in zip(zone.plane_rows, ("Γ-plane map", "A-plane map"),
+                                (-0.65, -0.55)):
+            row.map_combo.setCurrentText(name)
+            row.energy_box.setValue(e)
+        zone.refresh()
+        zone.view.camera.azimuth, zone.view.camera.elevation = -28.0, 22.0
+        shot(zone, "crystal_zone", (1180, 760))
+        zone.close()
         # the calculated bands: along the path, and against a cut
         bands = P.bands_window(folder, datasets)
         bands.stepper.go(1)

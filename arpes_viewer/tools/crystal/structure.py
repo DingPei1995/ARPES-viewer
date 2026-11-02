@@ -119,6 +119,10 @@ class Structure:
     space_group: str = ""
     #: the International Tables number, when known (a CIF's, or typed)
     space_group_number: int = 0
+    #: a CIF's asymmetric unit and its symmetry operations ``[(W, t)]``,
+    #: from which ``atoms`` were made; empty when typed in
+    sites: list = field(default_factory=list)
+    operations: list = field(default_factory=list)
 
     def lattice_params(self):
         """The cell as :class:`tools.crystal.lattice.LatticeParams`, with the
@@ -284,44 +288,77 @@ def _cif_number(text) -> float:
 
 
 def _tokens(line: str):
-    return [t[1:-1] if len(t) > 1 and t[0] == t[-1] and t[0] in "'\"" else t
-            for t in re.findall(r"'[^']*'|\"[^\"]*\"|\S+", line)]
+    """A CIF line's tokens, quotes taken off; a ``#`` outside quotes starts
+    a comment, which is dropped."""
+    out = []
+    for t in re.findall(r"'[^']*'|\"[^\"]*\"|\S+", line):
+        if t.startswith("#"):
+            break
+        out.append(t[1:-1] if len(t) > 1 and t[0] == t[-1] and t[0] in "'\""
+                   else t)
+    return out
 
 
-def parse_cif(text: str) -> Structure:
-    """The first data block of a CIF: cell, symmetry operations and atom
-    sites, the sites expanded by the operations into the full cell."""
+def _cif_blocks(text: str):
+    """Every data block of a CIF as ``(values, loops)``.
+
+    ``values`` maps each lower-cased tag to its text; ``loops`` is
+    ``[(names, rows)]``. Text fields between ``;`` lines are read whole,
+    so a line in them that looks like a tag or a ``loop_`` is not taken
+    for one.
+    """
+    blocks = []
     values, loops = {}, []
     lines = text.splitlines()
+
+    def text_field(i):
+        """The ``;`` field starting at line ``i``: (its text, next line)."""
+        block = [lines[i][1:]]
+        i += 1
+        while i < len(lines) and not lines[i].startswith(";"):
+            block.append(lines[i])
+            i += 1
+        return "\n".join(block).strip(), i + 1
+
     i = 0
     while i < len(lines):
         line = lines[i].strip()
         if not line or line.startswith("#"):
             i += 1
             continue
-        if line.lower().startswith("data_") and values:
-            break                                  # the next block
-        if line.lower() == "loop_":
+        if line.lower().startswith("data_"):
+            if values or loops:
+                blocks.append((values, loops))
+            values, loops = {}, []
+            i += 1
+            continue
+        if lines[i].startswith(";"):                 # a stray text field
+            _, i = text_field(i)
+            continue
+        if line.lower().startswith("loop_"):
             names, rows = [], []
             i += 1
-            while i < len(lines) and lines[i].strip().startswith("_"):
-                names.append(lines[i].strip().split()[0].lower())
-                i += 1
+            while i < len(lines):
+                stripped = lines[i].strip()
+                if stripped.startswith("_"):
+                    names.append(stripped.split()[0].lower())
+                    i += 1
+                elif not stripped or stripped.startswith("#"):
+                    i += 1
+                else:
+                    break
             tokens = []
             while i < len(lines):
                 stripped = lines[i].strip()
-                if (not stripped or stripped.startswith("_")
-                        or stripped.lower() == "loop_"
+                if (stripped.startswith("_")
+                        or stripped.lower().startswith("loop_")
                         or stripped.lower().startswith("data_")):
                     break
-                if stripped.startswith(";"):
-                    i += 1
-                    while i < len(lines) and not lines[i].startswith(";"):
-                        i += 1
-                    i += 1
-                    tokens.append("")
+                if lines[i].startswith(";"):
+                    field, i = text_field(i)
+                    tokens.append(field)
                     continue
-                if not stripped.startswith("#"):
+                if stripped and not stripped.startswith("#"):
                     tokens.extend(_tokens(stripped))
                 i += 1
             for start in range(0, len(tokens) - len(names) + 1, max(1, len(names))):
@@ -333,17 +370,54 @@ def parse_cif(text: str) -> Structure:
             key = parts[0].lower()
             if len(parts) > 1:
                 values[key] = " ".join(parts[1:])
-            elif i + 1 < len(lines) and lines[i + 1].startswith(";"):
-                i += 2
-                block = []
-                while i < len(lines) and not lines[i].startswith(";"):
-                    block.append(lines[i])
-                    i += 1
-                values[key] = "\n".join(block)
-            elif i + 1 < len(lines):
                 i += 1
-                values[key] = " ".join(_tokens(lines[i].strip()))
+                continue
+            # the value is on the next line that holds anything
+            j = i + 1
+            while j < len(lines) and (not lines[j].strip()
+                                      or lines[j].strip().startswith("#")):
+                j += 1
+            if j < len(lines) and lines[j].startswith(";"):
+                values[key], i = text_field(j)
+                continue
+            if j < len(lines) and not lines[j].strip().startswith("_") \
+                    and not lines[j].strip().lower().startswith(("loop_", "data_")):
+                values[key] = " ".join(_tokens(lines[j].strip()))
+                i = j + 1
+                continue
+            values[key] = ""
         i += 1
+    if values or loops:
+        blocks.append((values, loops))
+    return blocks
+
+
+def _structure_block(blocks):
+    """The block that describes a structure: the first with a cell and
+    atom sites (a FullProf CIF opens on a ``data_global`` block of journal
+    fields, with the structure in the next one), else the first with a
+    cell."""
+    def has_sites(loops):
+        return any("_atom_site_fract_x" in names for names, _ in loops)
+    for values, loops in blocks:
+        if "_cell_length_a" in values and has_sites(loops):
+            return values, loops
+    for values, loops in blocks:
+        if "_cell_length_a" in values:
+            return values, loops
+    return blocks[0] if blocks else ({}, [])
+
+
+def _cif_text(value) -> str:
+    """A CIF value as text, the "unknown" marks ``?`` and ``.`` as ""."""
+    value = str(value or "").strip()
+    return "" if value in ("?", ".") else value
+
+
+def parse_cif(text: str) -> Structure:
+    """The structure's data block of a CIF: cell, symmetry operations and
+    atom sites, the sites expanded by the operations into the full cell."""
+    values, loops = _structure_block(_cif_blocks(text))
 
     def number(key, default=None):
         if key not in values:
@@ -357,12 +431,12 @@ def parse_cif(text: str) -> Structure:
                           number("_cell_angle_alpha", 90.0),
                           number("_cell_angle_beta", 90.0),
                           number("_cell_angle_gamma", 90.0))
-    structure.name = (values.get("_chemical_formula_sum")
-                      or values.get("_chemical_name_systematic") or "").strip()
-    structure.space_group = (values.get("_symmetry_space_group_name_h-m")
-                             or values.get("_space_group_name_h-m_alt") or "").strip()
-    number = (values.get("_space_group_it_number")
-              or values.get("_symmetry_int_tables_number") or "")
+    structure.name = (_cif_text(values.get("_chemical_formula_sum"))
+                      or _cif_text(values.get("_chemical_name_systematic")))
+    structure.space_group = (_cif_text(values.get("_symmetry_space_group_name_h-m"))
+                             or _cif_text(values.get("_space_group_name_h-m_alt")))
+    number = (_cif_text(values.get("_space_group_it_number"))
+              or _cif_text(values.get("_symmetry_int_tables_number")))
     structure.space_group_number = (space_group_number(number)
                                     or space_group_number(structure.space_group))
 
@@ -398,6 +472,8 @@ def parse_cif(text: str) -> Structure:
         raise ValueError("the CIF lists no atom sites with fractional "
                          "coordinates")
     structure.atoms = expand(sites, operations)
+    structure.sites = list(sites)
+    structure.operations = list(operations)
     if not structure.name:
         structure.name = structure.formula()
     return structure

@@ -13,6 +13,11 @@ right-click menu) with several datasets selected. Two ways to combine:
   gets shown beside its name, so the order and the values are checked
   together. For a stack the launcher first asks whether to keep the
   list's order; if not, the cuts can be dragged into the order wanted.
+  Cuts that share one axis but not the other (an energy window that
+  moved between them) are stacked too: the other axis is truncated to the
+  range they all cover first.
+- **Sum repeated scans**: hands the selection to the repeated-scans window
+  (:mod:`ui.panels.repeats`), which checks and sums them.
 - **Join** (cuts, maps, kz maps, k-maps): the pieces are put end to end
   along one of their own axes -- a map's deflector range taken in two
   scans, a kz map's photon-energy range split over two runs, a cut's
@@ -65,7 +70,8 @@ class CombineCutsDialog(QDialog):
 
     def __init__(self, names, reorder: bool = False, parent=None, *,
                  pieces=None, can_stack: bool = True, stack_problem: str = "",
-                 mode: str = None):
+                 mode: str = None, stack_note: str = "",
+                 can_sum: bool = False):
         super().__init__(parent)
         self.setWindowTitle("Combine datasets")
         self.names = list(names)
@@ -86,26 +92,41 @@ class CombineCutsDialog(QDialog):
             "their own axes: a map's deflector range scanned in parts, a kz "
             "map's photon energies split over runs, a cut's energy window "
             "in two halves.")
-        for radio in (self.stack_radio, self.join_radio):
+        # Summing repeats was a button of its own in the Datasets box; it is
+        # one more way of making one dataset of several, so it is here.
+        self.sum_radio = QRadioButton(
+            "Sum repeated scans (the same measurement taken again and again)")
+        self.sum_radio.setToolTip(
+            "Add up a measurement taken in several batches. The next window "
+            "checks the scans really are repeats, shows how each differs "
+            "from the rest, can line up a drifting energy scale, and lets "
+            "late scans of an ageing sample be left out.")
+        for radio in (self.stack_radio, self.join_radio, self.sum_radio):
             radio.setStyleSheet("QRadioButton { padding: 2px; }")
         self.mode_group = QButtonGroup(self)
         self.mode_group.addButton(self.stack_radio)
         self.mode_group.addButton(self.join_radio)
+        self.mode_group.addButton(self.sum_radio)
         how = QGroupBox("How to combine")
         how_layout = QVBoxLayout(how)
         how_layout.addWidget(self.stack_radio)
         how_layout.addWidget(self.join_radio)
-        self.stack_note = QLabel(stack_problem)
+        how_layout.addWidget(self.sum_radio)
+        self.stack_note = QLabel(stack_problem or stack_note)
         self.stack_note.setWordWrap(True)
-        self.stack_note.setVisible(bool(stack_problem))
+        self.stack_note.setVisible(bool(stack_problem or stack_note))
         how_layout.addWidget(self.stack_note)
         layout.addWidget(how)
         self.stack_radio.setEnabled(can_stack and not stack_problem)
+        self.stack_radio.setVisible(can_stack)
         self.join_radio.setEnabled(self.pieces is not None)
-        how.setVisible(can_stack and self.pieces is not None)
+        self.sum_radio.setEnabled(bool(can_sum))
+        self.sum_radio.setVisible(bool(can_sum))
+        how.setVisible(self.pieces is not None and (can_stack or can_sum))
         if mode is None:
             mode = "stack" if self.stack_radio.isEnabled() else "join"
-        (self.stack_radio if mode == "stack" else self.join_radio).setChecked(True)
+        {"stack": self.stack_radio, "join": self.join_radio,
+         "sum": self.sum_radio}[mode].setChecked(True)
 
         # -- the new axis of a stack -------------------------------------------
         self.stack_page = QWidget()
@@ -159,6 +180,15 @@ class CombineCutsDialog(QDialog):
         self.join_summary.setWordWrap(True)
         join_form.addRow(self.join_summary)
         layout.addWidget(self.join_page)
+
+        # -- summing repeats: the checks are the next window's -----------------
+        self.sum_page = QLabel(
+            "<b>Combine</b> opens the repeated-scans window: it checks the "
+            "selected datasets are one measurement on one grid, gives each "
+            "scan's χ² against the others, can line up a drifting energy "
+            "scale, and sums the scans you keep.")
+        self.sum_page.setWordWrap(True)
+        layout.addWidget(self.sum_page)
 
         # -- the order ---------------------------------------------------------
         layout.addWidget(QLabel(
@@ -214,16 +244,20 @@ class CombineCutsDialog(QDialog):
 
     # -- how -------------------------------------------------------------------
     def mode(self) -> str:
+        if self.sum_radio.isChecked():
+            return "sum"
         return "stack" if self.stack_radio.isChecked() else "join"
 
     def set_mode(self, mode: str):
-        (self.stack_radio if mode == "stack" else self.join_radio).setChecked(True)
+        {"stack": self.stack_radio, "join": self.join_radio,
+         "sum": self.sum_radio}[mode].setChecked(True)
         self._mode_changed()
 
     def _mode_changed(self, *_):
-        stacking = self.mode() == "stack"
-        self.stack_page.setVisible(stacking)
-        self.join_page.setVisible(not stacking)
+        mode = self.mode()
+        self.stack_page.setVisible(mode == "stack")
+        self.join_page.setVisible(mode == "join")
+        self.sum_page.setVisible(mode == "sum")
         self._show_values()
 
     def join_axis(self) -> int:
@@ -292,6 +326,12 @@ class CombineCutsDialog(QDialog):
         if self.mode() == "join":
             self._show_join()
             return
+        if self.mode() == "sum":
+            self.buttons.button(QDialogButtonBox.Ok).setEnabled(True)
+            for row in range(self.list.count()):
+                item = self.list.item(row)
+                item.setText(self.names[item.data(Qt.UserRole)])
+            return
         unit = self.unit.text().strip()
         ok = self.step.value() != 0
         self.buttons.button(QDialogButtonBox.Ok).setEnabled(ok)
@@ -327,11 +367,16 @@ class CombineCutsDialog(QDialog):
         self.join_summary.setText(text)
 
 
-def combined_dataset(cuts, order, role, name, unit, values, label):
+def combined_dataset(cuts, order, role, name, unit, values, label,
+                     truncation=None):
     """The stacked cube as a dataset for the list.
 
     ``cuts`` is ``[(name, data), ...]`` in the list's order, already checked
-    with :func:`tools.processing.stackcuts.compatibility`; ``order`` indexes it.
+    with :func:`tools.processing.stackcuts.compatibility` -- or, for cuts
+    that share one axis only, with
+    :func:`tools.processing.stackcuts.truncation_plan`, whose plan is
+    ``truncation``: the other axis is cut to the range all of them cover.
+    ``order`` indexes it.
     """
     ordered = [cuts[i] for i in order]
     first = ordered[0][1]
@@ -341,22 +386,34 @@ def combined_dataset(cuts, order, role, name, unit, values, label):
     kind = stackcuts.kind_for_role(role, angle_label)
     new_labels = {"x": stackcuts.axis_label(name, unit), "k": angle_label,
                   "z": labels.get("y", "Energy (eV)")}
-    cube = stackcuts.stack([data.cut_frame for _, data in ordered])
+    frames = [data.cut_frame for _, data in ordered]
+    x_axis = np.asarray(scan.x, dtype=float)
+    y_axis = np.asarray(scan.y, dtype=float)
+    if truncation is not None:
+        frames = stackcuts.truncated_frames(
+            frames, [(data.scan.x, data.scan.y) for _, data in ordered],
+            truncation)
+        if truncation["index"] == 0:
+            x_axis = np.asarray(truncation["values"], dtype=float)
+        else:
+            y_axis = np.asarray(truncation["values"], dtype=float)
+    cube = stackcuts.stack(frames)
     members = [n for n, _ in ordered]
     parameters = {"axis_role": role, "axis_name": name, "axis_unit": unit,
                   "axis_start": float(values[0]),
                   "axis_step": float(values[1] - values[0])
                   if len(values) > 1 else 0.0,
                   "members": members}
+    if truncation is not None:
+        parameters["truncated_axis"] = truncation["slot"]
+        parameters["truncated_range"] = f"{truncation['lo']:.6g} to {truncation['hi']:.6g}"
     info = P.record_step(dict(scan.info or {}),
                          P.Step("combine_cuts", {"n": len(members),
                                                  "axis": name},
                                 source=", ".join(members)))
     info["axis0.role"] = role
     info["combine.axis_values"] = np.asarray(values, dtype=float)
-    return MemoryData(kind, (np.asarray(values, dtype=float),
-                             np.asarray(scan.x, dtype=float),
-                             np.asarray(scan.y, dtype=float)),
+    return MemoryData(kind, (np.asarray(values, dtype=float), x_axis, y_axis),
                       cube, new_labels, source_label=label,
                       parameters=parameters, prefix="combine",
                       source_path=getattr(first, "path", ""),

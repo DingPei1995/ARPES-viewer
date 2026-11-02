@@ -98,6 +98,8 @@ RULES = {
                 "a cut, or a map or kz map before its k conversion"),
     # Not about a dataset.
     "lattice": ("none", "all", ""),
+    # The zone needs only a cell; k-maps selected can lie on its planes.
+    "bz3d": ("none", "all", ""),
     "remove": ("any", "all", "datasets"),
     "log": ("none", "all", ""),
     # Setting the log up needs no selection; logging logs the selection.

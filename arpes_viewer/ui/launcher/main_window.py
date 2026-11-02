@@ -119,6 +119,18 @@ class Ui_MainWindow:
         self.OpenHint.setWordWrap(True)
         menu_layout.addWidget(self.OpenHint)
 
+        # -- a search over the list: with many scans of a beamtime listed,
+        # typing part of a name is quicker than scrolling for it. Rows that
+        # do not match are hidden, not removed.
+        self.ListSearchLE = QtWidgets.QLineEdit(self.centralwidget)
+        self.ListSearchLE.setPlaceholderText(
+            "Search the list (keywords in the name or kind, e.g. 'map 80K')")
+        self.ListSearchLE.setClearButtonEnabled(True)
+        self.ListSearchLE.setToolTip(
+            "Show only the rows whose name or kind holds every word typed "
+            "(any case). Clear it to show them all again.")
+        menu_layout.addWidget(self.ListSearchLE)
+
         # A plain list, not icons: the data kind is spelled out after each
         # name, which is more informative than a thumbnail and costs nothing
         # to produce -- building thumbnails meant fully loading every file.
@@ -354,10 +366,12 @@ class Ui_MainWindow:
 #: action names are list_actions' and ARPES_viewer.run_list_action()'s.
 LIST_OPERATIONS = (
     ("combine", "Combine...",
-     "Join or stack the selected datasets into one: cuts into a map along an "
-     "axis of your own (temperature, gate voltage, photon energy...), or the "
-     "pieces of a map or kz map measured in segments back into one. Two or "
-     "more datasets of one kind."),
+     "Join, stack or sum the selected datasets into one: cuts into a map "
+     "along an axis of your own (temperature, gate voltage, photon "
+     "energy...) -- cuts whose energy windows differ are truncated to the "
+     "range they share -- the pieces of a map or kz map measured in "
+     "segments back into one, or repeated scans of one measurement summed. "
+     "Two or more datasets of one kind."),
     ("truncate", "Truncate...",
      "Crop the selected datasets to a range on each axis, by value or by "
      "index. Several at once, if they have the same kind and axis lengths."),
@@ -396,12 +410,6 @@ DATASET_ACTIONS = (
     ("remove", "Remove",
      "Remove the selected rows from the list (after asking). Files on disk "
      "are not deleted."),
-    ("sumrepeat", "Sum repeated scans...",
-     "Add up a measurement taken in several batches -- the same fine cut or "
-     "fine map acquired again and again, so a slowly ageing sample can be "
-     "seen and its late scans left out. Checks the scans really are "
-     "repeats, shows how each one differs from the rest, and can line up a "
-     "drifting energy scale before summing."),
     ("log", "Session log...",
      "What has been auto-saved, saved and deleted this session, and where "
      "each of it is -- the file to look at after a crash."),
@@ -411,7 +419,7 @@ DATASET_ACTIONS = (
 #: and the log itself side by side, and the three short row operations --
 #: Rename, Save, Remove -- on one line.
 DATASET_ROWS = (("info",), ("explogformat", "explog"),
-                ("rename", "save", "remove"), ("sumrepeat",), ("log",))
+                ("rename", "save", "remove"), ("log",))
 
 #: Every tool of the tool panel: action -> (button text, tooltip). The
 #: action names are list_actions' and ARPES_viewer.run_list_action()'s.
@@ -528,9 +536,9 @@ TOOLS = {
                 "dead or bad regions of the detector from their "
                 "neighbours. A cut, or every slice of a map at once."),
     "lattice": ("Crystal structure...",
-                "The crystal in real space, in 3-D: typed in, taken from the "
-                "Brillouin-zone tool's last crystal, or read from a .cif "
-                "file. Draw a cleavage plane (hkl) and slide it through the "
+                "The crystal in real space, in 3-D: typed in (the space "
+                "group first, then the cell it allows, then the atoms), or "
+                "filled from a .cif file. Draw a cleavage plane (hkl) and slide it through the "
                 "cell; atoms' colours, gloss, transparency and size are "
                 "yours to set. The picture goes to the figure composer."),
     "bands": ("Calculated bands...",
@@ -542,16 +550,24 @@ TOOLS = {
               "over a cut or a map where it was really measured (its k_z). "
               "Fits the renormalisation Z and the shift; panels go to the "
               "figure composer. Select k-maps, kz maps in k and cuts in k."),
-    "bz": ("Brillouin zone...",
+    "bz": ("BZ overlap...",
            "Overlay a Brillouin zone (or a moire zone) on a map in momentum "
            "-- a k-map or a converted kz map. Once plotted, the zone stays "
            "with the dataset: its viewer shows it with the Brillouin zone "
            "tick box, and its exports can draw it."),
+    "bz3d": ("3D BZ...",
+             "The crystal's Brillouin zone in 3-D: the space group first, "
+             "then the cell it allows (or a CIF file); as many planes as "
+             "you like, each with its own (hkl), height and colour -- a "
+             "selected k-map can lie on one -- and paths through the "
+             "labelled points in colours of their own. The picture goes to "
+             "the figure composer."),
 }
 
 #: The tool panel's layout: three tabs -- Basic, the steps nearly every
 #: dataset goes through (E_F, the detector grid, the background, the k
-#: conversions, the core levels), Advanced, the analysis that follows, and
+#: conversions, the core levels, the Brillouin zone) and the figure
+#: composer, Advanced, the analysis that follows, and
 #: Calculation, what is worked out rather than measured (the crystal) --
 #: each grouped by the dimension of data a tool takes: 1D curves (EDC, MDC),
 #: 2D cuts, 3D maps (angle maps, kz maps, k-maps).
@@ -560,9 +576,10 @@ TOOL_SECTIONS = (
         ("2D && 3D \u2014 cuts, maps", ("fermi", "degrid", "detcorr")),
         ("2D only \u2014 cuts", ("background", "kcut", "corelevel")),
         ("3D only \u2014 maps", ("kmap", "kzalign", "kzconv", "bz")),
+        ("Brillouin zone \u2014 no dataset needed", ("bz3d",)),
+        ("Figures \u2014 curves, cuts, pictures", ("figure",)),
     )),
     ("Advanced", (
-        ("1D && 2D \u2014 curves, cuts", ("figure",)),
         ("2D && 3D \u2014 cuts, maps", ("smooth", "derivative", "curvature",
                                        "symmetry", "ridge")),
         ("2D only \u2014 cuts", ("stack", "mdcfit", "edcfit", "arithmetic")),

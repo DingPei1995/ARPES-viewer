@@ -347,7 +347,7 @@ def test_a_colour_bar_can_lie_under_the_panel(app):
 
 
 def test_zone_labels_move_to_their_leftmost_equivalent(app, tmp_path):
-    from arpes_viewer.ui.panels.crystal import CrystalDialog
+    from arpes_viewer.ui.panels.bz3d import BrillouinZone3DDialog
 
     cif = tmp_path / "hex.cif"
     cif.write_text("""data_x
@@ -366,9 +366,8 @@ _atom_site_fract_y
 _atom_site_fract_z
 Ti1 Ti 0 0 0
 """)
-    dialog = CrystalDialog()
+    dialog = BrillouinZone3DDialog()
     dialog.read_cif(str(cif))
-    dialog.stepper.go(3)
     view = dialog.view
     right = view.camera.basis()[0]
 
@@ -377,8 +376,8 @@ Ti1 Ti 0 0 0
         return next(float(i[1] @ right) for i in items if i[0] == "text" and i[2] == name)
 
     before = label_x("M")
-    dialog.zone_left_edit.setText("M")
-    dialog._zone_changed()
+    dialog.left_edit.setText("M")
+    dialog.refresh()
     assert label_x("M") < before
     items, _frame = view._zone_items()
     assert sum(1 for i in items if i[0] == "arrow") == 3      # k_x, k_y, k_z

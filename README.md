@@ -5,7 +5,7 @@
 [![User Guide](https://img.shields.io/badge/📖_User_Guide-English-blue?style=flat-square)](https://github.com/DingPei1995/ARPES-viewer/blob/main/docs/USER_GUIDE_en.md)
 [![Local Agent Settings](https://img.shields.io/badge/🤖_Local_Agent_Settings-blue?style=flat-square)](https://github.com/DingPei1995/ARPES-viewer/blob/main/docs/AGENTIC_WORKFLOW_en.md)
 
-**Version 1.2.3** (last modified 30 October 2026) — see
+**Version 1.2.4** (last modified 2 November 2026) — see
 [CHANGELOG.md](CHANGELOG.md) for what changed. The version is in
 `arpes_viewer/version.py` and is shown in the main window's title bar and at its foot,
 with a link to this repository for bug reports and the latest version

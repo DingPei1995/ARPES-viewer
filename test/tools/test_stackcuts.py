@@ -164,7 +164,9 @@ def test_launcher_photon_energy_series_is_a_kz_map(app, monkeypatch):
 def test_launcher_offers_join_when_cuts_cannot_be_stacked(app, monkeypatch):
     import arpes_viewer.app as av
     seen = {}
-    _list_cuts(av, monkeypatch, [cut("a", 1), cut("b", 3, energy=ENERGY[:-3])])
+    # both axes differ: no axis to stack on
+    _list_cuts(av, monkeypatch, [cut("a", 1), cut("b", 3, angle=ANGLE[:-2],
+                                                 energy=ENERGY[:-3])])
 
     def run(dialog):
         seen["stack"] = dialog.stack_radio.isEnabled()
@@ -291,3 +293,61 @@ def test_combined_map_survives_a_save(app, tmp_path):
     assert back.info["axis0.role"] == "gate_voltage"
     assert float(np.asarray(back.value)[0, 0, 0]) == 1.0
     back.close()
+
+
+# -- stacking cuts whose energy windows differ: truncated first ---------------
+def test_truncation_plan_takes_the_common_energy_range():
+    assert S.truncation_plan([cut("a"), cut("b")]) is None
+    shifted = ENERGY + 0.1
+    plan = S.truncation_plan([cut("a"), cut("b", energy=shifted)])
+    assert plan["slot"] == "y" and plan["index"] == 1
+    assert plan["values"].min() >= shifted.min() - 1e-12
+    assert plan["values"].max() <= ENERGY.max() + 1e-12
+    assert "truncated" in plan["note"]
+    with pytest.raises(ValueError):
+        S.truncation_plan([cut("a"), cut("b", energy=ENERGY + 5)])
+    with pytest.raises(ValueError):
+        S.truncation_plan([cut("a"), cut("b", angle=ANGLE[:-1],
+                                         energy=ENERGY[:-1])])
+
+
+def test_truncated_frames_resample_along_the_differing_axis():
+    energy_b = np.linspace(-0.4, 0.2, 25)
+    a = np.tile(ENERGY, (ANGLE.size, 1))
+    b = np.tile(energy_b, (ANGLE.size, 1))
+    plan = S.truncation_plan([("a", (ANGLE, ENERGY), a, LABELS),
+                              ("b", (ANGLE, energy_b), b, LABELS)])
+    fa, fb = S.truncated_frames([a, b], [(ANGLE, ENERGY), (ANGLE, energy_b)], plan)
+    np.testing.assert_allclose(fa[0], plan["values"])
+    np.testing.assert_allclose(fb[0], plan["values"])
+
+
+def test_launcher_stacks_cuts_with_different_energy_windows(app, monkeypatch):
+    import arpes_viewer.app as av
+    _list_cuts(av, monkeypatch, [cut("a", 1), cut("b", 3, energy=ENERGY[3:])])
+
+    def run(dialog):
+        assert dialog.stack_radio.isEnabled() and dialog.mode() == "stack"
+        assert "truncated" in dialog.stack_note.text()
+        return True
+
+    result = av.combine_selected(ask=lambda names: True, dialog_hook=run)
+    assert result.kind == "map"
+    np.testing.assert_allclose(result.scan.z, ENERGY[3:], atol=1e-12)
+    assert result.scan.value.shape == (2, ANGLE.size, ENERGY.size - 3)
+    assert float(result.scan.value[1, 0, 0]) == 3
+
+
+def test_launcher_sums_repeats_through_combine(app, monkeypatch):
+    import arpes_viewer.app as av
+    _list_cuts(av, monkeypatch, [cut("a", 1), cut("b", 1)])
+    opened = []
+    monkeypatch.setattr(av, "open_sum_repeats", lambda: opened.append(1) or "w")
+
+    def run(dialog):
+        assert dialog.sum_radio.isEnabled()
+        dialog.set_mode("sum")
+        return True
+
+    assert av.combine_selected(ask=lambda names: True, dialog_hook=run) == "w"
+    assert opened == [1]

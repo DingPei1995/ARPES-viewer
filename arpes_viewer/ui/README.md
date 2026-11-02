@@ -9,12 +9,16 @@ read its metadata, **double-click** to open it in its own window.
 
 Right-click a row (or a selection) for the three ways of opening it:
 **Open**, **Open slit cut** and **Open scan-axis cut** (a map's cut in a
-window of its own, without its contour on screen). Everything else done to
-the rows -- **Experiment info**, **Log format...** / **Auto Exp. log**,
-**Rename** | **Save** | **Remove** (one row), **Sum repeated scans...**,
-**Session log...** -- is the
-*Datasets* box of the tool panel, between the tools and the Memory box;
-combining datasets is the **Combine...** button under the list.
+window of its own, without its contour on screen), and for **Sort by name**
+/ **Sort by data type**, which reorder the whole list (`app.sort_list`). The
+search box above the list hides the rows that do not hold every word typed
+(`app.filter_list`); `selected_keys()` leaves hidden rows out, so nothing out
+of sight is acted on. Everything else done to the rows -- **Experiment
+info**, **Log format...** / **Auto Exp. log**, **Rename** | **Save** |
+**Remove** (one row), **Session log...** -- is the *Datasets* box of the
+tool panel, between the tools and the Memory box; combining datasets --
+stacking, joining, or summing repeated scans -- is the **Combine...** button
+under the list.
 
 Under the list, in a box titled *With the selected datasets*, three buttons
 named for what they do (they were *Combine data*, *Data operations* and
@@ -53,11 +57,11 @@ not fit and why -- at once, as the pointer moves.
 | 3D view | one | map |
 | Cut arithmetic on the two | two | cuts |
 | Save, Remove | one or more | any readable / any |
-| Sum repeated scans | two or more | cuts, or maps of one kind |
+| Sum repeated scans (Combine → third way) | two or more | cuts, or maps of one kind |
 | Ridge detection | one or more | cuts, or maps |
 | Detector corrections | one | cut, map or kz map as measured |
 | Tight-binding fit | none or one | a map in momentum (or points from a file) |
-| Crystal structure | none needed | -- |
+| Crystal structure, 3D BZ | none needed | -- (k-maps selected can lie on 3D BZ's planes) |
 
 A cut opened from the list keeps its map's contour off screen; the cut's
 **Functions → Show the map** brings it up, double-clicking the map's row

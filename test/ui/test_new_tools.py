@@ -83,7 +83,8 @@ def test_the_new_tools_sit_where_they_were_asked_for(launcher):
     assert advanced.isAncestorOf(ui.ToolButtons["ridge"])
     assert calculation.isAncestorOf(ui.ToolButtons["lattice"])
     assert calculation.isAncestorOf(ui.ToolButtons["tbfit"])
-    assert "sumrepeat" in ui.DatasetButtons
+    # summing repeats is one of Combine's ways now, not a button of its own
+    assert "sumrepeat" not in ui.DatasetButtons
 
 
 def test_availability_of_the_new_actions():

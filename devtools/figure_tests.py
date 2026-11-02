@@ -272,20 +272,20 @@ def fit_dirac_point(k, energy, values, branches, guess_e, half=0.14):
 def bz_picture(folder, datasets, size=900):
     """(a): the zone with the measured maps on its Γ and zone-top planes and
     the line node (K-H) in red."""
-    from arpes_viewer.ui.panels.crystal import CrystalDialog
+    from arpes_viewer.ui.panels.bz3d import BrillouinZone3DDialog
     from arpes_viewer.ui.panels.figure import _qimage_array
 
     maps = [(n, d) for n, d in datasets if d.kind == "k_map"]
-    dialog = CrystalDialog(datasets=maps, colormap="blue", flip=True)
+    dialog = BrillouinZone3DDialog(datasets=maps, colormap="blue", flip=True)
     dialog.read_cif(os.path.join(folder, "demo_crystal.cif"))
-    dialog.stepper.go(3)
-    dialog.path_edit.setText("K-H")
-    dialog.zone_left_edit.setText("L, M")             # clear of the path and axes
-    for (box, height, colour, source, energy), name, e in zip(
-            dialog.plane_rows, ("Γ-plane map", "A-plane map"), (-0.65, -0.55)):
-        source.setCurrentText(name)
-        energy.setValue(e)
-    dialog._zone_changed()
+    dialog.add_plane((0, 0, 1), 0.5)                  # Γ plane and zone top
+    dialog.path_rows[0].edit.setText("K-H")
+    dialog.left_edit.setText("L, M")                  # clear of the path and axes
+    for row, name, e in zip(dialog.plane_rows, ("Γ-plane map", "A-plane map"),
+                            (-0.65, -0.55)):
+        row.map_combo.setCurrentText(name)
+        row.energy_box.setValue(e)
+    dialog.refresh()
     dialog.view.camera.azimuth, dialog.view.camera.elevation = -28.0, 22.0
     dialog.view.font_px = 30
     image = P._trim(_qimage_array(dialog.view.render_image(size, size)))

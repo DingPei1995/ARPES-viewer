@@ -117,24 +117,21 @@ class TightBindingDialog(QDialog):
         f2.addRow("b", self.b2)
         f2.addRow("gamma", self.gamma2)
         boxes.addWidget(self.group_2d)
-        self.group_3d = QGroupBox("3-D crystal")
-        f3 = QFormLayout(self.group_3d)
-        self.space_group = QSpinBox()
-        self.space_group.setRange(1, 230)
-        self.space_group.setToolTip("Sets the centering, and so the "
-                                    "primitive cell whose neighbours are "
-                                    "counted.")
-        f3.addRow("Space group", self.space_group)
-        self.a3 = _spin(3.0, 0.1, 100.0, suffix=" Å")
-        self.b3 = _spin(3.0, 0.1, 100.0, suffix=" Å")
-        self.c3 = _spin(3.0, 0.1, 100.0, suffix=" Å")
-        self.alpha3 = _spin(90.0, 1.0, 179.0, 3, " °")
-        self.beta3 = _spin(90.0, 1.0, 179.0, 3, " °")
-        self.gamma3 = _spin(90.0, 1.0, 179.0, 3, " °")
-        for text, box in (("a", self.a3), ("b", self.b3), ("c", self.c3),
-                          ("alpha", self.alpha3), ("beta", self.beta3),
-                          ("gamma", self.gamma3)):
-            f3.addRow(text, box)
+        # The space group first, as in the Brillouin-zone tool: it greys
+        # out the cell parameters it fixes, and they follow the free ones.
+        from arpes_viewer.ui.common.cellinput import CellInput
+        self.group_3d = QGroupBox("3-D crystal (space group first)")
+        f3 = QVBoxLayout(self.group_3d)
+        self.cell_input = CellInput(self.group_3d, lengths=(3.0, 3.0, 3.0))
+        f3.addWidget(self.cell_input)
+        self.space_group = self.cell_input.space_group_box
+        self.space_group.setToolTip(
+            self.space_group.toolTip() + " It also sets the centering, and "
+            "so the primitive cell whose neighbours are counted.")
+        boxes_3d = self.cell_input.boxes
+        self.a3, self.b3, self.c3 = boxes_3d["a"], boxes_3d["b"], boxes_3d["c"]
+        self.alpha3, self.beta3, self.gamma3 = (boxes_3d["alpha"], boxes_3d["beta"],
+                                                boxes_3d["gamma"])
         boxes.addWidget(self.group_3d)
 
         geometry = QGroupBox("How the lattice sits on the map")
@@ -165,11 +162,10 @@ class TightBindingDialog(QDialog):
 
         for widget in (self.mode_2d, self.mode_3d):
             widget.toggled.connect(self._lattice_changed)
-        for box in (self.a2, self.b2, self.gamma2, self.a3, self.b3, self.c3,
-                    self.alpha3, self.beta3, self.gamma3, self.azimuth,
+        for box in (self.a2, self.b2, self.gamma2, self.azimuth,
                     self.kz_plane, self.kpar_angle):
             box.valueChanged.connect(self._lattice_changed)
-        self.space_group.valueChanged.connect(self._lattice_changed)
+        self.cell_input.changed.connect(self._lattice_changed)
         self.n_shells.valueChanged.connect(self._lattice_changed)
 
         text = ("Describe the lattice the band lives on. A layered crystal "
@@ -197,15 +193,18 @@ class TightBindingDialog(QDialog):
             self.gamma2.setValue(gamma)
         else:
             self.mode_3d.setChecked(True)
-            self.space_group.setValue(int(params.space_group or 1))
-            for box, value in ((self.a3, params.a), (self.b3, params.b),
-                               (self.c3, params.c), (self.alpha3, params.alpha),
-                               (self.beta3, params.beta),
-                               (self.gamma3, params.gamma)):
-                box.setValue(value)
+            self.cell_input.set_cell(int(params.space_group or 1), params.a,
+                                     params.b, params.c, params.alpha,
+                                     params.beta, params.gamma)
             azimuth = float(values.get("azimuth_deg", 0.0))
         self.azimuth.setValue(azimuth)
         return True
+
+    def _settings_applied(self):
+        """After the remembered settings are back (signals blocked): the
+        space group's constraints, and the shells, again."""
+        self.cell_input.apply_constraints()
+        self._lattice_changed()
 
     def lattice_vectors(self):
         """Primitive real-space vectors (rows), turned by the azimuth."""

@@ -2,7 +2,7 @@
 
 *[中文版 / Chinese version](USER_GUIDE_zh.md) · [Version française](USER_GUIDE_fr.md)*
 
-*Last updated: 30 October 2026 — for ARPES viewer v1.2.3*
+*Last updated: 2 November 2026 — for ARPES viewer v1.2.4*
 
 The version and its date are in the main window's title bar and at the bottom of
 the main window. Bug reports, questions and the latest version:
@@ -247,10 +247,17 @@ not fit the selection is greyed, with the reason in its tooltip.
 **The Datasets box** (tool panel, between the tools and Memory) holds the
 rest of what is done to the rows: **Experiment info**, **Log format...** and
 **Auto Exp. log** side by side (see [the experiment log](#the-experiment-log)),
-**Rename**, **Save** and **Remove** on one row, **Sum repeated scans...**
-and **Session log...**. Its buttons grey out like the tools.
+**Rename**, **Save** and **Remove** on one row, and **Session log...**. Its
+buttons grey out like the tools. (Summing repeated scans is now one of the
+ways of **Combine...**, under the list.)
 
-### Where things are now (v1.2.3)
+**Finding and ordering rows.** The **search box** above the list shows only
+the rows whose name or kind holds every word typed (`map 80K`); clear it to
+see them all. Hidden rows are deselected, so nothing out of sight is acted
+on. Right-click the list → **Sort by name** (`Cut_9` before `Cut_10`) or
+**Sort by data type** (cuts, maps, k-maps… each group by name).
+
+### Where things are now (v1.2.4)
 
 If you used an earlier version: the tools moved out of the right-click menu
 and the viewers' *Functions* menus into the tool panel, so each has one way
@@ -262,7 +269,10 @@ in, always in sight.
 | Tool panel → Basic → **Remove detector grid...** | viewer *Functions → Remove detector grid* |
 | Tool panel → Basic → **k conversion (cut)** / **(map)**, **kz conversion** | viewer *Functions → Convert to momentum* |
 | Tool panel → Basic → **Align Fermi levels (kz)...** | viewer *Functions → Align Fermi levels (kz map)* |
-| Tool panel → Basic → **Brillouin zone...** | k-map viewer *Functions → Brillouin zone* |
+| Tool panel → Basic → **BZ overlap...** | **Brillouin zone...** (v1.2.3); k-map viewer *Functions → Brillouin zone* |
+| Tool panel → Basic → **3D BZ...** | Crystal structure, step 4 *Brillouin zone* |
+| Tool panel → Basic → **Figure composer...** | Tool panel → Advanced (v1.2.3); right-click → Open in figure composer |
+| **Combine...** → *Sum repeated scans* | Datasets box → **Sum repeated scans...** (v1.2.3) |
 | Tool panel → Basic → **Core-level check...** | right-click → Core-level check |
 | Tool panel → Basic/Advanced → **Background subtraction**, **Smooth**, **Second derivative**, **Curvature**, **Symmetrise** (one window each) | **Smooth / derivative...** (one window with tabs) |
 | **Truncate...**, **Compress...**, **Self-normalise...** under the list | **Crop / bin / normalise...** |
@@ -270,7 +280,6 @@ in, always in sight.
 | Tool panel → Advanced → **Cut arithmetic (two cuts)** | right-click / viewer *Functions → Cut arithmetic* |
 | Tool panel → Advanced → **Slice series figure...** | map viewer *Functions → Multi-slice figure* |
 | Tool panel → Advanced → **3D slices**, **Notched cube**, **Volume projection** | right-click → 3D view (one window, three modes) |
-| Tool panel → Advanced → **Figure composer...** | right-click → Open in figure composer |
 | Right-click → **Open scan-axis cut**, viewer button **Scan-axis cut** | Open deflector cut, Deflector cut |
 | Memory box → **Free RAM**, **Close all**, **Autosaves** (one row) | under the list; then Free memory, Close all viewers, Open auto-save folder |
 | Datasets box → **Experiment info** | right-click → Show information |
@@ -361,9 +370,14 @@ there and click again.
 **Stacking cuts**
 
 1. Select the cuts in the list (Ctrl/Shift-click) and press
-   **Combine...**. Stacking needs the same axes point for point (same number
-   of points, same values, same units); if they differ, *Stack* is greyed
-   with the first difference named, and *Join* is offered instead.
+   **Combine...**. Stacking needs one axis the same point for point (same
+   number of points, same values, same units). If the **other** axis
+   differs — typically energy windows a little apart between the cuts —
+   the cuts are still stacked: that axis is **truncated** to the range all
+   of them cover and each cut resampled onto the first cut's points there
+   (the dialog says so, with the range). If both axes differ, or the ranges
+   do not overlap, *Stack* is greyed with the reason, and *Join* is offered
+   instead.
 2. It asks whether to combine them **in the list's order**. *Yes* keeps that
    order; *No* lets you choose it.
 3. Choose **Stack**, then set the new axis: **New axis is** (temperature,
@@ -414,8 +428,8 @@ How the axes are handled:
 ### Summing repeated scans
 
 For a fine cut or map taken as many short scans so that an ageing sample can
-be caught. Select the scans (two or more of one kind) → **Sum repeated
-scans...**:
+be caught. Select the scans (two or more of one kind) → **Combine...** →
+**Sum repeated scans** → **Combine**, which opens the repeated-scans window:
 
 1. **Are these repeats?** Each scan's grid and recorded conditions (photon
    energy, polarisation, angles, position, temperature, pass energy, lens
@@ -740,9 +754,16 @@ the only choice when only this cut was measured.
 - **Advanced: Γ off this cut** is for a cut that does not run through Γ: type
   the deflector and slit angles of Γ, or **From a converted map...** to
   inherit them from a map of the same sample already converted.
-- If the cut is already on E − E_F, **Energy offset** is filled in with the
-  E_F that was subtracted (the note under it says so): the conversion uses
-  true kinetic energies, and the result stays on E − E_F.
+- **Output energy — Energy axis as E − E_F** (off by default): tick it and
+  type where E_F is on the cut's own energy axis; the result's energy axis
+  is then E − E_F. The momenta do not change — the conversion still uses
+  kinetic energies.
+- **Energy offset** (a tick box, off by default) is *not* the Fermi level:
+  ticked, its value is added to the energy axis before converting, for an
+  axis that is not a true kinetic energy. If the cut is already on E − E_F,
+  it is ticked and filled in with the E_F that was subtracted (the note
+  under it says so): the conversion uses true kinetic energies, and the
+  result stays on E − E_F.
 - **Remembered settings.** The dialog starts from the last conversion of a
   cut of the same size (same number of points on each axis) — the usual case
   for a series of cuts of one sample. The map and kz conversions do the same.
@@ -823,9 +844,13 @@ new `k-map` row in the list.
 - **Output grid**: number of points, or resolution (Å⁻¹, meV). The
   numbers of points start at the measured ones — as many kx points as
   deflector angles, ky points as slit angles, E points as energies.
-- **Energy offset** is added to the energy axis before converting, for an
-  axis that is not a true kinetic energy (filled in automatically for a map on
-  E − E_F).
+- **Output energy — Energy axis as E − E_F** (off by default): tick it and
+  type E_F as it is on the map's energy axis; the k-map then comes out on
+  E − E_F. The momenta are the same either way.
+- **Energy offset** (a tick box, off by default) is not the Fermi level:
+  ticked, it is added to the energy axis before converting, for an axis
+  that is not a true kinetic energy (ticked and filled in automatically for
+  a map on E − E_F).
 - The settings start from the last conversion of a map of the same size, so
   a second map of a series needs no retyping.
 
@@ -885,7 +910,7 @@ starts from the last conversion of a scan of the same size.
 ## 15. Brillouin zone
 
 Select a k-map (or a converted kz map) and press tool panel → Basic →
-**Brillouin zone...**. Like the map conversion, it opens a contour of its
+**BZ overlap...** (called *Brillouin zone...* before v1.2.4). Like the map conversion, it opens a contour of its
 own with the zone window, and the two close together.
 
 ![Brillouin-zone dialog](images/brillouin_dialog.png)
@@ -931,6 +956,27 @@ four 3-D views (*3D only*). Curves and spatial scans are looked at in
 viewers of their own.
 
 ---
+
+### 15.1 3D BZ: the zone in three dimensions
+
+Tool panel → Basic → **3D BZ...** (needs nothing selected; selected k-maps
+can be drawn on its planes). It was step 4 of the crystal-structure window.
+
+- **Crystal**: the **space group first**, then the cell — the parameters the
+  space group fixes are greyed and follow the free ones, as in BZ overlap.
+  **Read a CIF file...** fills them from a file. It starts from BZ
+  overlap's last 3-D crystal.
+- **Planes in the zone**: **Add a plane in 3D BZ** as often as you like.
+  Each has its own normal (h k l), its height along it (in units of G(hkl):
+  0 through Γ, 0.5 at the zone top), colour and opacity, and ✕ to remove
+  it. A plane normal to k_z can carry a selected k-map's constant-energy
+  map (*map*, at the energy given; *Maps' azimuth* and *Integrate* below).
+- **Paths**: **Add path** as often as you like, each through the labelled
+  points (`Γ-M-K-Γ`, `A-L-H-A`; `|` for a jump) in a colour and width of its
+  own.
+- **Display**: labels of the high-symmetry points, the k_x, k_y, k_z axes,
+  and *Label on the left*.
+- **Export**: **Save picture...** at any size, or **To figure composer...**.
 
 ## 16. Smoothing, derivatives, curvature and symmetrising
 
@@ -1122,6 +1168,10 @@ own — drag the picture to turn it:
 
 - **3D slices...** — the three orthogonal planes through the cube, each
   placed where you choose (tick box, slider or typed position per axis).
+- For a **k-map**, the 3-D views start at the first k_x and k_y planes that
+  are filled with data: the converted cube is the box around a light cone
+  that narrows away from E_F, and its outermost planes drew as blank faces.
+  *Change sampling... → Whole range* shows everything again.
 - **Notched cube...** — the cube with one corner cut away: a constant-energy
   map and two dispersions in one picture.
 - **Volume projection...** — the whole volume projected along the view:
@@ -1261,14 +1311,19 @@ numbered steps.
 ## 25. Crystal structure
 
 Tool panel → Calculation → **Crystal structure...** (needs nothing
-selected; selected k-maps can be drawn on the Brillouin zone's planes).
-Five steps:
+selected). Four steps (the Brillouin zone is now **3D BZ...**,
+[§15.1](#151-3d-bz-the-zone-in-three-dimensions)):
 
 ![The crystal structure](images/crystal_structure.png)
 
-1. **The structure** — type it in (cell, space group for its centering,
-   atoms), take the Brillouin-zone tool's last crystal, or **Read a CIF
-   file** (its symmetry operations are applied, its space group read).
+1. **The structure** — typed in, like the BZ overlap cell: the **space
+   group first** (the cell parameters it fixes are greyed and follow the
+   free ones), then the cell and the atoms of the basis (the centering
+   copies are added). **Read a CIF file...** fills the space group, cell
+   and atoms from a file, applies its symmetry operations and redraws the
+   crystal at once; everything stays editable. CIFs with several data
+   blocks (FullProf's, which open on a block of journal fields) are read
+   from the block that holds the structure.
 2. **The look**
    - cells along a, b, c, the atoms' overall size, cell edges and bonds
      (in the atoms' colours, or *grey, thin*);
@@ -1285,21 +1340,7 @@ Five steps:
 3. **Cleavage plane** — tick *Draw a plane*, give (hkl), slide it, or
    double-click an **atomic layer** in the list to put it there; *Hide the
    atoms above* shows the termination; atoms in the plane are ringed red.
-4. **Brillouin zone** — the crystal's zone, its labelled high-symmetry
-   points and a **path** through them (drawn in red, e.g. `Γ-M-K-Γ-A-L-H-A`
-   or one segment, `K-H`), the k_x, k_y, k_z axes as arrows, and up to two
-   **planes** normal to (hkl) — through Γ and at the zone top by default,
-   each in a colour of its own.
-   - **map** on a plane: a selected k-map's constant-energy map at the
-     energy given (averaged over *integrate*), drawn on that plane and cut
-     to the zone — the measured Fermi surface in the zone where it was
-     measured. *azimuth* turns the maps against the zone's k_x.
-   - **Label on the left**: the points named here (`L, M`) are labelled at
-     their leftmost symmetry-equivalent point as the picture turns, clear of
-     the path and the axes.
-
-   ![The zone with measured maps on its planes](images/crystal_zone.png)
-5. **Export** — the crystal or the zone: **Save picture...** (PNG at any
+4. **Export** — the crystal: **Save picture...** (PNG at any
    size, drawn again at that size) or **To figure composer...**. A picture
    from a CIF names the CIF as its source, so the figure's data folder keeps
    it ([§28](#28-the-figure-composer)).
@@ -1308,8 +1349,9 @@ Five steps:
 
 With a k-map selected (or nothing, to use a file of points):
 
-1. **The lattice** -- a 2-D layer (a, b, γ) or a 3-D crystal, or **Take the
-   crystal from the Brillouin-zone tool**; the azimuth of a against kx; how
+1. **The lattice** -- a 2-D layer (a, b, γ) or a 3-D crystal (the **space
+   group first**, then the cell parameters it leaves free -- the others are
+   greyed and follow), or **Take the crystal from the Brillouin-zone tool**; the azimuth of a against kx; how
    many shells of neighbours.
 2. **Band points** -- move to an energy and press **Trace this energy**
    (ridge detection), or tick *Click* and click on the band, or **Read
@@ -1503,7 +1545,7 @@ the end, two figures built step by step.
 
 ## 28. The figure composer
 
-Tool panel → Advanced → **Figure composer...** with **nothing selected**
+Tool panel → Basic → **Figure composer...** with **nothing selected**
 opens a blank page, like a figure of a manuscript: four empty panels (a),
 (b), (c), (d) at a journal's column width. With cuts (or curves) selected,
 each becomes a panel (so does a frozen slice's **Figure composer...**

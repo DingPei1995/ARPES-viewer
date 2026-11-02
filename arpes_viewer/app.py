@@ -52,7 +52,7 @@ from arpes_viewer.tools.runtime import memory as memory_tools
 from arpes_viewer.ui.common import notify
 import numpy as np
 
-from arpes_viewer.loader.nxs_file import list_datasets, save_dataset, CUBE_KINDS, CURVE_KINDS
+from arpes_viewer.loader.nxs_file import list_datasets, save_dataset, CUBE_KINDS, CURVE_KINDS, MOMENTUM_KINDS
 from arpes_viewer.tools.processing.dataops import axis_summary, same_format, ARRAY_AXES
 from arpes_viewer.tools.processing import process as process_tools
 from arpes_viewer.ui.viewers.widgets import NxsData, MemoryData, DEFAULT_COLORMAP
@@ -423,9 +423,86 @@ def ClearList():
 # Right-click: rename, save, remove
 # --------------------------------------------------------------------------
 def selected_keys():
-    """Identities of every highlighted row, in list order."""
+    """Identities of every highlighted row, in list order -- rows hidden by
+    the list's search are not acted on."""
     return [item.data(QtCore.Qt.UserRole)
-            for item in ui.FilePathListWidget.selectedItems()]
+            for item in ui.FilePathListWidget.selectedItems()
+            if not item.isHidden()]
+
+
+def _natural_key(text: str):
+    """``Cut_9`` before ``Cut_10``: digits compared as numbers."""
+    import re
+    return [(0, int(part), "") if part.isdigit() else (1, 0, part.lower())
+            for part in re.split(r"(\d+)", str(text)) if part]
+
+
+def sort_list(by: str = "name"):
+    """Reorder the list's rows by name, or by data type (then name).
+
+    Only the rows move: the selection, the current row and the search
+    stay as they were.
+    """
+    widget = ui.FilePathListWidget
+    rows = [widget.item(i) for i in range(widget.count())]
+
+    def name_of(item):
+        record = loaded_items.get(item.data(QtCore.Qt.UserRole), {})
+        return record.get("name") or item.text()
+
+    def kind_of(item):
+        record = loaded_items.get(item.data(QtCore.Qt.UserRole), {})
+        return str(record.get("kind") or "").lower()
+
+    if by == "kind":
+        key = lambda item: (kind_of(item), _natural_key(name_of(item)))  # noqa: E731
+    else:
+        key = lambda item: _natural_key(name_of(item))                  # noqa: E731
+    selected = {id(item) for item in widget.selectedItems()}
+    current = widget.currentItem()
+    ordered = sorted(rows, key=key)
+    widget.blockSignals(True)
+    try:
+        taken = [widget.takeItem(0) for _ in range(widget.count())]
+        del taken
+        for item in ordered:
+            widget.addItem(item)
+            item.setSelected(id(item) in selected)
+        if current is not None:
+            widget.setCurrentItem(current, QtCore.QItemSelectionModel.NoUpdate)
+    finally:
+        widget.blockSignals(False)
+    filter_list(ui.ListSearchLE.text() if hasattr(ui, "ListSearchLE") else "")
+    update_tool_buttons()
+    ui.statusbar.showMessage(
+        "List sorted by " + ("data type" if by == "kind" else "name"))
+
+
+def _refilter():
+    try:
+        if getattr(ui, "ListSearchLE", None) is not None and ui.ListSearchLE.text():
+            filter_list()
+    except RuntimeError:                  # the window is gone (tests, exit)
+        pass
+
+
+def filter_list(text: str = None):
+    """Show only the rows whose text holds every word of ``text`` (any
+    case); an empty search shows them all. Hidden rows are deselected, so
+    nothing out of sight is acted on."""
+    if text is None:
+        text = ui.ListSearchLE.text() if hasattr(ui, "ListSearchLE") else ""
+    words = str(text).lower().split()
+    widget = ui.FilePathListWidget
+    for i in range(widget.count()):
+        item = widget.item(i)
+        record = loaded_items.get(item.data(QtCore.Qt.UserRole), {})
+        haystack = " ".join((item.text(), str(record.get("name") or ""),
+                             str(record.get("kind") or ""))).lower()
+        hide = bool(words) and not all(word in haystack for word in words)
+        item.setHidden(hide)
+        if hide and item.isSelected():
+            item.setSelected(False)
 
 
 def _row_for_key(key):
@@ -521,10 +598,26 @@ def show_list_menu(position):
         "The cut along the map's scanned axis (deflector angle, manipulator "
         "rotation, or photon energy for a kz map) vs energy, in a window of "
         "its own, without opening the map's constant-energy contour.")
+    # Ordering the rows: not about the selection, so always on.
+    menu.addSeparator()
+    sorting = {}
+    for by, text, tip in (
+            ("name", "Sort by name",
+             "Order every row of the list by its name (Cut_9 before Cut_10)."),
+            ("kind", "Sort by data type",
+             "Group the rows by kind (cut, map, k-map...), each group by "
+             "name.")):
+        action = QAction(text, menu)
+        action.setToolTip(tip)
+        menu.addAction(action)
+        sorting[action] = by
     global last_list_menu
     last_list_menu = menu          # for the tests: what was offered, and how
     chosen = menu.exec_(ui.FilePathListWidget.mapToGlobal(position))
     if chosen is None or not chosen.isEnabled():
+        return
+    if chosen in sorting:
+        sort_list(sorting[chosen])
         return
     run_list_action(actions.get(chosen))
 
@@ -628,6 +721,7 @@ def run_list_action(name):
         "tbfit": open_tight_binding,
         "detcorr": open_detector_corrections,
         "lattice": open_crystal_structure,
+        "bz3d": open_brillouin_zone_3d,
         "bands": open_calculated_bands,
         "log": show_operations_log,
         "explogformat": open_exp_log_format,
@@ -1354,10 +1448,17 @@ def open_slice_series():
     if contour is None:
         return None
     made_for_it = not contour.isVisible()
+    window = None
     try:
         window = contour.open_slice_figure()
     finally:
         if made_for_it and not contour.cut_windows:
+            # The contour closes the figures it made when it closes; this
+            # one was made from a contour that was never on screen, so it
+            # is let go first -- else "Make the figure" closed the dialog
+            # and the figure with it, and nothing appeared.
+            if window is not None and window in contour.figure_windows:
+                contour.figure_windows.remove(window)
             contour.close()
     if window is not None:
         keep_alive(window)
@@ -1928,10 +2029,21 @@ def open_volume_view(mode: str = "slices"):
     scan = data.scan
     labels = (scan.labels.get("x", "x"), scan.labels.get("k", "y"),
               scan.labels.get("z", "z"))
+    sampling = None
+    if data.kind in MOMENTUM_KINDS:
+        # A cube in momentum is the bounding box of a light cone: its outer
+        # k planes are nearly empty and the 3-D faces drawn on them came
+        # out blank. Start from the first filled k_x / k_y plane; Change
+        # sampling... -> Whole range brings the rest back.
+        from arpes_viewer.tools.processing.volume import filled_ranges
+        from arpes_viewer.ui.panels.volume import BALANCED_POINTS
+        ranges = filled_ranges(cube, (x, k, z), dims=(0, 1))
+        sampling = (ranges, [int(min(BALANCED_POINTS, len(a))) for a in (x, k, z)])
     QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
     try:
         window = VolumeWindow(cube, (x, k, z), labels, label_for(key), win,
-                              default_colormap, default_flip, mode=mode)
+                              default_colormap, default_flip, mode=mode,
+                              sampling=sampling)
     except Exception as exc:                                # noqa: BLE001
         data.close()
         QMessageBox.warning(win, "3D view", str(exc))
@@ -2119,6 +2231,25 @@ def open_crystal_structure():
                                     default_flip), datasets)
 
 
+def open_brillouin_zone_3d():
+    """The crystal's Brillouin zone in 3-D (ui.panels.bz3d). Selected
+    k-maps can lie on its planes; nothing needs to be selected."""
+    from arpes_viewer.ui.panels.bz3d import BrillouinZone3DDialog
+
+    datasets = []
+    for key in selected_keys():
+        try:
+            data = load_dataset(key)
+        except Exception:                                    # noqa: BLE001
+            continue
+        if data.kind == "k_map":
+            datasets.append((label_for(key), data))
+        else:
+            data.close()
+    return _show_tool(BrillouinZone3DDialog(win, datasets, default_colormap,
+                                            default_flip), datasets)
+
+
 def combine_selected(ask=None, dialog_hook=None):
     """Combine the selected datasets into one.
 
@@ -2139,6 +2270,7 @@ def combine_selected(ask=None, dialog_hook=None):
 
     keys = selected_keys()
     title = "Combine datasets"
+    summing = False
     if len(keys) < 2:
         QMessageBox.information(win, title, "Select at least two datasets.")
         return None
@@ -2176,14 +2308,23 @@ def combine_selected(ask=None, dialog_hook=None):
                                  for slot in slots),
                            [labels.get(slot, slot) for slot in slots]))
 
-        stack_problem = ""
+        stack_problem, truncation = "", None
         if kind == "cut":
-            stack_problem = stackcuts.compatibility(
-                [(name, (data.scan.x, data.scan.y), data.cut_frame,
-                  dict(data.scan.labels or {})) for name, data in datasets])
+            described = [(name, (data.scan.x, data.scan.y), data.cut_frame,
+                          dict(data.scan.labels or {})) for name, data in datasets]
+            stack_problem = stackcuts.compatibility(described)
             if stack_problem:
-                stack_problem = ("Stacking needs cuts with the same axes, "
-                                 "point for point: " + stack_problem)
+                # One axis the same, the other a little apart (an energy
+                # window that moved): stack over the range all cover.
+                try:
+                    truncation = stackcuts.truncation_plan(described)
+                except ValueError as exc:
+                    stack_problem = ("Stacking needs cuts with at least one "
+                                     "axis the same, point for point, and "
+                                     "overlapping ranges on the other: "
+                                     + str(exc) + " (" + stack_problem + ")")
+                else:
+                    stack_problem = ""
 
         keep_order = False
         if kind == "cut" and not stack_problem:
@@ -2203,21 +2344,26 @@ def combine_selected(ask=None, dialog_hook=None):
                 if keep_order is None:
                     return None
 
-        dialog = CombineCutsDialog(names, reorder=not keep_order, parent=win,
-                                   pieces=pieces, can_stack=kind == "cut",
-                                   stack_problem=stack_problem)
+        dialog = CombineCutsDialog(
+            names, reorder=not keep_order, parent=win, pieces=pieces,
+            can_stack=kind == "cut", stack_problem=stack_problem,
+            stack_note=truncation["note"] if truncation else "",
+            can_sum=True)
         accepted = (dialog_hook(dialog) if dialog_hook is not None
                     else dialog.exec_() == dialog.Accepted)
         if not accepted:
             return None
         order = dialog.order()
-        if dialog.mode() == "stack":
+        if dialog.mode() == "sum":
+            summing = True
+        elif dialog.mode() == "stack":
             role, axis_name, unit, values = dialog.axis()
             label = unique_name(f"{names[order[0]]} + {len(names) - 1} "
                                 f"[{axis_name or 'stack'}]")
             result = nxs_jobs.busy_work(win, "Stacking the datasets",
                                         combined_dataset, datasets, order, role,
-                                        axis_name, unit, values, label)
+                                        axis_name, unit, values, label,
+                                        truncation)
         else:
             plan = dialog.join_plan()
             if not isinstance(plan, dict):
@@ -2233,6 +2379,10 @@ def combine_selected(ask=None, dialog_hook=None):
                 ui.statusbar.showMessage(" ".join(plan["notes"]))
     finally:
         release()
+    if summing:
+        # The repeated-scans window loads the selection itself, and keeps
+        # it until it closes.
+        return open_sum_repeats()
     _list_computed([result])
     return result
 
@@ -2749,6 +2899,10 @@ def SetConnect():
     # click. Double-click still opens a viewer.
     ui.FilePathListWidget.itemDoubleClicked.connect(open_selected)
     ui.FilePathListWidget.customContextMenuRequested.connect(show_list_menu)
+    ui.ListSearchLE.textChanged.connect(filter_list)
+    # A row added while a search is on follows it.
+    ui.FilePathListWidget.model().rowsInserted.connect(
+        lambda *_: QtCore.QTimer.singleShot(0, _refilter))
     # The metadata filter and its CSV export live in the information
     # window now, and are wired when that window is first made.
 

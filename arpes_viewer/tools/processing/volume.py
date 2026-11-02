@@ -774,6 +774,49 @@ def reduce_volume(values, axes, ranges=None, targets=None):
     return values, axes
 
 
+def filled_ranges(values, axes, dims=(0, 1), threshold: float = 0.97,
+                  passes: int = 3):
+    """The ranges of ``axes`` over which a cube's outer planes hold data.
+
+    A cube converted to momentum is the bounding box of a light cone that
+    narrows away from E_F, so the planes at either end of k_x and k_y are
+    nearly empty: drawn as the faces of a 3-D view, they come out blank.
+    Along each axis in ``dims``, a plane counts as filled when its share
+    of finite points is at least ``threshold`` times that of the fullest
+    plane; the range runs from the first filled plane to the last. The
+    other axes are cropped to their own filled ranges in turn, a few
+    passes, since cutting one changes the others' shares.
+
+    Returns one ``(lo, hi)`` per axis, the whole axis where nothing is
+    cut (or where the cube is entirely missing).
+    """
+    finite = np.isfinite(np.asarray(values, dtype=float))
+    axes = [np.asarray(a, dtype=float) for a in axes]
+    index = [slice(0, n) for n in finite.shape]
+    for _ in range(max(int(passes), 1)):
+        changed = False
+        for dim in dims:
+            block = finite[tuple(index)]
+            others = tuple(d for d in range(block.ndim) if d != dim)
+            share = block.mean(axis=others) if block.size else np.zeros(0)
+            if share.size == 0 or share.max() <= 0:
+                continue
+            keep = np.flatnonzero(share >= float(threshold) * share.max())
+            start = index[dim].start
+            new = slice(start + int(keep[0]), start + int(keep[-1]) + 1)
+            if new != index[dim]:
+                index[dim] = new
+                changed = True
+        if not changed:
+            break
+    ranges = []
+    for axis, sl in zip(axes, index):
+        part = axis[sl]
+        ranges.append((float(part.min()), float(part.max())) if part.size
+                      else (float(axis.min()), float(axis.max())))
+    return ranges
+
+
 def apply_plane_wise(values, function, *, axis: int = 2, progress=None):
     """Run a 2-D operation on every plane of a volume.
 

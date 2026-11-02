@@ -6,9 +6,10 @@ The crystal structure in real space, in 3-D, step by step.
 Opened from the tool panel's Calculation tab (Crystal structure...). Four
 steps, the picture beside them all the time:
 
-1. **The structure** -- typed in (cell and atoms), taken from the
-   Brillouin-zone tool's last crystal (atoms on its lattice points, to
-   which the basis can be added), or read from a CIF file.
+1. **The structure** -- typed in like the Brillouin-zone tool's cell: the
+   space group first, which fixes what the cell parameters may be, then
+   the cell and the atoms of the basis; or filled from a CIF file with
+   the push of a button.
 2. **The look** -- how many cells, and for each element its colour, size,
    transparency and gloss; the cell edges and bonds.
 3. **Cleavage plane** -- (hkl), slid along its normal or put on one of the
@@ -16,6 +17,10 @@ steps, the picture beside them all the time:
    the termination a cleave would leave.
 4. **Export** -- a picture at any size, or straight into the figure
    composer.
+
+The crystal's Brillouin zone in 3-D, which was a step here, is a tool of
+its own on the Basic tab (*3D BZ*, :mod:`ui.panels.bz3d`); it draws with
+this module's :class:`CrystalView`.
 
 Drawn with a plain ``QPainter`` -- shaded spheres, depth-sorted, the same
 no-OpenGL approach as the 3-D data views (:mod:`ui.panels.volume`) -- so
@@ -45,7 +50,7 @@ from arpes_viewer.tools.processing.volume import Camera
 from arpes_viewer.ui.common.screen import fits_screen
 from arpes_viewer.ui.common.stepper import Step, Stepper, guard_window
 
-__all__ = ["CrystalDialog", "CrystalView"]
+__all__ = ["CrystalDialog", "CrystalView", "picture_to_composer"]
 
 
 def _blend(colour: QColor, other: QColor, f: float) -> QColor:
@@ -88,6 +93,9 @@ class CrystalView(QWidget):
         self.zone_normal = (0.0, 0.0, 1.0)
         #: the labelled path drawn in the zone, e.g. ["Γ", "M", "K", "Γ"]
         self.zone_path = []
+        #: more paths, each in its own colour:
+        #: [{"labels": ["Γ", "M"], "colour": "#d62728", "width": 2.0}]
+        self.zone_paths = []
         self.zone_labels = True
         self.zone_axes = True
         #: labels drawn at their leftmost symmetry-equivalent point (as the
@@ -233,9 +241,10 @@ class CrystalView(QWidget):
             for t0, t1 in zip(np.linspace(0, 1, 7)[:-1], np.linspace(0, 1, 7)[1:]):
                 items.append(("line", p + t0 * (q - p), p + t1 * (q - p),
                               "#222222", 1.2, lift))
-        normal = np.asarray(self.zone_normal, dtype=float)
-        normal = normal / (np.linalg.norm(normal) or 1.0)
         for plane in self.zone_planes:
+            # each plane may lie at its own (hkl); else the shared normal
+            normal = np.asarray(plane.get("normal", self.zone_normal), dtype=float)
+            normal = normal / (np.linalg.norm(normal) or 1.0)
             u, v = plane_cut(zone.faces, normal, normal * plane["height"])
             if u is None:
                 continue
@@ -263,12 +272,27 @@ class CrystalView(QWidget):
                                       -1e6))
                 items.append(("line", a, c, QColor(plane["colour"]).darker(130), 1.0))
         table = {p.label: np.asarray(p.k, dtype=float) for p in points}
+        paths = list(self.zone_paths)
         if self.zone_path:
-            path = [table[l] for l in self.zone_path if l in table]
-            for p, q in zip(path[:-1], path[1:]):
-                for t0, t1 in zip(np.linspace(0, 1, 7)[:-1], np.linspace(0, 1, 7)[1:]):
-                    items.append(("line", p + t0 * (q - p), p + t1 * (q - p),
-                                  "#d62728", 2.0, 2 * lift))
+            paths.insert(0, {"labels": self.zone_path, "colour": "#d62728"})
+        for drawn in paths:
+            colour = drawn.get("colour", "#d62728")
+            width = float(drawn.get("width", 2.0))
+            # a "|" breaks the path: the next point starts a new segment
+            segments, current = [], []
+            for label in drawn.get("labels", ()):
+                if label == "|":
+                    segments.append(current)
+                    current = []
+                elif label in table:
+                    current.append(table[label])
+            segments.append(current)
+            for path in segments:
+                for p, q in zip(path[:-1], path[1:]):
+                    for t0, t1 in zip(np.linspace(0, 1, 7)[:-1],
+                                      np.linspace(0, 1, 7)[1:]):
+                        items.append(("line", p + t0 * (q - p), p + t1 * (q - p),
+                                      colour, width, 2 * lift))
         if self.zone_labels:
             for label, k in table.items():
                 if label in self.zone_left_labels:
@@ -634,8 +658,7 @@ class CrystalDialog(QDialog):
         self.view = CrystalView(self)
         layout = QHBoxLayout(self)
         self.stepper = Stepper([self._step_structure(), self._step_look(),
-                                self._step_plane(), self._step_zone(),
-                                self._step_export()], self,
+                                self._step_plane(), self._step_export()], self,
                                finish_text="Close", show_index=False)
         self.stepper.setMinimumWidth(470)
         self.stepper.stepChanged.connect(self._step_shown)
@@ -651,8 +674,6 @@ class CrystalDialog(QDialog):
         views.addStretch(1)
         right.addLayout(views)
         layout.addLayout(right, 3)
-        # a CIF is not reopened by itself: start from the typed-in cell
-        self._not_remembered = ("src_cif",)
         guard_window(self, self.stepper, "crystal_structure", "Crystal structure",
                      close_on_finish=True)
         self.manual_changed()
@@ -661,62 +682,25 @@ class CrystalDialog(QDialog):
     # Step 1: the structure
     # ==================================================================
     def _step_structure(self):
+        from arpes_viewer.ui.common.cellinput import CellInput
+
         page = QWidget()
         column = QVBoxLayout(page)
-        source = QHBoxLayout()
-        self.src_manual = QRadioButton("Type it in")
-        self.src_bz = QRadioButton("From the Brillouin-zone tool")
-        self.src_cif = QRadioButton("From a CIF file")
-        self.src_manual.setChecked(True)
-        for button in (self.src_manual, self.src_bz, self.src_cif):
-            source.addWidget(button)
-            button.toggled.connect(self._source_changed)
-        column.addLayout(source)
 
-        cell = QGroupBox("Cell")
-        form = QFormLayout(cell)
-        self.cell_boxes = {}
-        row = QHBoxLayout()
-        for name, value, suffix in (("a", 4.0, " Å"), ("b", 4.0, " Å"),
-                                    ("c", 4.0, " Å")):
-            box = QDoubleSpinBox()
-            box.setDecimals(4)
-            box.setRange(0.1, 200.0)
-            box.setValue(value)
-            box.setSuffix(suffix)
-            box.setKeyboardTracking(False)
-            box.valueChanged.connect(self.manual_changed)
-            row.addWidget(QLabel(name))
-            row.addWidget(box)
-            self.cell_boxes[name] = box
-        form.addRow(row)
-        row = QHBoxLayout()
-        for name in ("alpha", "beta", "gamma"):
-            box = QDoubleSpinBox()
-            box.setDecimals(3)
-            box.setRange(1.0, 179.0)
-            box.setValue(90.0)
-            box.setSuffix(" °")
-            box.setKeyboardTracking(False)
-            box.valueChanged.connect(self.manual_changed)
-            row.addWidget(QLabel(name))
-            row.addWidget(box)
-            self.cell_boxes[name] = box
-        form.addRow(row)
-        self.space_group = QSpinBox()
-        self.space_group.setRange(1, 230)
-        self.space_group.setToolTip("Sets the centering, whose translations "
-                                    "are applied to the atoms below (P, A, B, "
-                                    "C, I, F, R). The full symmetry "
-                                    "operations come with a CIF file.")
-        self.space_group.valueChanged.connect(self.manual_changed)
-        form.addRow("Space group", self.space_group)
-        self.centering_label = QLabel("")
-        form.addRow("", self.centering_label)
+        # Typed in, as the Brillouin-zone tool takes a cell: the space group
+        # first, which greys out the parameters it fixes.
+        cell = QGroupBox("Cell (space group first)")
+        cell_layout = QVBoxLayout(cell)
+        self.cell_input = CellInput(cell)
+        cell_layout.addWidget(self.cell_input)
+        self.cell_boxes = self.cell_input.boxes
+        self.space_group = self.cell_input.space_group_box
+        self.cell_input.changed.connect(self.manual_changed)
+        self.centering_label = self.cell_input.info_label
         column.addWidget(cell)
 
-        atoms = QGroupBox("Atoms (fractional coordinates; the centering "
-                          "copies are added)")
+        atoms = QGroupBox("Atoms of the basis (fractional coordinates; the "
+                          "space group's copies are added)")
         atoms_column = QVBoxLayout(atoms)
         self.atom_table = QTableWidget(0, 4)
         self.atom_table.setHorizontalHeaderLabels(["Element", "x", "y", "z"])
@@ -733,46 +717,48 @@ class CrystalDialog(QDialog):
         atoms_column.addLayout(buttons)
         column.addWidget(atoms, 1)
 
-        self.bz_button = QPushButton("Take the cell from the Brillouin-zone tool")
-        self.bz_button.setToolTip(last_crystal.describe())
-        self.bz_button.clicked.connect(self.take_from_bz)
-        column.addWidget(self.bz_button)
         self.cif_button = QPushButton("Read a CIF file...")
+        self.cif_button.setToolTip(
+            "Fill the space group, the cell and the atoms above from a CIF "
+            "(ICSD, COD, Materials Project, FullProf...), with its own "
+            "symmetry operations; the crystal is redrawn at once. Everything "
+            "can still be edited afterwards.")
         self.cif_button.clicked.connect(lambda: self.read_cif())
         column.addWidget(self.cif_button)
         self.structure_label = QLabel("")
         self.structure_label.setWordWrap(True)
         column.addWidget(self.structure_label)
+        #: a CIF's symmetry operations, for its own space group
+        self._cif_operations = None
+        self._cif_number = 0
+        self._cif_name = ""
+        self.cif_path = ""
         self.add_atom("X", 0, 0, 0)
-        self._source_changed()
-        text = ("Where the crystal comes from. <b>Type it in</b>: the cell, "
-                "the space group (for its centering) and the atoms of the "
-                "basis. <b>From the Brillouin-zone tool</b>: the crystal you "
-                "last drew a zone for, with an atom on each lattice point -- "
-                "edit them into the real basis. <b>From a CIF file</b> "
-                "(ICSD, COD, Materials Project...): the full cell, its "
-                "symmetry applied.")
+        text = ("The crystal, typed in: the <b>space group</b> first -- it "
+                "decides which cell parameters are free, and the others "
+                "follow -- then the <b>cell</b> and the <b>atoms</b> of the "
+                "basis, to which the space group's centering copies are "
+                "added. <b>Read a CIF file</b> fills all of it from a file, "
+                "with the file's full symmetry.")
         return Step("The structure", text, page,
                     ready=lambda: "" if self.structure is not None and
                     self.structure.atoms else "No atoms yet.")
 
-    def _source_changed(self, *_):
-        manual = self.src_manual.isChecked() or self.src_bz.isChecked()
-        self.bz_button.setVisible(self.src_bz.isChecked())
-        self.cif_button.setVisible(self.src_cif.isChecked())
-        for box in self.cell_boxes.values():
-            box.setEnabled(manual)
-        self.space_group.setEnabled(manual)
-        self.atom_table.setEnabled(manual)
+    def add_atom(self, element, x, y, z, occupancy: float = 1.0):
+        self._put_atom(element, (x, y, z), occupancy)
+        self.manual_changed()
 
-    def add_atom(self, element, x, y, z):
+    def _put_atom(self, element, frac, occupancy: float = 1.0):
         self.atom_table.blockSignals(True)
         row = self.atom_table.rowCount()
         self.atom_table.insertRow(row)
-        for column, value in enumerate((element, x, y, z)):
-            self.atom_table.setItem(row, column, QTableWidgetItem(str(value)))
+        for column, value in enumerate((element,) + tuple(frac)):
+            item = QTableWidgetItem(str(value) if column == 0
+                                    else f"{float(value):.6g}")
+            if column == 0:
+                item.setData(Qt.UserRole, float(occupancy))
+            self.atom_table.setItem(row, column, item)
         self.atom_table.blockSignals(False)
-        self.manual_changed()
 
     def remove_atom(self):
         row = self.atom_table.currentRow()
@@ -784,58 +770,46 @@ class CrystalDialog(QDialog):
         atoms = []
         for row in range(self.atom_table.rowCount()):
             try:
-                element = S.element_of(self.atom_table.item(row, 0).text())
+                cell = self.atom_table.item(row, 0)
+                element = S.element_of(cell.text())
                 frac = tuple(float(self.atom_table.item(row, c).text())
                              for c in (1, 2, 3))
             except (AttributeError, ValueError):
                 continue
-            atoms.append(S.Atom(f"{element}{row + 1}", element, frac))
+            occupancy = cell.data(Qt.UserRole)
+            atoms.append(S.Atom(f"{element}{row + 1}", element, frac,
+                                1.0 if occupancy is None else float(occupancy)))
         return atoms
 
-    def manual_changed(self, *_):
-        if self.src_cif.isChecked() and self.structure is not None:
-            return
+    def _operations(self):
+        """The CIF's own operations while its space group is kept; else the
+        centering translations of the space group typed."""
         from arpes_viewer.tools.crystal.spacegroups import spacegroup_info
-        info = spacegroup_info(self.space_group.value())
-        centering = info.centering
-        self.centering_label.setText(f"{info.symbol}, {info.crystal_system}: "
-                                     f"centering {centering}")
-        operations = [(np.eye(3), np.asarray(t, dtype=float))
-                      for t in S.CENTERING_TRANSLATIONS.get(centering, [(0, 0, 0)])]
-        b = self.cell_boxes
-        self.set_structure(S.Structure(
-            b["a"].value(), b["b"].value(), b["c"].value(), b["alpha"].value(),
-            b["beta"].value(), b["gamma"].value(),
-            atoms=S.expand(self._table_atoms(), operations),
-            name="", space_group=str(self.space_group.value())))
+        number = self.cell_input.space_group()
+        if self._cif_operations and number == self._cif_number:
+            return self._cif_operations
+        centering = spacegroup_info(number).centering
+        return [(np.eye(3), np.asarray(t, dtype=float))
+                for t in S.CENTERING_TRANSLATIONS.get(centering, [(0, 0, 0)])]
 
-    def take_from_bz(self):
-        values = last_crystal.load()
-        params = last_crystal.lattice_params(values)
-        if params is None:
-            two = last_crystal.vectors_2d(values)
-            if two is None:
-                self.structure_label.setText(last_crystal.describe())
-                return False
-            a, b_, gamma, _az = two
-            params_values = (a, b_, 10.0, 90.0, 90.0, gamma, 1)
-        else:
-            params_values = (params.a, params.b, params.c, params.alpha,
-                             params.beta, params.gamma, params.space_group or 1)
-        for name, value in zip(("a", "b", "c", "alpha", "beta", "gamma"),
-                               params_values[:6]):
-            self.cell_boxes[name].blockSignals(True)
-            self.cell_boxes[name].setValue(value)
-            self.cell_boxes[name].blockSignals(False)
-        self.space_group.blockSignals(True)
-        self.space_group.setValue(int(params_values[6]))
-        self.space_group.blockSignals(False)
-        self.atom_table.setRowCount(0)
-        self.add_atom("X", 0, 0, 0)
-        self.structure_label.setText(
-            "Taken: " + last_crystal.describe(values) + ". One atom per lattice "
-            "point -- set its element and add the rest of the basis.")
-        return True
+    def manual_changed(self, *_):
+        if not hasattr(self, "cell_input"):
+            return
+        number = self.cell_input.space_group()
+        a, b, c, alpha, beta, gamma = self.cell_input.cell()
+        own = bool(self._cif_operations) and number == self._cif_number
+        structure = S.Structure(
+            a, b, c, alpha, beta, gamma,
+            atoms=S.expand(self._table_atoms(), self._operations()),
+            name=self._cif_name if own else "", space_group=str(number),
+            space_group_number=number)
+        if not structure.name:
+            structure.name = structure.formula()
+        self.set_structure(structure)
+
+    def _settings_applied(self):
+        self.cell_input.apply_constraints()
+        self.manual_changed()
 
     def read_cif(self, path=None):
         if path is None:
@@ -845,19 +819,41 @@ class CrystalDialog(QDialog):
                 return None
         try:
             structure = S.read_cif(path)
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, UnicodeError) as exc:
             self.structure_label.setText(f"<b>Could not read it:</b> {exc}")
             return None
-        self.src_cif.setChecked(True)
-        self.set_structure(structure)
+        number = structure.space_group_number or 1
+        self._cif_operations = list(structure.operations) or None
+        self._cif_number = number
+        self._cif_name = structure.name
+        cell = (structure.a, structure.b, structure.c, structure.alpha,
+                structure.beta, structure.gamma)
+        # the inputs show what was read, and the crystal is drawn from them
+        self.cell_input.set_cell(number, *cell, emit=False)
+        if any(abs(v - w) > 1e-6 for v, w in zip(self.cell_input.cell(), cell)):
+            # a setting the constraints do not describe (rhombohedral axes,
+            # say): keep the file's cell as it is
+            for name, value in zip(("a", "b", "c", "alpha", "beta", "gamma"), cell):
+                box = self.cell_boxes[name]
+                box.blockSignals(True)
+                box.setValue(value)
+                box.blockSignals(False)
+        self.atom_table.blockSignals(True)
+        self.atom_table.setRowCount(0)
+        self.atom_table.blockSignals(False)
+        for site in (structure.sites or structure.atoms):
+            self._put_atom(site.element, site.frac, site.occupancy)
+        self.manual_changed()
         self.cif_path = os.path.abspath(path)
+        built = self.structure
         self.structure_label.setText(
-            f"{structure.name or os.path.basename(path)} "
-            f"({structure.formula()}), {structure.space_group}: "
-            f"a = {structure.a:.4g}, b = {structure.b:.4g}, c = {structure.c:.4g} Å, "
-            f"{structure.alpha:.4g}/{structure.beta:.4g}/{structure.gamma:.4g}°; "
-            f"{len(structure.atoms)} atoms in the cell.")
-        return structure
+            f"Read {os.path.basename(path)}: {structure.name} "
+            f"({built.formula()}), {structure.space_group or '?'} "
+            f"(#{number}): a = {structure.a:.4g}, b = {structure.b:.4g}, "
+            f"c = {structure.c:.4g} Å, {structure.alpha:.4g}/"
+            f"{structure.beta:.4g}/{structure.gamma:.4g}°; "
+            f"{len(built.atoms)} atoms in the cell.")
+        return built
 
     def set_structure(self, structure):
         self.structure = structure
@@ -1136,209 +1132,12 @@ class CrystalDialog(QDialog):
     # ==================================================================
     # Step 4: the Brillouin zone
     # ==================================================================
-    def _step_zone(self):
-        page = QWidget()
-        form = QFormLayout(page)
-        self.zone_label = QLabel("")
-        self.zone_label.setWordWrap(True)
-        form.addRow(self.zone_label)
-        self.path_edit = QLineEdit("")
-        self.path_edit.setPlaceholderText("e.g. Γ-X-M-Γ-Z-R-A-Z  (G for Γ)")
-        self.path_edit.setToolTip("A path through the labelled points, drawn "
-                                  "in red -- the band-structure path.")
-        self.path_edit.editingFinished.connect(self._zone_changed)
-        form.addRow("Path", self.path_edit)
-        self.plane_rows = []
-        for title, colour, fraction in (("Plane through Γ", "#9ad29a", 0.0),
-                                        ("Plane at the zone top", "#9bb8e8", 0.5)):
-            row = QHBoxLayout()
-            box = QCheckBox(title)
-            box.setChecked(True)
-            box.toggled.connect(self._zone_changed)
-            row.addWidget(box)
-            height = QDoubleSpinBox()
-            height.setRange(-1.0, 1.0)
-            height.setSingleStep(0.05)
-            height.setDecimals(3)
-            height.setValue(fraction)
-            height.setToolTip("Height along the normal, in units of the "
-                              "zone's reciprocal vector along it (0.5 = the "
-                              "zone boundary).")
-            height.valueChanged.connect(self._zone_changed)
-            row.addWidget(height)
-            colour_button = _ColourButton(colour)
-            colour_button.colourChanged.connect(self._zone_changed)
-            row.addWidget(colour_button)
-            form.addRow(row)
-            picture = QHBoxLayout()
-            source = QComboBox()
-            source.addItem("(colour only)")
-            source.addItems([n for n, _d in self.datasets])
-            source.setToolTip("Draw a measured constant-energy map on this "
-                              "plane, cut to the zone (select k-maps before "
-                              "opening the window).")
-            source.currentIndexChanged.connect(self._zone_changed)
-            energy = QDoubleSpinBox()
-            energy.setRange(-50.0, 50.0)
-            energy.setDecimals(3)
-            energy.setSingleStep(0.05)
-            energy.setSuffix(" eV")
-            energy.setToolTip("The map's energy (E - E_F), averaged over the "
-                              "window below.")
-            energy.valueChanged.connect(self._zone_changed)
-            picture.addWidget(QLabel("  map"))
-            picture.addWidget(source, 1)
-            picture.addWidget(energy)
-            form.addRow(picture)
-            self.plane_rows.append((box, height, colour_button, source, energy))
-        maps = QHBoxLayout()
-        self.map_azimuth = QDoubleSpinBox()
-        self.map_azimuth.setRange(-360.0, 360.0)
-        self.map_azimuth.setSuffix(" °")
-        self.map_azimuth.setToolTip("How the maps' k_x lies against the "
-                                    "zone's k_x (the sample azimuth).")
-        self.map_window = QDoubleSpinBox()
-        self.map_window.setRange(0.0, 2.0)
-        self.map_window.setDecimals(3)
-        self.map_window.setValue(0.05)
-        self.map_window.setSuffix(" eV")
-        for box in (self.map_azimuth, self.map_window):
-            box.valueChanged.connect(self._zone_changed)
-        maps.addWidget(QLabel("azimuth"))
-        maps.addWidget(self.map_azimuth)
-        maps.addWidget(QLabel("integrate"))
-        maps.addWidget(self.map_window)
-        if self.datasets:
-            form.addRow("Maps", maps)
-        normal = QHBoxLayout()
-        self.zone_normal_boxes = []
-        for name, value in (("h", 0), ("k", 0), ("l", 1)):
-            box = QSpinBox()
-            box.setRange(-9, 9)
-            box.setValue(value)
-            box.valueChanged.connect(self._zone_changed)
-            normal.addWidget(QLabel(name))
-            normal.addWidget(box)
-            self.zone_normal_boxes.append(box)
-        form.addRow("Planes normal to", normal)
-        self.zone_labels_box = QCheckBox("Label the high-symmetry points")
-        self.zone_labels_box.setChecked(True)
-        self.zone_axes_box = QCheckBox("Draw the k_x, k_y, k_z axes")
-        self.zone_axes_box.setChecked(True)
-        for box in (self.zone_labels_box, self.zone_axes_box):
-            box.toggled.connect(self._zone_changed)
-            form.addRow(box)
-        self.zone_left_edit = QLineEdit("")
-        self.zone_left_edit.setPlaceholderText("e.g. L, M")
-        self.zone_left_edit.setToolTip(
-            "Points labelled at their leftmost equivalent (by the zone's "
-            "rotation axis), as the picture is turned -- away from the path "
-            "and the axes where they would crowd.")
-        self.zone_left_edit.editingFinished.connect(self._zone_changed)
-        form.addRow("Label on the left", self.zone_left_edit)
-        text = ("The crystal's <b>Brillouin zone</b>, from the cell and the "
-                "space group (for a CIF, its own; typed in, the one set in "
-                "step 1): its labelled high-symmetry points, the "
-                "<b>planes</b> a measurement cuts (through Γ and at the zone "
-                "top, coloured), and a <b>path</b> through the points. The "
-                "picture beside it shows the zone while this step is open; "
-                "step 5 exports either picture.")
-        return Step("Brillouin zone", text, page, enter=self._zone_changed)
-
-    def plane_picture(self, name, energy):
-        """A k-map at ``energy`` as ``(QImage, kx range, ky range,
-        azimuth)``: coloured with the window's colour map, for a plane of
-        the zone."""
-        from arpes_viewer.tools.output import colormaps
-        from arpes_viewer.ui.panels.bands import _relative_energy
-
-        data = dict(self.datasets)[name]
-        scan = data.scan
-        axis = _relative_energy(scan.z, scan.info)
-        half = max(0.5 * self.map_window.value(),
-                   0.5 * abs(float(axis[1] - axis[0])) if axis.size > 1 else 0.0)
-        keep = np.abs(axis - energy) <= half
-        if not keep.any():
-            keep = np.abs(axis - energy) == np.min(np.abs(axis - energy))
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            plane = np.nanmean(np.asarray(scan.value, float)[:, :, keep], axis=2)
-        finite = plane[np.isfinite(plane)]
-        lo, hi = ((float(np.percentile(finite, 1)), float(np.percentile(finite, 99.5)))
-                  if finite.size else (0.0, 1.0))
-        scaled = np.clip((plane - lo) / ((hi - lo) or 1.0), 0, 1)
-        lut = np.asarray(colormaps.get_lut(self.colormap, flip=self.flip))
-        index = np.rint(np.nan_to_num(scaled) * (len(lut) - 1)).astype(int)
-        rgb = lut[index]
-        kx, ky = np.asarray(scan.x, float), np.asarray(scan.k, float)
-        if kx[0] > kx[-1]:
-            rgb, kx = rgb[::-1], kx[::-1]
-        if ky[0] > ky[-1]:
-            rgb, ky = rgb[:, ::-1], ky[::-1]
-        buffer = np.empty((ky.size, kx.size, 4), dtype=np.uint8)
-        buffer[..., 0] = rgb[..., 2].T
-        buffer[..., 1] = rgb[..., 1].T
-        buffer[..., 2] = rgb[..., 0].T
-        buffer[..., 3] = np.where(np.isfinite(plane), 255, 0).T
-        buffer = np.ascontiguousarray(buffer)
-        image = QImage(buffer.data, kx.size, ky.size, 4 * kx.size,
-                       QImage.Format_ARGB32).copy()
-        return (image, (float(kx[0]), float(kx[-1])), (float(ky[0]), float(ky[-1])),
-                self.map_azimuth.value())
-
     def _step_shown(self, index):
-        self.view.mode = "zone" if index == 3 else (
-            self.view.mode if index == 4 else "real")
-        if index == 4 and hasattr(self, "export_what"):
-            self.view.mode = "zone" if self.export_what.currentIndex() == 1 else "real"
-        self.view.update()
-
-    def _zone_changed(self, *_):
-        if self.structure is None:
-            return
-        from arpes_viewer.tools.crystal.bands import parse_path
-        from arpes_viewer.tools.crystal.lattice import reciprocal_vectors
-
-        params = self.structure.lattice_params()
-        hkl = tuple(box.value() for box in self.zone_normal_boxes)
-        try:
-            g = np.asarray(hkl, dtype=float) @ reciprocal_vectors(
-                self.structure.vectors())
-            length = float(np.linalg.norm(g))
-            normal = g / length
-        except (ValueError, ZeroDivisionError, FloatingPointError):
-            return
-        self.view.zone_normal = tuple(normal)
-        self.view.zone_planes = []
-        for box, height, colour, source, energy in self.plane_rows:
-            if not box.isChecked():
-                continue
-            plane = {"height": height.value() * length, "colour": colour.colour,
-                     "alpha": 0.45}
-            if source.currentIndex() > 0 and abs(abs(normal[2]) - 1.0) < 1e-6:
-                plane["picture"] = self.plane_picture(source.currentText(),
-                                                      energy.value())
-            self.view.zone_planes.append(plane)
-        self.view.zone_path = [l for l in parse_path(self.path_edit.text())
-                               if l != "|"]
-        self.view.zone_labels = self.zone_labels_box.isChecked()
-        from arpes_viewer.tools.crystal.bands import parse_path
-        self.view.zone_left_labels = {l for l in parse_path(self.zone_left_edit.text())
-                                      if l != "|"}
-        self.view.zone_axes = self.zone_axes_box.isChecked()
-        try:
-            _p, _b, _zone, points = self.view.zone()
-            names = ", ".join(p.label for p in points)
-            self.zone_label.setText(
-                f"Space group {params.space_group or '(none: primitive)'}; "
-                f"labelled points: {names}.")
-        except Exception as exc:                              # noqa: BLE001
-            self.zone_label.setText(f"No zone: {exc}")
+        self.view.mode = "real"
         self.view.update()
 
     # ==================================================================
-    # Step 5: export
+    # Step 4: export
     # ==================================================================
     def _step_export(self):
         page = QWidget()
@@ -1352,10 +1151,6 @@ class CrystalDialog(QDialog):
             box.setSingleStep(100)
             size.addWidget(box)
         form.addRow("Size (px)", size)
-        self.export_what = QComboBox()
-        self.export_what.addItems(["The crystal", "The Brillouin zone"])
-        self.export_what.currentIndexChanged.connect(lambda *_: self._step_shown(4))
-        form.addRow("Picture of", self.export_what)
         save = QPushButton("Save picture...")
         save.clicked.connect(lambda: self.save_picture())
         form.addRow(save)
@@ -1372,7 +1167,7 @@ class CrystalDialog(QDialog):
                 "writes a PNG (transparent if the background is). <b>To "
                 "figure composer</b> puts it on a figure page beside your "
                 "data, where it is labelled and arranged like any panel.")
-        return Step("Export", text, page, enter=lambda: self._step_shown(4))
+        return Step("Export", text, page, enter=lambda: self._step_shown(3))
 
     def picture(self):
         return self.view.render_image(self.width_box.value(),
@@ -1392,37 +1187,50 @@ class CrystalDialog(QDialog):
         return path
 
     def to_figure_composer(self, target=None, ask=True):
-        from arpes_viewer.tools.output import figure as nf
-        from arpes_viewer.ui.panels.figure import (FigureWindow, Panel, _qimage_array,
-                                      open_figure_windows)
-        from arpes_viewer.ui.viewers.windows import keep_alive
-
-        rgba = _qimage_array(self.picture())
         name = (self.structure.name if self.structure else "") or "crystal"
-        panel = Panel(data=nf.picture_data(rgba, name))
+        sources = None
         if getattr(self, "cif_path", ""):
             from arpes_viewer.tools.output.figfile import source_record
-            panel.data.sources = [source_record(
-                self.cif_path, kind="structure",
-                note="the picture is drawn from this CIF")]
-        panel.x_labels = panel.y_labels = False
-        if target is None and ask:
-            windows = open_figure_windows()
-            if windows:
-                names = ["A new figure"] + [w.windowTitle() for w in windows]
-                choice, ok = QInputDialog.getItem(
-                    self, "To figure composer", "Add the picture to:", names,
-                    0, False)
-                if not ok:
-                    return None
-                index = names.index(choice)
-                target = windows[index - 1] if index > 0 else None
-        if target is None:
-            target = FigureWindow([panel], f"Figure — {name}", parent=None)
-            keep_alive(target)
-            target.show()
-        else:
-            target.add_panels([panel])
-            target.raise_()
-        self.export_label.setText(f"Added to “{target.windowTitle()}”.")
+            sources = [source_record(self.cif_path, kind="structure",
+                                     note="the picture is drawn from this CIF")]
+        target = picture_to_composer(self, self.picture(), name,
+                                     sources=sources, target=target, ask=ask)
+        if target is not None:
+            self.export_label.setText(f"Added to “{target.windowTitle()}”.")
         return target
+
+
+def picture_to_composer(parent, image, name, *, sources=None, target=None,
+                        ask=True):
+    """A picture (QImage) as a panel of a figure composer: of ``target``,
+    of an open one the user picks (``ask``), or of a new one. Returns the
+    composer window, or None if the user cancelled."""
+    from arpes_viewer.tools.output import figure as nf
+    from arpes_viewer.ui.panels.figure import (FigureWindow, Panel, _qimage_array,
+                                  open_figure_windows)
+    from arpes_viewer.ui.viewers.windows import keep_alive
+
+    rgba = _qimage_array(image)
+    panel = Panel(data=nf.picture_data(rgba, name))
+    if sources:
+        panel.data.sources = list(sources)
+    panel.x_labels = panel.y_labels = False
+    if target is None and ask:
+        windows = open_figure_windows()
+        if windows:
+            names = ["A new figure"] + [w.windowTitle() for w in windows]
+            choice, ok = QInputDialog.getItem(
+                parent, "To figure composer", "Add the picture to:", names,
+                0, False)
+            if not ok:
+                return None
+            index = names.index(choice)
+            target = windows[index - 1] if index > 0 else None
+    if target is None:
+        target = FigureWindow([panel], f"Figure — {name}", parent=None)
+        keep_alive(target)
+        target.show()
+    else:
+        target.add_panels([panel])
+        target.raise_()
+    return target

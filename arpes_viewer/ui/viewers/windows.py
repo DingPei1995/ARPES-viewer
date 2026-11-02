@@ -1345,18 +1345,20 @@ class CutWindow(ViewerWindow):
         try:
             k_axis, energy, values, report = jobs.busy_work(
                 self, "Converting the cut to k-space", convert_cut,
-                scan.x, scan.y, self.data.cut_frame, **settings)
+                scan.x, scan.y, self.data.cut_frame,
+                **conversion_arguments(settings))
         except Exception as exc:
             QMessageBox.warning(self, "Cut k conversion", f"Conversion failed:\n{exc}")
             self.statusBar().showMessage("Cut k conversion failed")
             return None
-        if subtracted_fermi_level(self.data):
-            # The offset was added only to give k its kinetic energies; the
-            # result stays on the E - E_F axis the cut was on.
-            energy = (np.asarray(energy, dtype=float)
-                      - float(settings.get("energy_offset_eV", 0.0)))
+        # The offset was added only to give k its kinetic energies; the
+        # result stays on the axis the cut was on, or goes to E - E_F.
+        energy, ef_kinetic = output_energy(energy, settings,
+                                           subtracted_fermi_level(self.data))
 
         parameters = dict(settings)
+        if parameters.get(OUTPUT_EF_KEY) is None:
+            parameters.pop(OUTPUT_EF_KEY, None)
         # The distance from Gamma is the one number the axes cannot carry,
         # and the whole reason this conversion needs a reference: it travels
         # with the result so a cut reopened next week still says where it ran.
@@ -1365,11 +1367,15 @@ class CutWindow(ViewerWindow):
                             "energy_drift", "k_step", "measured_fraction")})
         source_info = {key: value for key, value in scan.info.items()
                        if not key.startswith("kcut.")}
+        energy_label = scan.labels.get("y", "Energy (eV)")
+        if ef_kinetic:
+            source_info["fitEF.ef_subtracted"] = ef_kinetic
+            energy_label = "E - E_F (eV)"
         result = MemoryData(
             "cut", (np.asarray(k_axis, dtype=float), np.asarray(energy, dtype=float)),
             np.asarray(values, dtype=float),
             {"x": K_RADIAL_LABEL if settings.get("radial") else K_LABEL,
-             "y": scan.labels.get("y", "Energy (eV)")},
+             "y": energy_label},
             source_label=name or f"{self.filename} [k]",
             parameters=parameters, prefix="kcut",
             source_path=getattr(self.data, "path", ""),
@@ -1501,23 +1507,9 @@ class KConversionDialog(QDialog):
         form.addRow("", self.rotation_note)
         self._rotation_points = []
 
-        self.energy_offset_box = QDoubleSpinBox()
-        self.energy_offset_box.setDecimals(4)
-        self.energy_offset_box.setRange(-10000.0, 10000.0)
-        self.energy_offset_box.setSingleStep(0.1)
-        self.energy_offset_box.setToolTip(
-            "Added to the kinetic energy before converting, for when the axis "
-            "is not already a true kinetic energy.")
-        form.addRow("Energy offset (eV)", self.energy_offset_box)
-        shifted = subtracted_fermi_level(contour.data)
-        if shifted:
-            # A map shifted to E - E_F: add E_F back, or every energy at or
-            # below the Fermi level would have no momentum at all.
-            self.energy_offset_box.setValue(shifted)
-            self.energy_offset_box.setToolTip(
-                self.energy_offset_box.toolTip() +
-                f"\n\nThis map's energy axis is E − E_F; E_F = {shifted:.4f} eV "
-                f"is filled in so the conversion uses kinetic energies.")
+        self.energy_rows = EnergyReferenceRows(form, contour.data, contour.E)
+        self.energy_offset_box = self.energy_rows.energy_offset_box
+        self.energy_offset_check = self.energy_rows.offset_check
 
         # The output grid, asked for either way round: how many points, or
         # how far apart. Counts are the default because they say exactly how
@@ -1606,6 +1598,7 @@ class KConversionDialog(QDialog):
                     self.theta_box, self.phi_box, self.azimuth_box,
                     self.energy_offset_box):
             box.valueChanged.connect(self._sync_grid)
+        self.energy_offset_check.toggled.connect(self._sync_grid)
         self._update_grid_mode()
 
         self.note = QLabel("")
@@ -1729,7 +1722,7 @@ class KConversionDialog(QDialog):
                             theta_offset_deg=self.theta_box.value(),
                             phi_offset_deg=self.phi_box.value(),
                             azimuth_deg=self.azimuth_box.value(),
-                            energy_offset_eV=self.energy_offset_box.value())
+                            energy_offset_eV=self.energy_rows.offset())
         except Exception:
             return None
 
@@ -1900,7 +1893,8 @@ class KConversionDialog(QDialog):
             "theta_offset_deg": self.theta_box.value(),
             "phi_offset_deg": self.phi_box.value(),
             "azimuth_deg": self.azimuth_box.value(),
-            "energy_offset_eV": self.energy_offset_box.value(),
+            "energy_offset_eV": self.energy_rows.offset(),
+            OUTPUT_EF_KEY: self.energy_rows.fermi_level(),
             "n_kx": n_kx,
             "n_ky": n_ky,
             "n_energy": n_energy,
@@ -4127,7 +4121,8 @@ class ContourWindow(ViewerWindow):
             report(None, "Reading the cube...")
             cube = full_cube()
             report(None, "Converting to k-space...")
-            return convert_map(defl, slit, energy_axis, cube, **settings)
+            return convert_map(defl, slit, energy_axis, cube,
+                               **conversion_arguments(settings))
 
         if background:
             started = jobs.run_job(
@@ -4161,22 +4156,27 @@ class ContourWindow(ViewerWindow):
         the GUI thread, whether the conversion ran here or on a worker."""
         kx, ky, energy, cube = result
         shifted = subtracted_fermi_level(self.data)
-        if shifted:
-            # The offset was added only to give k its kinetic energies; the
-            # result stays on the E - E_F axis the map was on.
-            energy = (np.asarray(energy, dtype=float)
-                      - float(settings.get("energy_offset_eV", 0.0)))
+        # The offset was added only to give k its kinetic energies; the
+        # result stays on the axis the map was on, or goes to E - E_F.
+        energy, ef_kinetic = output_energy(energy, settings, shifted)
 
         source_info = {k: v for k, v in self.data.scan.info.items()
                        if not k.startswith("kconv.")}
+        if ef_kinetic:
+            source_info["fitEF.ef_subtracted"] = ef_kinetic
+        parameters = dict(settings)
+        if parameters.get(OUTPUT_EF_KEY) is None:
+            parameters.pop(OUTPUT_EF_KEY, None)
         kdata = KMapData(kx, ky, energy, cube,
                          source_label=name or f"{self.filename} [k]",
-                         parameters=settings,
+                         parameters=parameters,
                          source_path=getattr(self.data, "path", ""),
                          source_info=source_info,
                          source_motors=dict(self.data.scan.fourd_info))
         if shifted:
             kdata.scan.labels["z"] = self.energy_label
+        elif ef_kinetic:
+            kdata.scan.labels["z"] = "E - E_F (eV)"
         self.kMapCreated.emit(kdata)
         finite = float(np.isfinite(cube).mean() * 100.0)
         stored = np.dtype(cube.dtype).name
@@ -4905,6 +4905,126 @@ def subtracted_fermi_level(data) -> float:
     return value if np.isfinite(value) else 0.0
 
 
+class EnergyReferenceRows:
+    """The energy rows of the two k-conversion dialogs: an optional output
+    on E - E_F, then an optional energy offset.
+
+    The offset used to be a bare box under the angles, and was often read
+    as "type E_F here" -- which, added to a kinetic axis, shifts every k.
+    It is now behind a tick box, off by default (the axis is used as it
+    is); only a dataset already shifted to E - E_F has it ticked, with its
+    E_F filled in, because without kinetic energies there is no momentum.
+    Putting the result on E - E_F is the separate row above it, with its
+    own E_F: that changes only the output's energy axis, never k.
+    """
+
+    def __init__(self, form, data, energy_axis, on_change=None):
+        self.shifted = subtracted_fermi_level(data)
+        energy = np.asarray(energy_axis, dtype=float)
+        guess = float(np.nanmax(energy)) if energy.size else 0.0
+
+        self.ef_check = QCheckBox("Energy axis as E − E_F")
+        self.ef_check.setChecked(False)
+        self.ef_box = QDoubleSpinBox()
+        self.ef_box.setDecimals(4)
+        self.ef_box.setRange(-10000.0, 10000.0)
+        self.ef_box.setSingleStep(0.01)
+        self.ef_box.setValue(guess)
+        self.ef_box.setToolTip(
+            "Where E_F is on this dataset's energy axis (as the viewer shows "
+            "it, before any offset below). The result's energy axis becomes "
+            "E − E_F; the momenta do not change.")
+        self.ef_check.setToolTip(
+            "Ticked: the converted dataset's energy axis is E − E_F, with "
+            "E_F the value typed beside it. Off: it keeps this dataset's own "
+            "energy axis.")
+        ef_row = QWidget()
+        ef_layout = QHBoxLayout(ef_row)
+        ef_layout.setContentsMargins(0, 0, 0, 0)
+        ef_layout.addWidget(self.ef_check)
+        ef_layout.addWidget(QLabel("E_F (eV)"))
+        ef_layout.addWidget(self.ef_box, stretch=1)
+        form.addRow("Output energy", ef_row)
+
+        self.offset_check = QCheckBox("Energy offset (eV)")
+        self.offset_check.setToolTip(
+            "Off (the default): the energy axis is used as it is, as kinetic "
+            "energy. Tick only when the axis is NOT a true kinetic energy; "
+            "the value is added to it before converting. This is not the "
+            "Fermi level -- for an output on E − E_F use the row above.")
+        self.energy_offset_box = QDoubleSpinBox()
+        self.energy_offset_box.setDecimals(4)
+        self.energy_offset_box.setRange(-10000.0, 10000.0)
+        self.energy_offset_box.setSingleStep(0.1)
+        self.energy_offset_box.setToolTip(
+            "Added to the kinetic energy before converting, for when the axis "
+            "is not already a true kinetic energy.")
+        form.addRow(self.offset_check, self.energy_offset_box)
+
+        if self.shifted:
+            # A dataset shifted to E - E_F: add E_F back, or every energy at
+            # or below the Fermi level would have no momentum at all. Its
+            # output is already on E - E_F.
+            self.offset_check.setChecked(True)
+            self.energy_offset_box.setValue(self.shifted)
+            self.energy_offset_box.setToolTip(
+                self.energy_offset_box.toolTip() +
+                f"\n\nThis energy axis is E − E_F; E_F = {self.shifted:.4f} eV "
+                f"is filled in so the conversion uses kinetic energies.")
+            self.ef_check.setEnabled(False)
+            self.ef_box.setEnabled(False)
+            self.ef_check.setToolTip("The energy axis is already E − E_F, "
+                                     "and the result keeps it.")
+        self._update()
+        self.offset_check.toggled.connect(self._update)
+        self.ef_check.toggled.connect(self._update)
+        if on_change is not None:
+            self.offset_check.toggled.connect(on_change)
+            self.energy_offset_box.valueChanged.connect(on_change)
+
+    def _update(self, *_):
+        self.energy_offset_box.setEnabled(self.offset_check.isChecked())
+        self.ef_box.setEnabled(self.ef_check.isChecked() and not self.shifted)
+
+    def offset(self) -> float:
+        """The offset the conversion adds to the energy axis."""
+        return (float(self.energy_offset_box.value())
+                if self.offset_check.isChecked() else 0.0)
+
+    def fermi_level(self):
+        """E_F on the dataset's own energy axis for an E - E_F output, or
+        None to keep the axis."""
+        if self.shifted or not self.ef_check.isChecked():
+            return None
+        return float(self.ef_box.value())
+
+
+#: settings key of the E - E_F output; not a conversion argument
+OUTPUT_EF_KEY = "output_fermi_level_eV"
+
+
+def conversion_arguments(settings: dict) -> dict:
+    """The settings without what the conversion itself does not take."""
+    return {k: v for k, v in settings.items() if k != OUTPUT_EF_KEY}
+
+
+def output_energy(energy, settings: dict, shifted: float):
+    """The result's energy axis from the converted (offset) one, and the
+    kinetic E_F subtracted from it (0 if none).
+
+    A dataset already on E - E_F goes back to it; an E - E_F output
+    subtracts the typed E_F (on the dataset's own axis, so the offset is
+    taken out as well)."""
+    energy = np.asarray(energy, dtype=float)
+    offset = float(settings.get("energy_offset_eV", 0.0))
+    if shifted:
+        return energy - offset, 0.0
+    ef = settings.get(OUTPUT_EF_KEY)
+    if ef is None:
+        return energy, 0.0
+    return energy - offset - float(ef), float(ef) + offset
+
+
 def cut_k_conversion_blocked(data):
     """Why this cut cannot be converted from angle to momentum, or None.
 
@@ -5009,20 +5129,14 @@ class CutKConversionDialog(QDialog):
         self.deflector_box.setValue(0.0 if not np.isfinite(recorded) else recorded)
         cut.addRow("Deflector angle (deg)", self.deflector_box)
 
-        self.energy_offset_box = QDoubleSpinBox()
-        self.energy_offset_box.setDecimals(4)
-        self.energy_offset_box.setRange(-10000.0, 10000.0)
-        self.energy_offset_box.setSingleStep(0.1)
-        self.energy_offset_box.setToolTip(
-            "Added to the energy axis before converting, for when it is not "
-            "already a true kinetic energy.")
-        cut.addRow("Energy offset (eV)", self.energy_offset_box)
+        self.energy_rows = EnergyReferenceRows(cut, window.data, window.data.scan.y)
+        self.energy_offset_box = self.energy_rows.energy_offset_box
+        self.energy_offset_check = self.energy_rows.offset_check
         note = ("Deflector angle read from the file." if np.isfinite(recorded)
                 else "This file records no deflector angle — type it, or "
                      "leave it at 0 if the cut was taken at the deflector's zero.")
-        shifted = subtracted_fermi_level(window.data)
+        shifted = self.energy_rows.shifted
         if shifted:
-            self.energy_offset_box.setValue(shifted)
             note += (f" The energy axis is E − E_F; E_F = {shifted:.4f} eV "
                      f"is added back so the conversion uses kinetic energies.")
         self.file_note = QLabel(note)
@@ -5153,7 +5267,8 @@ class CutKConversionDialog(QDialog):
                     self.deflector_box, self.energy_offset_box,
                     self.nk_box, self.ne_box, self.dk_box, self.de_box):
             box.valueChanged.connect(self._refresh)
-        for box in (self.radial_box, self.trim_box, self.advanced):
+        for box in (self.radial_box, self.trim_box, self.advanced,
+                    self.energy_offset_check):
             box.toggled.connect(self._refresh)
 
         # Γ's slit angle as a line on the cut, both ways: drag it, or type.
@@ -5380,7 +5495,7 @@ class CutKConversionDialog(QDialog):
                                     else self.deflector_box.value()),
             "gamma_slit_deg": self.gamma_slit.value(),
             "azimuth_deg": self.azimuth_box.value() if advanced else 0.0,
-            "energy_offset_eV": self.energy_offset_box.value(),
+            "energy_offset_eV": self.energy_rows.offset(),
         }
 
     def k_extent(self):
@@ -5410,7 +5525,8 @@ class CutKConversionDialog(QDialog):
         settings = dict(self.geometry())
         settings.update({"n_k": n_k, "n_energy": n_energy,
                          "radial": self.radial_box.isChecked(),
-                         "trim": self.trim_box.isChecked()})
+                         "trim": self.trim_box.isChecked(),
+                         OUTPUT_EF_KEY: self.energy_rows.fermi_level()})
         return settings
 
     # -- what the settings would give --------------------------------------

@@ -101,6 +101,8 @@ subpackages group modules by what they are for.
 | `panels/explog.py` | The experiment log's format window, and logging the selection in that format. |
 | `panels/repeats.py`, `panels/ridge.py`, `panels/detector.py` | Sum repeated scans, ridge detection, and the detector corrections. |
 | `panels/tightbinding.py`, `panels/crystal.py` | The tight-binding fit and the crystal-structure viewer (the Calculation tab). |
+| `panels/bz3d.py` | The 3-D Brillouin zone (Basic tab, *3D BZ*): planes and coloured paths in the zone, drawn by `crystal.CrystalView`. |
+| `common/cellinput.py` | A cell typed space group first, the parameters it fixes greyed out (crystal structure, 3D BZ, tight-binding fit). |
 | `common/stepper.py` | The numbered steps with Back / Next that the multi-step tool windows are built on. |
 | `common/jobs.py` | Running one long operation at a time off the GUI thread. |
 | `common/gcguard.py` | Cyclic garbage collection from the event loop only, never inside a Qt call (prevents random crashes on opening and closing windows). |

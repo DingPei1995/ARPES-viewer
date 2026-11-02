@@ -10,6 +10,56 @@ file is the record of how it got that way.
 
 ---
 
+## 1.2.4 — 2026-11-02
+
+Tools moved to where they are looked for, a CIF that would not open, and
+three things that misled or failed on k-maps.
+
+- **k conversion (map) and (cut): the energy rows.** *Energy offset* was
+  often read as "type E_F here", which shifts every k. It is now behind a
+  tick box, off by default (the axis is used as it is); only a dataset
+  already on E − E_F has it ticked and filled in, as before. Above it, a new
+  row **Energy axis as E − E_F** (off by default) takes E_F where it is on
+  the dataset's own axis and puts the result on E − E_F; the momenta do not
+  change. The result records the E_F, so the fits start from E_F = 0.
+- **3-D views of a k-map start at the first filled planes.** A converted
+  cube is the box around a light cone that narrows away from E_F, so the
+  notched cube's and the slices' outer k_x / k_y faces drew blank.
+  `tools.processing.volume.filled_ranges` finds the planes that hold data
+  (≥ 97 % of the fullest), and 3D slices, Notched cube, Stacked slices and
+  Volume projection open on that range; *Change sampling → Whole range*
+  shows everything.
+- **Slice series figure of a map not on screen** (a k-map, typically): the
+  figure was made from a contour opened off screen, which was then closed --
+  and a contour closes its figures with it. The figure is now let go first.
+- **Combine** takes in *Sum repeated scans* (gone from the Datasets box) as
+  its third way. **Stacking cuts** no longer needs both axes identical: with
+  one axis the same, the other -- energy windows a little apart, usually --
+  is truncated to the range all cover and resampled onto the first cut's
+  points (`stackcuts.truncation_plan`, `truncated_frames`).
+- **The list**: a search box above it (every word typed must appear in the
+  row's name or kind; hidden rows are deselected), and right-click **Sort by
+  name** (natural order) and **Sort by data type**.
+- **Crystal structure.** Typed in like the Brillouin-zone tool: the space
+  group first, then the cell it allows (`ui.common.cellinput.CellInput`,
+  shared with 3D BZ and the tight-binding fit). *From the Brillouin-zone
+  tool* is gone; **Read a CIF file...** is a button that fills the space
+  group, the cell and the basis (the file's symmetry operations kept for its
+  own space group) and redraws.
+- **CIF reading.** A FullProf CIF opens on a `data_global` block of journal
+  fields and has the structure in the next block; the parser stopped at the
+  second `data_` and found no cell. Every block is now read and the one with
+  the cell and the atom sites used; `#` comments and `;` text fields no
+  longer leak into values, and `?` is "unknown", not a name.
+- **3D BZ** (Basic tab) is the crystal window's former zone step on its
+  own: any number of planes, each with its own (hkl), height, colour and
+  opacity (*Add a plane in 3D BZ*), any number of paths in colours of their
+  own (*Add path*), and **To figure composer**. The old *Brillouin zone...*
+  is now **BZ overlap...**.
+- **Tight-binding fit**: the 3-D crystal is typed space group first, the
+  constrained parameters greyed out.
+- **Figure composer** moved from Advanced to Basic.
+
 ## 1.2.3 — 2026-10-30
 
 The agentic workflow: an AI agent (e.g. Claude, through the desktop app

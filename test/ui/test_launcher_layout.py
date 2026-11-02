@@ -61,7 +61,7 @@ def test_tool_buttons_follow_the_selection(launcher):
     # Calculation tab's crystal, tight-binding fit (points from a file)
     # and calculated bands (a calculation alone)
     assert not any(b.isEnabled() for name, b in lv.ui.ToolButtons.items()
-                   if name not in ("figure", "lattice", "tbfit", "bands"))
+                   if name not in ("figure", "lattice", "tbfit", "bands", "bz3d"))
     assert lv.ui.ToolButtons["figure"].isEnabled()
     assert "Select a dataset" in lv.ui.ToolButtons["smooth"].toolTip()
     _select(lv, "c")
@@ -97,7 +97,40 @@ def test_the_right_click_menu_holds_only_the_ways_of_opening(launcher):
     QTimer.singleShot(0, lambda: lv.last_list_menu.close())
     lv.show_list_menu(QPoint(5, 5))
     texts = [a.text() or "---" for a in lv.last_list_menu.actions()]
-    assert texts == ["Open", "Open slit cut", "Open scan-axis cut"]
+    # the ways of opening, then the two ways of ordering the whole list
+    assert texts == ["Open", "Open slit cut", "Open scan-axis cut", "---",
+                     "Sort by name", "Sort by data type"]
+
+
+def test_the_list_sorts_by_name_or_type_and_searches(launcher):
+    lv = launcher
+    cube = MemoryData("map", (DEFL, SLIT, EKIN),
+                      np.ones((DEFL.size, SLIT.size, EKIN.size)),
+                      {"x": "Angle, deflector (deg)", "k": "Angle, slit (deg)",
+                       "z": "Kinetic energy (eV)"}, source_label="b10")
+    lv.add_memory_dataset(cube, "Scan_10")
+    lv.add_memory_dataset(cube, "Scan_9")
+    lw = lv.ui.FilePathListWidget
+
+    def names():
+        return [lv.loaded_items[lw.item(i).data(0x0100)]["name"]
+                for i in range(lw.count())]
+
+    lv.sort_list("name")
+    assert names() == ["c", "m", "Scan_9", "Scan_10"]
+    lv.sort_list("kind")
+    kinds = [lv.loaded_items[lw.item(i).data(0x0100)]["kind"].lower()
+             for i in range(lw.count())]
+    assert kinds == sorted(kinds)
+    _select(lv, "m", "Scan_9")
+    lv.ui.ListSearchLE.setText("scan")
+    shown = [lv.loaded_items[lw.item(i).data(0x0100)]["name"]
+             for i in range(lw.count()) if not lw.item(i).isHidden()]
+    assert shown == ["Scan_9", "Scan_10"]
+    # a hidden row is not acted on
+    assert [lv.loaded_items[k]["name"] for k in lv.selected_keys()] == ["Scan_9"]
+    lv.ui.ListSearchLE.setText("")
+    assert not any(lw.item(i).isHidden() for i in range(lw.count()))
 
 
 def test_the_rest_of_the_menu_is_the_datasets_box_above_memory(launcher):
@@ -105,7 +138,7 @@ def test_the_rest_of_the_menu_is_the_datasets_box_above_memory(launcher):
     panel = ui.ToolPanel
     assert [b.text() for b in ui.DatasetButtons.values()] == [
         "Experiment info", "Log format...", "Auto Exp. log", "Rename",
-        "Save", "Remove", "Sum repeated scans...", "Session log..."]
+        "Save", "Remove", "Session log..."]
     # the log's format and the log itself, side by side
     fmt, log = ui.DatasetButtons["explogformat"], ui.DatasetButtons["explog"]
     rows = [ui.DatasetBox.layout().itemAt(i).layout()
@@ -406,9 +439,9 @@ def test_the_panel_has_a_basic_and_an_advanced_section(launcher):
     ui = launcher.ui
     basic, advanced = ui.ToolSections["Basic"], ui.ToolSections["Advanced"]
     for name in ("fermi", "degrid", "background", "kcut", "corelevel", "kmap",
-                 "kzalign", "kzconv"):
+                 "kzalign", "kzconv", "bz", "bz3d", "figure"):
         assert basic.isAncestorOf(ui.ToolButtons[name]), name
-    for name in ("figure", "smooth", "derivative", "curvature", "symmetry",
+    for name in ("smooth", "derivative", "curvature", "symmetry",
                  "stack", "mdcfit", "edcfit", "arithmetic", "slices3d",
                  "notch3d", "projection3d"):
         assert advanced.isAncestorOf(ui.ToolButtons[name]), name
