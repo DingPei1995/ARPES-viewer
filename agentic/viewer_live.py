@@ -13,10 +13,13 @@ Nothing here uses the network.
 import os, sys, glob, json, time, io, contextlib, traceback
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)                       # the repository
+for _folder in ("out", "viewer_cmd", "viewer_done", "shots", "figures"):
+    os.makedirs(os.path.join(HERE, _folder), exist_ok=True)
 CFG = json.load(open(os.path.join(HERE, "config.json"), encoding="utf-8"))
 DATA = CFG["data_dir"]; PATTERNS = CFG.get("patterns", ["*.txt", "*/*_roi1_.txt"])
 sys.path.insert(0, ROOT)
-os.environ["QT_QPA_PLATFORM"] = "windows"
+if sys.platform == "win32":
+    os.environ["QT_QPA_PLATFORM"] = "windows"
 import arpes_viewer.app as A
 from PyQt5 import QtCore, QtWidgets
 

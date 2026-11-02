@@ -170,7 +170,8 @@ any tool, take screenshots). Add to the client's MCP configuration:
 
 (from a checkout: `"command": "python", "args": ["-m", "arpes_viewer.agent"]`).
 Data stay on the machine; see
-[the user guide, §33](docs/USER_GUIDE_en.md#33-driving-the-program-from-an-ai-agent-mcp).
+[the user guide, §33](docs/USER_GUIDE_en.md#33-driving-the-program-from-an-ai-agent-mcp). New to agents? The step-by-step guide is
+[`agentic/README.md`](agentic/README.md).
 
 As with any analysis, check what an agent produced before you publish it.
 
@@ -196,7 +197,7 @@ title bar.
   [English](docs/pdf/ARPES_viewer_user_guide_en.pdf) ·
   [中文](docs/pdf/ARPES_viewer_user_guide_zh.pdf) ·
   [Français](docs/pdf/ARPES_viewer_user_guide_fr.pdf).
-- **AI agents**: the MCP server ([user guide §33](docs/USER_GUIDE_en.md#33-driving-the-program-from-an-ai-agent-mcp)), and the file-based [agentic workflow](docs/AGENTIC_WORKFLOW_en.md) with the [`agentic/`](agentic/README.md) scripts and recipes.
+- **AI agents**: start with the beginner's guide [`agentic/README.md`](agentic/README.md) -- connecting an agent step by step, runnable examples and [requests to copy](agentic/PROMPTS.md); then the MCP server ([user guide §33](docs/USER_GUIDE_en.md#33-driving-the-program-from-an-ai-agent-mcp)) and the file-based [agentic workflow](docs/AGENTIC_WORKFLOW_en.md).
 - **What changed, and why**: [CHANGELOG.md](CHANGELOG.md).
 - **Technical references**, beside the code they describe -- the formulas,
   the file layouts, the assumptions and the tests behind each step:

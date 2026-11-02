@@ -4,6 +4,8 @@
 import os, sys, time, subprocess, shutil, datetime
 HERE = os.path.dirname(os.path.abspath(__file__))
 Q, OUT, DONE = (os.path.join(HERE, d) for d in ("queue", "out", "done"))
+for _folder in (Q, OUT, DONE):
+    os.makedirs(_folder, exist_ok=True)
 py = sys.executable
 cand = os.path.join(os.path.dirname(py), "python.exe")
 if py.lower().endswith("pythonw.exe") and os.path.exists(cand):

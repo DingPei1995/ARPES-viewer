@@ -1,0 +1,11 @@
+# The agentic workflow's working folders and your own settings stay local.
+config.json
+heartbeat.txt
+STOP
+out/
+queue/
+done/
+viewer_cmd/
+viewer_done/
+shots/
+figures/

@@ -8,6 +8,11 @@
 > `arpes-viewer --agent-bridge` -- without the command folders below. See
 > [the user guide, §33](USER_GUIDE_en.md#33-driving-the-program-from-an-ai-agent-mcp).
 > The file-based workflow described here keeps working.
+>
+> **New to this?** Start with [`agentic/README.md`](../agentic/README.md):
+> the three ways to use an agent, how to connect one step by step, runnable
+> example scripts and requests to copy ([`agentic/PROMPTS.md`](../agentic/PROMPTS.md)).
+> This page is the detailed account of route 3.
 
 ## 1. What this gives you
 
@@ -65,7 +70,7 @@ python -m pip install numpy scipy h5py PyQt5 pyqtgraph matplotlib
 
 ### 4.2 Working folders
 
-The working folders `queue`, `out`, `done`, `viewer_cmd`, `viewer_done`, `shots` and `figures` already exist in `agentic/` (kept by `.gitkeep`); their contents are git-ignored.
+The working folders `queue`, `out`, `done`, `viewer_cmd`, `viewer_done`, `shots` and `figures` are created in `agentic/` the first time the viewer or the runner starts; they and `config.json` are git-ignored (`agentic/.gitignore`).
 
 
 ### 4.3 Copy the `agentic/` folder and configure
