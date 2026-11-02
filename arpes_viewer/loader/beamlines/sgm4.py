@@ -50,7 +50,7 @@ import numpy as np
 
 from arpes_viewer.loader.formats.nexus_arpes import (Dim, Layout, NexusArpesLoader,
                                         motor_role, text)
-from arpes_viewer.loader.nxs_file import ANGLE_UNIT, ENERGY_UNIT, HANDLES
+from arpes_viewer.loader.scan import ANGLE_UNIT, ENERGY_UNIT, HANDLES
 from arpes_viewer.loader.registry import Loader, register
 
 __all__ = ["Sgm4Loader", "is_sgm4", "read_layout", "FlatGrid",

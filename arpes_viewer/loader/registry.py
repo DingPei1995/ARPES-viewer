@@ -11,7 +11,7 @@ function and hoping not to break the first.
 
 This module makes the reader a choice instead. A loader is a small object
 that answers three questions -- *can you open this?*, *what is in it?*, *read
-this entry* -- and each one lives in its own file (``loader/beamlines/soleil.py``,
+this entry* -- and each one lives in its own file (``loader/beamlines/antares.py``,
 ``loader/native.py``), so a new beamline is a new file plus one
 ``register()`` call, touching nothing that already worked.
 
@@ -105,7 +105,7 @@ class Loader:
                      native format sits above every beamline guess.
     ``can_open(p)``  cheap structural check -- open the file, look, close.
     ``list_entries(p)``  one dict per openable dataset, as
-                     ``loader.nxs_file.list_datasets`` returns them.
+                     ``loader.beamlines.antares.list_datasets`` returns them.
     ``load(p, entry, progress)``   an ``NxsScan``.
 
     ``progress`` is ``callable(done, total, label)`` or ``None``, and a
@@ -145,10 +145,12 @@ def register(loader: Loader) -> Loader:
 
 def loaders() -> list:
     """Every registered loader, best-detection-chance first."""
+    _install_default_loaders()
     return sorted(_REGISTRY.values(), key=lambda l: -l.priority)
 
 
 def get_loader(name: str) -> Loader:
+    _install_default_loaders()
     try:
         return _REGISTRY[name]
     except KeyError:
@@ -193,7 +195,7 @@ def _resolve(path: str, options: LoadOptions = None) -> "Loader | None":
 def load(path: str, entry: str = None, options: LoadOptions = None,
          progress=None):
     """Read one dataset, apply the load-time axis options, and return the
-    :class:`loader.nxs_file.NxsScan`.
+    :class:`loader.scan.NxsScan`.
 
     ``progress`` is handed to the loader only if it accepts one, so that
     adding the argument here did not have to break every loader at once.
@@ -226,7 +228,7 @@ def _accepts_progress(method) -> bool:
 def _axis_slots(kind: str) -> tuple:
     """Which of NxsScan's axis attributes hold this kind's dimensions, in
     the array's own order -- from the one table that says so."""
-    from arpes_viewer.loader.nxs_file import axis_slots
+    from arpes_viewer.loader.scan import axis_slots
     return axis_slots(kind, "array")
 
 
@@ -243,7 +245,7 @@ def apply_options(scan, options: LoadOptions):
     written a better label than a generic one. Anything that said nothing is
     an angle, which is what every file read before roles existed was.
     """
-    from arpes_viewer.loader.nxs_file import CUBE_KINDS
+    from arpes_viewer.loader.scan import CUBE_KINDS
 
     if options.permutation:
         scan = permute_axes(scan, options.permutation)
@@ -324,11 +326,21 @@ def role_is_angle(scan) -> bool:
     return bool(convertible)
 
 
+_INSTALLED = False
+
+
 def _install_default_loaders():
-    """Import the loaders that ship with the program, so that importing this
-    module is enough to have them. Kept in a function so the import order is
-    explicit and a broken third-party loader cannot stop the rest loading."""
-    beamlines = ("soleil", "cassiopee", "cassiopee_spin", "maestro", "alba",
+    """Import the loaders that ship with the program, the first time any
+    loader is asked for. Kept in a function so the import order is explicit
+    and a broken third-party loader cannot stop the rest loading; run on
+    first use rather than at import, so that a loader module importing this
+    one (for :class:`Loader` and :func:`register`) never finds a sibling it
+    needs half-imported."""
+    global _INSTALLED
+    if _INSTALLED:
+        return
+    _INSTALLED = True
+    beamlines = ("antares", "cassiopee", "cassiopee_spin", "maestro", "alba",
                  "diamond", "maxiv", "ape", "bessy", "solaris", "sgm4")
     for module in ("arpes_viewer.loader.native",
                    *(f"arpes_viewer.loader.beamlines.{name}" for name in beamlines)):
@@ -337,6 +349,3 @@ def _install_default_loaders():
         except Exception as exc:                        # noqa: BLE001
             import warnings
             warnings.warn(f"loader module {module} did not load: {exc}")
-
-
-_install_default_loaders()

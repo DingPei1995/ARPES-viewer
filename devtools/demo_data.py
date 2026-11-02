@@ -22,7 +22,7 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
-from arpes_viewer.loader.nxs_file import save_dataset            # noqa: E402
+from arpes_viewer.loader.native import save_dataset            # noqa: E402
 
 A_K = 0.512317          # k [A^-1] = A_K sqrt(E_kin [eV]) sin(angle)
 A_KZ = 0.262466         # k^2 [A^-2] = A_KZ E [eV]

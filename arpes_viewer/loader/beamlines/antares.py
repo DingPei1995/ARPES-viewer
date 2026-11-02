@@ -1,134 +1,68 @@
 """
-loader/nxs_file.py
-==================
-Read SOLEIL/ANTARES nano-ARPES ``*.nxs`` (NeXus/HDF5) files in Python.
+loader/beamlines/antares.py
+===========================
+SOLEIL ANTARES (nano-ARPES): its ``*.nxs`` (NeXus/HDF5) files, and the
+loader that registers them.
 
-This is a line-by-line port of ``load_soleil_nxs.m`` (kept in this repo for
-reference) with **one deliberate, important deviation**, documented below.
+Which raw axis is which
+-----------------------
+The scan arrays carry no axis names. Each raw HDF5 axis is matched to a
+physical quantity **by length**, against the independently read axis
+vectors (the actuator and scale datasets), and transposed into an explicit,
+named order (:func:`loader.scan.align_and_transpose`). That holds unless two
+axes have the same number of points, in which case it warns and picks one.
+:func:`inspect_nxs` prints a file's structure to check a new kind of file.
 
---------------------------------------------------------------------------
-WHY THIS IS NOT A BLIND TRANSLATION OF THE .m FILE (read this first)
---------------------------------------------------------------------------
-MATLAB's ``h5read``/``h5info`` report the dimensions of a multi-dimensional
-HDF5 dataset in **reverse order** compared to ``h5py`` (this is documented
-MATLAB behaviour: HDF5/C stores arrays row-major, MATLAB is column-major, so
-MATLAB flips the reported shape rather than copying data). Concretely, a
-dataset written with a Python/numpy shape ``(a, b, c, d)`` is reported by
-``size(h5read(...))`` in MATLAB as ``(d, c, b, a)``.
-
-That means the hard-coded ``permute(value, [3 4 2 1])`` (and similar) calls
-in ``load_soleil_nxs.m`` cannot be copied verbatim into ``h5py``-based code
--- the axis indices refer to MATLAB's *reversed* dimension order. Doing so
-silently would very likely scramble the (x, y, k, E) axes without raising
-any error, which is worse than not converting at all.
-
-Instead, this module determines which raw HDF5 axis is which physical
-quantity by **matching axis lengths** against the independently-read
-calibration arrays (the actuator/scale datasets, e.g. ``data.x``, ``data.y``,
-``data.k``, ``data.z`` in the .m file) and then transposes into an explicit,
-named, canonical order. See :func:`align_and_transpose`.
-
-This is more robust than an index transcription, but it is only as good as
-the assumption that no two axes happen to have the same length. Use
-:func:`inspect_nxs` on a real file to sanity-check the result before trusting
-it (print shapes, compare to the calibration-array lengths) -- this is
-strongly recommended, since no real ``*.nxs`` file was available while
-writing this module (only the ``.m`` source was provided).
-
---------------------------------------------------------------------------
 Which entry, and which case
---------------------------------------------------------------------------
-A ``*.nxs`` file can contain more than one top-level NeXus entry (e.g. a
-real-space navigation image recorded right before the actual k-space scan,
-both saved in the same file). Which entry is parsed, and as which "case"
-(2/3/4, see below), is determined by **inspecting what datasets actually
-exist inside each entry** (:func:`_classify_entry`) -- entry names like
-``img1_0001``/``img1_0002`` turned out on real files to be generic,
-sequentially-numbered labels, not a reliable indicator of content (the same
-name pattern held a valid scan in one file and an incomplete/unrelated
-entry in another). See :func:`list_entries` and the ``entry=`` parameter of
-:func:`load_soleil_nxs`.
+---------------------------
+A file can hold more than one top-level entry (a real-space navigation
+image recorded just before the k-space scan, both saved in the same file).
+Which entry is parsed, and as which case, is decided by **what each entry
+contains** (:func:`_classify_entry`) -- entry names such as ``img1_0001``
+are sequential labels, not a guide to content. See :func:`list_datasets`
+and the ``entry=`` parameter of :func:`load_soleil_nxs`. An entry written
+by this program (:mod:`loader.native`) is recognised by its marker and read
+by that module, so a file can hold both.
 
---------------------------------------------------------------------------
-Data "kinds" produced
---------------------------------------------------------------------------
-- ``"spem_4d"``  : real-space scan, full 4D cube (x, y, k, E) + a reduced 3D
-                   preview cube. This is the nano-ARPES *imaging* mode.
-- ``"spem_1d"``  : real-space scan along a single spatial line (x, k/angle, E
-                   -- named ``data.y``/``data.z`` in the .m file for this
-                   branch, kept as-is here).
-- ``"cut"``      : a single E-vs-angle(k) spectrum (deflector fixed).
-- ``"map"``      : a deflector-angle scan built into a (deflx, k, E) cube --
-                   this is the k-space "Fermi surface" mode, i.e. the raw
-                   material for a (kx, ky, E) visualization. See
-                   :func:`deflector_angle_to_kx` to convert the raw deflector
-                   angle axis to a momentum axis.
+Kinds produced
+--------------
+- ``"spem_4d"``  : real-space scan, the full 4-D cube (x, y, k, E) and a
+                   reduced 3-D preview. The nano-ARPES *imaging* mode.
+- ``"spem_1d"``  : a real-space scan along one line (x, angle, E).
+- ``"cut"``      : one E-vs-angle spectrum (deflector fixed).
+- ``"map"``      : a deflector scan as a (deflector, slit angle, E) cube, the
+                   raw material of a constant-energy map.
 - ``"kz_map"``   : a photon-energy (PhD) scan, (hv, angle, E), assembled
                    from one single-frame entry per photon energy (case 6,
-                   see :func:`_parse_phd`).
-- ``"unsupported"``: case 1 (``Scan2D_MBS_vs_PIX_PIY``), left unimplemented
-                   in the .m file too ("not finish for 2019 version").
+                   :func:`_parse_phd`).
+- ``"unsupported"``: ``Scan2D_MBS_vs_PIX_PIY`` (case 1), not read.
+
+Nothing here imports Qt.
 """
 from __future__ import annotations
 
-import os
 import re
-from contextlib import contextmanager
 import warnings
-from dataclasses import dataclass, field
 from typing import Optional
-
 import h5py
 import numpy as np
 
-# --------------------------------------------------------------------------
-# Group name -> case dispatch.
-#
-# IMPORTANT: names like "img1_0001"/"img1_0002" turned out on real files to
-# be generic, sequentially-numbered entry labels, NOT a reliable indicator
-# of which case an entry holds -- the same name pattern can be a valid
-# real-space scan in one file and an incomplete/unrelated entry (missing
-# the datasets a parser needs) in another. Case dispatch is therefore
-# primarily CONTENT-based now (see `_classify_entry`), which inspects what
-# datasets actually exist inside the entry. This name table is kept only
-# as a fallback for entries whose content doesn't match any known
-# structure (currently just case 1, which is unimplemented -- like the .m
-# file -- and so has nothing to detect by content).
-# --------------------------------------------------------------------------
-#: Marks an entry written by :func:`save_dataset`, so it is recognised on
-#: the way back in regardless of what the user named it.
-NATIVE_ATTR = "nxsloader_kind"
-NATIVE_FORMAT_ATTR = "nxsloader_format"
-#: 1: gzip-4, arrays written as whatever was handed in (in practice float64,
-#:    since every caller promoted first), axes named axis_x/y/z only.
-#: 2: gzip-4 **with the shuffle filter**, the array's own dtype preserved,
-#:    and a fourth axis (axis_w) for a 4-D spatial scan. Measured on a
-#:    120x941x96 map: 11.1 -> 8.8 MB at the same write time (shuffle
-#:    re-orders the bytes of each value so that the high bytes of
-#:    neighbouring numbers, which are nearly always equal, end up adjacent,
-#:    which is what gzip is good at). Version 1 files still read.
-NATIVE_FORMAT_VERSION = 2
+from arpes_viewer.loader.scan import (ANGLE_UNIT, ENERGY_UNIT, HANDLES,
+                                      KIND_LABELS, LazyArray, LazyCube,
+                                      NxsScan, _decode, _read, _read_opt,
+                                      _scalarize, align_and_transpose,
+                                      resolve_axis_order, scalar0,
+                                      squeeze_to_1d)
+from arpes_viewer.loader.native import (NATIVE_ATTR, _first_string,
+                                        _parse_native)
 
-#: How arrays are written. Chosen by measurement rather than by taste, on
-#: ARPES-shaped data (smooth bands plus Poisson noise):
-#:
-#:   raw                 86.7 MB   write 0.04 s
-#:   gzip 4              11.1 MB   write 0.70 s     <- version 1
-#:   gzip 1 + shuffle     9.5 MB   write 0.47 s
-#:   gzip 4 + shuffle     8.8 MB   write 0.70 s     <- version 2
-#:   gzip 9 + shuffle     8.4 MB   write 9.87 s
-#:   lzf + shuffle       13.5 MB   write 0.33 s
-#:
-#: Level 9 costs 14x the write time for 5% -- no. lzf is faster to write but
-#: half as effective. Chunking is left to h5py: a hand-tuned "whole plane"
-#: chunk reads constant-energy slices 4x faster but the orthogonal cuts 20x
-#: slower, and the viewer does both, while h5py's own guess is within a few
-#: per cent of the best balanced choice.
-NATIVE_COMPRESSION = dict(compression="gzip", compression_opts=4,
-                          shuffle=True, chunks=True)
 
+# Entry names are sequential labels, not a guide to content, so cases are
+# decided by what an entry contains (_classify_entry). This name table is
+# only the fallback for case 1, which is not read and so has nothing to be
+# detected by.
 GROUP_NAME_TO_CASE = {
-    "/Scan2D_MBS_vs_PIX_PIY": 1,   # unimplemented in the original .m file too
+    "/Scan2D_MBS_vs_PIX_PIY": 1,
 }
 
 
@@ -182,35 +116,9 @@ def _classify_entry(f: h5py.File, g: str) -> Optional[int]:
     return GROUP_NAME_TO_CASE.get(g)
 
 
-# --------------------------------------------------------------------------
-# Small helpers
-# --------------------------------------------------------------------------
-def _decode(x):
-    """Decode bytes / numpy bytes_ scalars & arrays to str, pass through else."""
-    if isinstance(x, (bytes, np.bytes_)):
-        return x.decode("utf-8", errors="replace")
-    if isinstance(x, np.ndarray) and x.dtype.kind == "S":
-        return np.char.decode(x, "utf-8")
-    return x
-
-
-def _read(f: h5py.File, path: str):
-    """h5read-equivalent: read a dataset, decoding strings, tolerant of a
-    trailing '/' (the .m file appends one after every path)."""
-    path = path.rstrip("/")
-    return _decode(f[path][()])
-
-
-def _read_opt(f: h5py.File, path: str, default=None):
-    path = path.rstrip("/")
-    if path not in f:
-        return default
-    return _decode(f[path][()])
-
-
-def matlab_colon(start: float, step: float, stop: float) -> np.ndarray:
-    """Reproduce MATLAB's ``start:step:stop`` (inclusive of ``stop`` up to
-    floating point tolerance). Defensively coerces its arguments to plain
+def inclusive_range(start: float, step: float, stop: float) -> np.ndarray:
+    """``start, start + step, ...`` up to and including ``stop`` (within
+    floating-point tolerance), as the files' scale triplets mean. Defensively coerces its arguments to plain
     Python floats first -- see :func:`scalar0` for why that isn't always a
     no-op on real files."""
     start = float(np.ravel(start)[0]) if np.ndim(start) else float(start)
@@ -221,61 +129,6 @@ def matlab_colon(start: float, step: float, stop: float) -> np.ndarray:
     n = int(np.floor((stop - start) / step + 1e-9)) + 1
     n = max(n, 0)
     return start + step * np.arange(n)
-
-
-def scalar0(arr, name: str = "value") -> float:
-    """Extract a single representative scalar from a calibration dataset,
-    the way MATLAB's ``arr(1)`` linear indexing does regardless of the
-    array's actual shape.
-
-    On real files these "single-value" calibration datasets (escalemin,
-    xscalemult, ...) are sometimes logged as 2D arrays (e.g. one row per
-    acquisition frame) rather than the flat 1D vectors implicitly assumed
-    by the .m file's ``arr(1)`` indexing -- plain numpy ``arr[0]`` then
-    returns a sub-array instead of a number, which is a bug, not a
-    replication of the MATLAB behaviour. This flattens first (matching
-    "just give me the very first stored element") and warns if the values
-    are not all (approximately) equal, since ``arr(1)`` implicitly assumes
-    they are.
-    """
-    a = np.asarray(arr)
-    flat = a.ravel()
-    if flat.size == 0:
-        raise ValueError(f"{name}: empty array, cannot extract a scalar (shape={a.shape}).")
-    v0 = flat[0]
-    if flat.size > 1 and np.issubdtype(flat.dtype, np.number):
-        spread = float(np.ptp(flat.astype(float)))
-        if spread > 1e-6 * (abs(float(v0)) + 1e-12):
-            warnings.warn(
-                f"{name}: expected a constant-valued calibration array (the "
-                f".m file always reads element (1) of it) but values span "
-                f"{spread:.6g} across shape {a.shape}; using the first "
-                f"element ({v0!r}). If this file's calibration genuinely "
-                f"drifts, treating it as constant is wrong -- inspect it by hand."
-            )
-    return float(v0)
-
-
-def squeeze_to_1d(arr, name: str = "array") -> np.ndarray:
-    """Collapse a nominally-1D scan-axis array (e.g. an actuator readback)
-    to a true 1D array, tolerating harmless extra singleton dimensions
-    (shape (N,1), (1,N), ...) that show up on some real files. Warns
-    (rather than silently guessing) if a genuinely multi-valued extra
-    dimension is found, since flattening that would silently interleave
-    unrelated data."""
-    a = np.asarray(arr)
-    squeezed = np.squeeze(a)
-    if squeezed.ndim == 0:
-        return squeezed.reshape(1).astype(float)
-    if squeezed.ndim != 1:
-        warnings.warn(
-            f"{name}: expected a 1D scan axis, got shape {a.shape} (still "
-            f"{squeezed.ndim}D after squeezing singleton dims); flattening "
-            f"in C order -- verify this is meaningful for your file with "
-            f"inspect_nxs()."
-        )
-        squeezed = squeezed.reshape(-1)
-    return squeezed.astype(float)
 
 
 # --------------------------------------------------------------------------
@@ -291,21 +144,14 @@ INFO_FIELDS_HIDDEN = {
     "title", "experiment_identifier", "run_cycle",
     "Machine.name", "Machine.probe", "Machine.type",
 }
+
+
 INFO_PREFIXES_HIDDEN = ("User.", "TC1.", "TC2.", "ScanCfg.")
 
 
 def _hide_noisy_info(info: dict) -> dict:
     return {k: v for k, v in info.items()
             if k not in INFO_FIELDS_HIDDEN and not k.startswith(INFO_PREFIXES_HIDDEN)}
-
-
-# --------------------------------------------------------------------------
-# Axis labels and units
-# --------------------------------------------------------------------------
-#: The analyser's slit-direction axis and the deflector axis are both
-#: reported in degrees, and energies in eV, throughout these files.
-ANGLE_UNIT = "\u00b0"
-ENERGY_UNIT = "eV"
 
 
 def spatial_unit_for(actuator_names) -> str:
@@ -323,492 +169,6 @@ def spatial_unit_for(actuator_names) -> str:
     if any(tag in joined for tag in ("pix", "piy", "pi_x", "pi_y", "ex-pi", "ex/pi/")):
         return "\u00b5m"
     return "mm"
-# --------------------------------------------------------------------------
-def resolve_axis_order(shape, axis_lengths: "dict[str, int]", order: "list[str]",
-                       what: str = "array") -> "tuple[int, ...]":
-    """Work out which raw axis is which named axis, by matching lengths.
-
-    Split out of :func:`align_and_transpose` so the same reasoning can be
-    applied to a dataset that is never read into memory (see
-    :class:`LazyCube`): only ``shape`` is needed, not the data.
-    """
-    if len(shape) != len(order):
-        raise ValueError(
-            f"resolve_axis_order: {what} has {len(shape)} dims but {len(order)} "
-            f"named axes were requested ({order}). Raw shape={tuple(shape)}. "
-            f"Use inspect_nxs() to look at the file and adjust the parsing."
-        )
-    remaining = list(range(len(shape)))
-    perm = []
-    for name in order:
-        target = axis_lengths[name]
-        candidates = [ax for ax in remaining if shape[ax] == target]
-        if not candidates:
-            raise ValueError(
-                f"resolve_axis_order: no remaining raw axis of length {target} "
-                f"for '{name}'. Raw shape={tuple(shape)}, remaining={remaining}, "
-                f"expected lengths={axis_lengths}."
-            )
-        if len(candidates) > 1:
-            warnings.warn(
-                f"resolve_axis_order: axis '{name}' (length {target}) is ambiguous "
-                f"-- {len(candidates)} raw axes share that length ({candidates}). "
-                f"Picking axis {candidates[0]}; verify with inspect_nxs() if this "
-                f"looks wrong."
-            )
-        perm.append(candidates[0])
-        remaining.remove(candidates[0])
-    return tuple(perm)
-
-
-class _HandleRegistry:
-    """One open HDF5 handle per file path, reference counted.
-
-    Two reasons this is not left to `h5py.File` per caller:
-
-    * A file often holds several measurements (six Cuts or Maps is normal),
-      and the user may have several of them open at once. One handle serves
-      them all instead of one per window.
-    * HDF5 keeps a single underlying handle per path per process, so two
-      `h5py.File` objects for the same file are not independent: on some
-      builds, closing either one invalidates datasets held by the other
-      (which is exactly what a LazyCube holds). Routing every open through
-      here means the file is closed once, when the last user lets go.
-    """
-
-    def __init__(self):
-        self._open = {}          # abspath -> [h5py.File, refcount]
-
-    def acquire(self, path: str) -> h5py.File:
-        key = os.path.abspath(path)
-        entry = self._open.get(key)
-        if entry is not None and entry[0].id.valid:
-            entry[1] += 1
-            return entry[0]
-        handle = h5py.File(path, "r")
-        self._open[key] = [handle, 1]
-        return handle
-
-    def release(self, path: str, handle=None) -> None:
-        """Give back one claim on ``path``. ``handle`` is the File the claim
-        was made on: if the registry has since had to replace it (it was
-        found invalid), a release for the old one must not count against
-        the new one's users -- that would close a file they are reading."""
-        key = os.path.abspath(path)
-        entry = self._open.get(key)
-        if entry is None:
-            return
-        if handle is not None and entry[0] is not handle:
-            return
-        entry[1] -= 1
-        if entry[1] <= 0:
-            self._open.pop(key, None)
-            try:
-                entry[0].close()
-            except Exception:
-                pass
-
-    def close_under(self, folder: str) -> int:
-        """Close every handle on a file inside ``folder``, whoever holds it.
-        Only for shutting down, when the folder is about to be deleted (a
-        file still open cannot be removed on Windows). Returns how many."""
-        root = os.path.join(os.path.abspath(folder), "")
-        closed = 0
-        for key in [k for k in self._open if k.startswith(root)]:
-            handle, _count = self._open.pop(key)
-            try:
-                handle.close()
-            except Exception:
-                pass
-            closed += 1
-        return closed
-
-    def open_count(self) -> int:
-        """Number of files currently held open (used by the tests)."""
-        return len(self._open)
-
-    def is_open(self, path: str) -> bool:
-        return os.path.abspath(path) in self._open
-
-    @contextmanager
-    def borrow(self, path: str):
-        """``with HANDLES.borrow(path) as f:`` -- read a file *through* the
-        registry for the length of a block.
-
-        Every short look at a file (is it ours? what entries does it hold?)
-        used to open a second ``h5py.File`` on it and close it again. With
-        a viewer reading the same file, that close can invalidate the
-        viewer's datasets on some HDF5 builds -- "Can't synchronously read
-        data (identifier is not of specified type)" on the next read. A
-        borrowed handle is the shared one, and giving it back never closes
-        a file somebody else still holds."""
-        handle = self.acquire(path)
-        try:
-            yield handle
-        finally:
-            self.release(path, handle)
-
-
-HANDLES = _HandleRegistry()
-
-
-class LazyCube:
-    """A 4D cube that stays on disk, presented in (y, x, k, E) order.
-
-    A real spatial scan is 46x91x96x941 -- around a gigabyte, and often on a
-    network share. Reading it whole just to open a file froze the GUI for
-    many seconds (long enough that clicks were dropped, so the window seemed
-    to need several double-clicks). Almost nothing needs the whole cube: a
-    cursor move needs one (k, E) frame, and the spatial overview comes from
-    the reduced ``data_11``/``data_01`` datasets the file already carries.
-
-    Indexing works exactly as on the equivalent numpy array -- ints and
-    slices in (y, x, k, E) order -- and reads only the selection. The file
-    handle stays open, so the owning :class:`NxsScan` must be closed when
-    finished with (``NxsData`` does this).
-    """
-
-    def __init__(self, dataset, perm: "tuple[int, ...]"):
-        self._dset = dataset
-        self._perm = perm
-        self.shape = tuple(dataset.shape[ax] for ax in perm)
-        self.dtype = dataset.dtype
-        self.ndim = len(self.shape)
-
-    def __len__(self):
-        return self.shape[0]
-
-    def _normalise(self, key):
-        if not isinstance(key, tuple):
-            key = (key,)
-        # `Ellipsis in key` and `key.index(Ellipsis)` both compare with ==,
-        # which on an array index returns an array and then raises "the
-        # truth value of an array ... is ambiguous". Identity is what is
-        # meant anyway -- there is only one Ellipsis object.
-        positions = [i for i, sel in enumerate(key) if sel is Ellipsis]
-        if positions:
-            i = positions[0]
-            key = key[:i] + (slice(None),) * (self.ndim - len(key) + 1) + key[i + 1:]
-        return key + (slice(None),) * (self.ndim - len(key))
-
-    def __getitem__(self, key):
-        key = self._normalise(key)
-        # Reorder the selection into the dataset's own axis order, read, then
-        # put the surviving axes back into (y, x, k, E) order.
-        src_key = [None] * self.ndim
-        for out_ax, sel in enumerate(key):
-            src_key[self._perm[out_ax]] = sel
-        data = self._dset[tuple(src_key)]
-
-        surviving_src = [ax for ax in range(self.ndim)
-                         if not isinstance(src_key[ax], (int, np.integer))]
-        wanted_src = [self._perm[out_ax] for out_ax, sel in enumerate(key)
-                      if not isinstance(sel, (int, np.integer))]
-        if len(wanted_src) < 2:
-            return data
-        return np.transpose(data, [surviving_src.index(ax) for ax in wanted_src])
-
-    @property
-    def size(self) -> int:
-        return int(np.prod(self.shape)) if self.shape else 1
-
-    @property
-    def nbytes(self) -> int:
-        return self.size * self.dtype.itemsize
-
-    def materialise(self) -> np.ndarray:
-        """Read the whole cube into memory, in this object's axis order.
-        Only for callers that genuinely need every point; everything in the
-        GUI avoids this."""
-        return self[(slice(None),) * self.ndim]
-
-    def __array__(self, dtype=None):
-        """So ``np.asarray(cube)`` works -- see :class:`LazyArray`."""
-        data = self.materialise()
-        return data if dtype is None else data.astype(dtype)
-
-
-class LazyArray:
-    """An array of any rank that stays in its HDF5 file until indexed.
-
-    :class:`LazyCube` above does this for the 4-D spatial scan with an axis
-    permutation; this is the same idea without the permutation and for any
-    rank, which is what a map, a cut and a saved dataset need. The two are
-    kept separate rather than merged because the permutation is the whole
-    point of the one and dead weight in the other.
-
-    It exposes ``shape``/``dtype``/``ndim`` and passes indexing straight
-    through to h5py, so slicing code cannot tell the difference. The one
-    addition that makes it safe to drop in everywhere is ``__array__``:
-    ``np.asarray(lazy)`` reads the whole thing, so any routine that really
-    does need every point -- an operation in ``tools.processing.process``, a save, a
-    fit -- keeps working unchanged, and only pays for what it asked for.
-
-    The file handle belongs to the owning :class:`NxsScan`; once that is
-    closed this can no longer be read.
-    """
-
-    def __init__(self, dataset):
-        self._dset = dataset
-        self.shape = tuple(dataset.shape)
-        self.dtype = dataset.dtype
-        self.ndim = len(self.shape)
-        self.size = int(np.prod(self.shape)) if self.shape else 1
-        self.nbytes = self.size * self.dtype.itemsize
-
-    def __len__(self):
-        return self.shape[0] if self.shape else 0
-
-    def __getitem__(self, key):
-        return self._dset[key]
-
-    def materialise(self) -> np.ndarray:
-        return self._dset[()]
-
-    def __array__(self, dtype=None):
-        data = self.materialise()
-        return data if dtype is None else data.astype(dtype)
-
-    def __repr__(self):
-        return f"LazyArray(shape={self.shape}, dtype={self.dtype})"
-
-
-def align_and_transpose(arr: np.ndarray, axis_lengths: "dict[str, int]", order: "list[str]") -> np.ndarray:
-    """Reorder ``arr``'s axes to match ``order`` by matching each named
-    axis's expected length (``axis_lengths[name]``) against ``arr.shape``.
-
-    Raises ValueError if ``arr.ndim != len(order)``. Warns (does not raise)
-    if two candidate axes share the same length -- in that case the first
-    unused match is taken and the ambiguity is reported, since it cannot be
-    resolved from lengths alone.
-    """
-    return np.transpose(arr, resolve_axis_order(arr.shape, axis_lengths, order,
-                                               what="array"))
-
-
-# --------------------------------------------------------------------------
-# Momentum conversion (only needed for the deflector-scanned angle axis --
-# the analyzer's own slit-direction scale, "xscale" below, is already
-# delivered in k by the MBS acquisition software, matching the .m file's own
-# "SPEM_kmin/kmax" naming for that axis).
-# --------------------------------------------------------------------------
-def deflector_angle_to_k(angle_deg: np.ndarray, kinetic_energy_eV) -> np.ndarray:
-    """Standard free-electron final-state small-angle ARPES conversion::
-
-        k_parallel [A^-1] = 0.5123 * sqrt(KE[eV]) * sin(angle[rad])
-
-    ``kinetic_energy_eV`` may be a scalar (single reference KE, e.g. center
-    kinetic energy) or an array broadcastable against ``angle_deg`` (e.g. one
-    KE per energy channel, to convert a whole (angle, E) plane at once).
-
-    Caveats (verify against your own calibration before publishing numbers):
-    - assumes normal-incidence / zero inner-potential correction (no k_z
-      refraction correction at the sample surface),
-    - assumes ``angle_deg`` is the true emission angle in degrees (this
-      matches the ANTARES "DeflX" deflector convention, but was not
-      independently verified against a real data file),
-    - the analyzer slit-direction axis is NOT passed through this function
-      -- it is already in k according to the acquisition software.
-    """
-    angle_rad = np.deg2rad(np.asarray(angle_deg, dtype=float))
-    KE = np.asarray(kinetic_energy_eV, dtype=float)
-    return 0.5123 * np.sqrt(KE) * np.sin(angle_rad)
-
-
-# --------------------------------------------------------------------------
-# Result container
-# --------------------------------------------------------------------------
-#: Which of :class:`NxsScan`'s axis slots hold each kind's array dimensions,
-#: **in the array's own order**, and which slot holds its constructor's.
-#:
-#: This is the one authority for the question "what are this dataset's
-#: axes?". It used to be answered in five places -- ``tools.processing.dataops``'s two
-#: tables, the loader's ``_axis_slots``, ``loader.session.scan_to_dict``, the
-#: launcher's ``_dataset_for_saving`` and ``_MemScan.__init__`` -- which is
-#: four chances for a new kind to be half-supported, and exactly the kind of
-#: duplication that makes adding a fifth axis (photon energy, delay, kz) a
-#: survey of the whole program rather than an edit.
-#:
-#: ``array`` is the order the dimensions are stored in; ``constructor`` is
-#: the order :class:`ui.viewers.widgets.MemoryData` takes them in. They differ
-#: for a 4-D spatial scan, whose cube is stored (y, x, k, E) because that is
-#: the order the file's own dataset is in, and constructed (x, y, k, E).
-AXIS_SLOTS = {
-    "cut": {"array": ("x", "y"), "constructor": ("x", "y")},
-    "map": {"array": ("x", "k", "z"), "constructor": ("x", "k", "z")},
-    "k_map": {"array": ("x", "k", "z"), "constructor": ("x", "k", "z")},
-    "kz_map": {"array": ("x", "k", "z"), "constructor": ("x", "k", "z")},
-    "kz_map_k": {"array": ("x", "k", "z"), "constructor": ("x", "k", "z")},
-    "spem_1d": {"array": ("x", "y", "z"), "constructor": ("x", "y", "z")},
-    "spem_4d": {"array": ("y", "x", "k", "z"),
-                "constructor": ("x", "y", "k", "z")},
-    # One-dimensional data, as a table: ``x`` is the physical axis (energy,
-    # or angle/momentum for an MDC), ``y`` numbers the channels -- one for a
-    # plain EDC, one per spin channel, or a curve with its uncertainty
-    # beside it. Channel names travel in ``info["curve.channels"]``; see
-    # :mod:`tools.spectra.curves`.
-    "edc": {"array": ("x", "y"), "constructor": ("x", "y")},
-    "mdc": {"array": ("x", "y"), "constructor": ("x", "y")},
-    "spin_edc": {"array": ("x", "y"), "constructor": ("x", "y")},
-}
-
-#: The one-dimensional kinds: curves against one axis, several channels
-#: each, drawn by the curve viewer rather than as an image.
-CURVE_KINDS = ("edc", "mdc", "spin_edc")
-
-#: Which axis of a curve kind is the energy. An MDC has none; that is the
-#: one kind for which "the last axis is the energy" does not hold.
-_CURVE_ENERGY = {"edc": "x", "spin_edc": "x", "mdc": None}
-
-#: The kinds that are a three-axis cube of (scanned axis, analyser angle or
-#: momentum, energy). They share a viewer, a 3-D view and a processing
-#: panel, and differ only in what their first axis *means* -- which is
-#: exactly the distinction the program is otherwise careless about, so it is
-#: worth having the set written down once:
-#:
-#: ``map``     deflector or polar angle, and so convertible to momentum
-#: ``k_map``   already converted: in-plane momentum
-#: ``kz_map``  photon energy, i.e. an out-of-plane (k_z) scan. Not
-#:             convertible by the in-plane formula -- turning a photon
-#:             energy into k_z needs the inner potential, which is a
-#:             property of the sample and not of the measurement.
-#: ``kz_map_k`` that scan after the k_z conversion: (k_z, k_par, E), both
-#:             momenta in A^-1. k_z leads because it is the axis the
-#:             measurement is about, and the viewers put the first axis
-#:             across the image.
-CUBE_KINDS = ("map", "k_map", "kz_map", "kz_map_k")
-
-#: The cube kinds whose first two axes are already momentum. Nothing that
-#: converts angles should be offered for these, and anything that draws a
-#: Brillouin zone needs one of them.
-MOMENTUM_KINDS = ("k_map", "kz_map_k")
-
-#: What each kind is called in the file browser's "kind" column. A kind with
-#: no entry shows its internal name, which is better than showing nothing.
-KIND_LABELS = {
-    "cut": "Cut",
-    "map": "Map",
-    "k_map": "k-map",
-    "kz_map": "kz map",
-    "kz_map_k": "kz map (k)",
-    "spem_4d": "SPEM",
-    "spem_1d": "SPEM",
-    "edc": "EDC",
-    "mdc": "MDC",
-    "spin_edc": "Spin EDC",
-}
-
-
-def axis_slots(kind: str, order: str = "array") -> tuple:
-    """The axis slot names for ``kind``; ``()`` for one with no plain
-    axes-and-array form (``unsupported``). ``order`` is "array" or
-    "constructor" -- see :data:`AXIS_SLOTS`."""
-    return AXIS_SLOTS.get(kind, {}).get(order, ())
-
-
-def energy_slot(kind: str):
-    """Which axis of ``kind`` is the energy, or ``None`` if it has none.
-
-    Derived rather than tabulated. Energy is the last axis a dataset is
-    constructed with, for every kind there is: a cut is (angle, energy), a
-    cube is (scanned, angle, energy), a 4-D scan is (x, y, angle, energy).
-    Two panels each carried their own hand-written ``{"cut": "y", "map":
-    "z", ...}`` copy of that, which is two more places to forget when a kind
-    is added -- and both would have silently refused to shift the energy
-    axis of a ``kz_map`` with "has no energy axis to shift".
-    """
-    if kind in _CURVE_ENERGY:
-        return _CURVE_ENERGY[kind]
-    slots = axis_slots(kind, "constructor")
-    return slots[-1] if slots else None
-
-
-@dataclass
-class NxsScan:
-    kind: str                       # 'spem_4d' | 'spem_1d' | 'cut' | 'map' | 'unsupported'
-    filename_prefix: str = ""
-    info: dict = field(default_factory=dict)
-    fourd_info: dict = field(default_factory=dict)
-
-    # axes (only the ones relevant to `kind` are populated)
-    x: Optional[np.ndarray] = None   # spatial x, or deflector angle (Map), or k/angle (Cut)
-    y: Optional[np.ndarray] = None   # spatial y, or analyzer k axis (Map), or Energy (Cut)
-    k: Optional[np.ndarray] = None   # analyzer momentum axis (spem_4d, map)
-    z: Optional[np.ndarray] = None   # Energy axis
-    kx: Optional[np.ndarray] = None  # converted deflector-angle -> k (map only, see .to_kspace())
-
-    value: Optional[np.ndarray] = None     # main 2D/3D array for this `kind`
-    #: spem_4d only: the (y, x, k, E) cube. A :class:`LazyCube` reading from
-    #: the still-open file, not a numpy array -- index it as usual.
-    value4d: object = None
-    #: spem_4d only: {name: (dataset, perm)} for the reduced preview cubes,
-    #: left unread; see NxsData.spatial_overview.
-    previews: dict = field(default_factory=dict)
-    #: open file handle when the scan reads lazily; released by close().
-    _h5file: object = None
-    #: the path that handle belongs to, for releasing it in the registry.
-    _h5path: object = None
-
-    def axis_slots(self, order: str = "array") -> tuple:
-        """The names of the axis attributes this scan's dimensions live in
-        (see :data:`AXIS_SLOTS`)."""
-        return axis_slots(self.kind, order)
-
-    def axes(self, order: str = "array") -> list:
-        """This scan's axis vectors, in the array's order.
-
-        Asking the scan rather than looking the kind up in a table is what
-        lets a caller be written once for every kind: ``for axis in
-        scan.axes()`` works for a 2-D cut and a 4-D spatial scan alike.
-        """
-        return [getattr(self, slot) for slot in self.axis_slots(order)]
-
-    def array(self):
-        """The dataset's own array -- the 4-D cube for a spatial scan, the
-        value for everything else. May be lazy; ``np.asarray`` it if every
-        point is needed."""
-        if self.kind == "spem_4d" and self.value4d is not None:
-            return self.value4d
-        return self.value
-
-    def close(self):
-        """Release this scan's claim on the file. Safe to call more than
-        once. The file itself is only closed when the last scan using it
-        lets go, so other entries of the same file keep working. After this
-        a LazyCube in ``value4d`` can no longer be indexed."""
-        if self._h5file is not None:
-            handle, self._h5file = self._h5file, None
-            if self._h5path is not None:
-                HANDLES.release(self._h5path, handle)
-                self._h5path = None
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        self.close()
-
-    #: Display labels (including units) for each axis this scan populates,
-    #: keyed 'x', 'y', 'k', 'z'. Filled by the parsers; the GUI uses these
-    #: verbatim for its axis titles so units live in one place.
-    labels: dict = field(default_factory=dict)
-
-
-# --------------------------------------------------------------------------
-# Common ("FourDinfo" + acquisition/beamline) metadata, identical for every
-# case in the .m file.
-# --------------------------------------------------------------------------
-def _scalarize(value):
-    """Collapse a 1-element array to a plain scalar for display; leave real
-    arrays and strings alone. Metadata datasets in these files are usually
-    shape-(1,) rather than true scalars, which displays as '[3.5]' unless
-    unwrapped."""
-    if isinstance(value, np.ndarray):
-        if value.size == 1:
-            return value.reshape(-1)[0]
-        if value.size == 0:
-            return None
-    return value
 
 
 def _read_group_fields(f: h5py.File, group_path: str, prefix: str, out: dict,
@@ -875,7 +235,7 @@ def _read_common_info(f: h5py.File, g: str) -> dict:
     _read_group_fields(f, f"{g}/ANTARES/hu256", "HU256", info)
     _read_group_fields(f, f"{g}/ANTARES/ans-ca-machinestatus", "Machine", info)
 
-    # -- temperatures (both thermocouples; converted to K like the .m file)
+    # -- temperatures (both thermocouples, also in K)
     for tc, label in (("i12-m-cx1-ex-tc.1", "TC1"), ("i12-m-cx1-ex-tc.2", "TC2")):
         temp = _read_opt(f, f"{g}/ANTARES/{tc}/temperature")
         if temp is not None:
@@ -898,8 +258,8 @@ def _read_common_info(f: h5py.File, g: str) -> dict:
         for actuator in sorted(f[traj].keys()):
             _read_group_fields(f, f"{traj}/{actuator}", f"Traj.{actuator}", info)
 
-    # -- convenience aliases, matching the .m file's own naming ---------
-    # (kept so anything that read the old key names still works)
+    # -- convenience aliases ---------------------------------------------
+    # (short names that scripts and earlier sessions read)
     aliases = {
         "PhotonEnergy": f"{g}/ANTARES/i12-m-c04-op-mono1/energy",
         "Grating": f"{g}/ANTARES/i12-m-c04-op-mono1/current_grating_name",
@@ -953,6 +313,8 @@ ANTARES_REVERSED = {"st": True, "sz": True, "pix": True, "piy": False}
 
 #: Which stage is drawn across the map; the other of the pair goes up it.
 ANTARES_HORIZONTAL = ("st", "pix")
+
+
 ANTARES_VERTICAL = ("sz", "piy")
 
 
@@ -1039,10 +401,8 @@ def _motor_minus_offset(f: h5py.File, g: str, motor: str):
     return _scalarize(pos) - (_scalarize(off) if off is not None else 0)
 
 
-# Motor groups worth reporting, as (device name, friendly label). The first
-# eight reproduce the .m file's "FourDinfo"; the rest cover the remaining
-# sample/optics stages present in these files (OSA, pinhole) that the .m
-# file never read.
+# Motor groups worth reporting, as (device name, friendly label): the sample
+# stages, the zone plate, the OSA and the pinhole.
 _MOTOR_GROUPS = [
     ("i12-m-cx1-ex-sample-mt_sn", "focus"),
     ("i12-m-cx1-ex-sample-mt_st", "roughY"),
@@ -1062,10 +422,9 @@ _MOTOR_GROUPS = [
 
 
 def _read_fourd_info(f: h5py.File, g: str) -> dict:
-    """Motor positions (offset-corrected, as in the .m file). Also reads the
-    fine piezo stage, whose real path (``i12-m-cx1-ex-pi/{x,y,z}``) the .m
-    file guessed wrong and left commented out -- it stores x/y/z directly
-    with no separate offset dataset, so it is read as-is."""
+    """Motor positions, offset-corrected. Also the fine piezo stage
+    (``i12-m-cx1-ex-pi/{x,y,z}``), which stores x/y/z directly with no
+    separate offset dataset, so it is read as-is."""
     out = {}
     for device, label in _MOTOR_GROUPS:
         value = _motor_minus_offset(f, g, device)
@@ -1080,10 +439,8 @@ def _read_fourd_info(f: h5py.File, g: str) -> dict:
 
 
 def _find_actuator_group(f: h5py.File, trajectory_path: str) -> str:
-    """Robust replacement for the .m file's fragile positional lookup
-    (``hinfo.Groups.Groups(3).Groups.Groups.Name``): find an
-    ``actuator_*_1`` subgroup under ``trajectory_path`` by name instead of
-    by ordinal position."""
+    """The ``actuator_*_1`` subgroup under ``trajectory_path``, found by
+    name, not by ordinal position."""
     grp = f[trajectory_path]
     candidates = [k for k in grp.keys() if k.startswith("actuator_") and k.endswith("_1")]
     if not candidates:
@@ -1122,10 +479,10 @@ def _parse_case2(f: h5py.File, g: str, is_zpalign: bool) -> NxsScan:
         xscalemult = scalar0(f[f"{g}/scan_data/data_08"][()], "data_08 (xscalemult)")
         xscalemax = scalar0(f[f"{g}/scan_data/data_09"][()], "data_09 (xscalemax)")
 
-        x = matlab_colon(relxfrom, relxdelta, relxto)
-        y = matlab_colon(relyfrom, relydelta, relyto)
-        k = matlab_colon(xscalemin, xscalemult, xscalemax)
-        z = matlab_colon(escalemin, escalemult, escalemax)
+        x = inclusive_range(relxfrom, relxdelta, relxto)
+        y = inclusive_range(relyfrom, relydelta, relyto)
+        k = inclusive_range(xscalemin, xscalemult, xscalemax)
+        z = inclusive_range(escalemin, escalemult, escalemax)
 
         perm = resolve_axis_order(raw4d_shape,
                                   {"y": len(y), "x": len(x), "k": len(k), "e": len(z)},
@@ -1184,9 +541,9 @@ def _parse_case2(f: h5py.File, g: str, is_zpalign: bool) -> NxsScan:
     xscalemult = scalar0(f[f"{g}/scan_data/data_08"][()], "data_08 (xscalemult)")
     xscalemax = scalar0(f[f"{g}/scan_data/data_09"][()], "data_09 (xscalemax)")
 
-    x = matlab_colon(relxfrom, relxdelta, relxto)
-    yaxis = matlab_colon(xscalemin, xscalemult, xscalemax)  # kept as .y, matching the .m file
-    z = matlab_colon(escalemin, escalemult, escalemax)
+    x = inclusive_range(relxfrom, relxdelta, relxto)
+    yaxis = inclusive_range(xscalemin, xscalemult, xscalemax)  # the slit axis, in .y
+    z = inclusive_range(escalemin, escalemult, escalemax)
 
     value = align_and_transpose(raw3d, {"x": len(x), "y": len(yaxis), "e": len(z)}, ["x", "y", "e"])
 
@@ -1197,7 +554,7 @@ def _parse_case2(f: h5py.File, g: str, is_zpalign: bool) -> NxsScan:
     scan.info.update(spatial_detail)
     scan.labels = {
         "x": x_label,
-        # .y holds the analyser slit axis for this branch, matching the .m file
+        # .y holds the analyser slit axis for this branch
         "y": f"Angle along slit ({ANGLE_UNIT})",
         "z": f"Energy ({ENERGY_UNIT})",
     }
@@ -1205,8 +562,7 @@ def _parse_case2(f: h5py.File, g: str, is_zpalign: bool) -> NxsScan:
 
 
 def _best_effort_transpose_3d(arr: np.ndarray, axis_lengths: dict) -> np.ndarray:
-    """The .m file's ``data.value`` 3D preview cube isn't spelled out
-    axis-by-axis; try the 3 most-likely orders against the known axis
+    """The 3-D preview cube's axis order is not recorded; try the 3 most-likely orders against the known axis
     lengths and fall back to the raw array (with a warning) if none match
     cleanly."""
     names = list(axis_lengths.keys())
@@ -1243,8 +599,8 @@ def _parse_case34(f: h5py.File, g: str, e_idx: tuple, x_idx: tuple, v_idx: str) 
     xscalemult = scalar0(f[f"{g}/scan_data/{x_idx[1]}"][()], f"{x_idx[1]} (xscalemult)")
     xscalemax = scalar0(f[f"{g}/scan_data/{x_idx[2]}"][()], f"{x_idx[2]} (xscalemax)")
 
-    escale = matlab_colon(escalemin, escalemult, escalemax)
-    xscale = matlab_colon(xscalemin, xscalemult, xscalemax)
+    escale = inclusive_range(escalemin, escalemult, escalemax)
+    xscale = inclusive_range(xscalemin, xscalemult, xscalemax)
 
     # The dataset, not its contents: the axis order is worked out from the
     # *shape*, which costs nothing to ask for, and the numbers are then left
@@ -1257,7 +613,7 @@ def _parse_case34(f: h5py.File, g: str, e_idx: tuple, x_idx: tuple, v_idx: str) 
     # single-position Cut *and* as a 3D (scan_points, k, E) array with
     # scan_points==1 even for a single position (the acquisition software
     # apparently doesn't special-case a 1-point scan) -- handle both rather
-    # than assuming the .m file's implicit 2D shape.
+    # than assuming a 2-D shape.
     if raw_dataset.ndim == 2:
         perm = resolve_axis_order(raw_dataset.shape,
                                   {"k": len(xscale), "e": len(escale)},
@@ -1327,7 +683,10 @@ def _parse_case34(f: h5py.File, g: str, e_idx: tuple, x_idx: tuple, v_idx: str) 
 #: shared prefix (``"Phd_*"``); each frame can still be opened on its own,
 #: by its own name, as a cut.
 PHD_IMAGE = "Image32_1"
+
+
 PHD_WILDCARD = "*"
+
 
 #: What the analyser work function is taken to be when a PhD scan's energy
 #: axis is kinetic and has to be referred to the Fermi level. The files do
@@ -1395,7 +754,7 @@ def _phd_frame_axes(f: h5py.File, mbs: str):
         lo = scalar0(f[f"{mbs}/{prefix}_Min_1"][()], f"{prefix}_Min_1")
         step = scalar0(f[f"{mbs}/{prefix}_Mult_1"][()], f"{prefix}_Mult_1")
         hi = scalar0(f[f"{mbs}/{prefix}_Max_1"][()], f"{prefix}_Max_1")
-        return lo, step, len(matlab_colon(lo, step, hi))
+        return lo, step, len(inclusive_range(lo, step, hi))
 
     dataset = f[f"{mbs}/{PHD_IMAGE}"]
     if dataset.ndim != 2:
@@ -1603,176 +962,6 @@ def _entry_kind(f: h5py.File, g: str) -> Optional[str]:
     return None
 
 
-def _first_string(f: h5py.File, path: str) -> Optional[str]:
-    """A short string dataset's value, or None if absent/unreadable."""
-    try:
-        if path not in f:
-            return None
-        value = _decode(f[path][()])
-        if isinstance(value, np.ndarray):
-            value = value.reshape(-1)[0] if value.size else None
-        return None if value is None else str(value).strip() or None
-    except Exception:
-        return None
-
-
-def _parse_native(f: h5py.File, g: str) -> NxsScan:
-    """Read back an entry written by :func:`save_dataset`.
-
-    Deliberately simple and self-describing: the axes, the cube, the axis
-    labels and the metadata are all stored under plain names, so nothing has
-    to be inferred the way a beamline file's ``data_09`` does. That also
-    means a saved k-map keeps its momentum axes labelled as momenta instead
-    of being mistaken for angles.
-    """
-    grp = f[g]
-    kind = _decode(grp.attrs[NATIVE_ATTR])
-    if isinstance(kind, np.ndarray):
-        kind = str(kind.reshape(-1)[0])
-    kind = str(kind)
-
-    scan = NxsScan(kind=kind, filename_prefix="")
-    # Left on disk behind a LazyArray, and in the dtype it was written in:
-    # a saved dataset is opened exactly like a beamline file, so a session's
-    # worth of them can sit in the list without any of them being resident.
-    # Axes are small and always read.
-    scan.value = LazyArray(f[f"{g}/value"])
-    scan.x = np.asarray(f[f"{g}/axis_x"][()], dtype=float)
-
-    if kind == "spem_4d":
-        # (x, y, k, E): the cube belongs in value4d, where the viewer looks
-        # for it, and value mirrors it as MemoryData does.
-        scan.y = np.asarray(f[f"{g}/axis_y"][()], dtype=float)
-        scan.k = np.asarray(f[f"{g}/axis_z"][()], dtype=float)
-        if f"{g}/axis_w" in f:
-            scan.z = np.asarray(f[f"{g}/axis_w"][()], dtype=float)
-        scan.value4d = scan.value
-    elif f"{g}/axis_z" in f:
-        # 3-D: a map or k-map (x, k, E), or a 1-D spatial scan (x, y, E).
-        if kind == "spem_1d":
-            scan.y = np.asarray(f[f"{g}/axis_y"][()], dtype=float)
-        else:
-            scan.k = np.asarray(f[f"{g}/axis_y"][()], dtype=float)
-        scan.z = np.asarray(f[f"{g}/axis_z"][()], dtype=float)
-    else:
-        scan.y = np.asarray(f[f"{g}/axis_y"][()], dtype=float)
-
-    labels = {}
-    for axis in ("x", "y", "k", "z"):
-        name = f"{g}/label_{axis}"
-        if name in f:
-            value = _first_string(f, name)
-            if value:
-                labels[axis] = value
-    scan.labels = labels
-
-    info_group = f"{g}/info"
-    if info_group in f:
-        for key, value in f[info_group].attrs.items():
-            scan.info[key] = _decode(value)
-    motors_group = f"{g}/motors"
-    if motors_group in f:
-        for key, value in f[motors_group].attrs.items():
-            scan.fourd_info[key] = _decode(value)
-    return scan
-
-
-def save_dataset(path: str, datasets: "list[dict]", progress=None,
-                 compress: bool = True) -> None:
-    """Write datasets to a ``.nxs`` file this program can open again.
-
-    ``datasets`` is a list of ``{"name", "kind", "axes", "labels", "value",
-    "info", "motors"}`` dicts, one per entry; ``axes`` is ``(x, y)`` for a
-    cut and ``(x, y, z)`` otherwise, up to four for a spatial scan. Several
-    datasets go into one file as several top-level entries, exactly like a
-    beamline file holding several measurements -- so saving a selection and
-    reopening it gives the same rows back.
-
-    The entries are marked with :data:`NATIVE_ATTR`, which is what
-    :func:`_classify_entry` keys on, so the name of the entry is free to be
-    whatever the user called the dataset, and a file written here is
-    recognised on sight without anyone having to say which beamline it came
-    from.
-
-    ``progress`` is an optional ``callable(done, total, label)`` for a
-    caller showing a progress bar; it is called once per dataset. Raising
-    from it (which is how a Cancel button reports itself) aborts the write.
-
-    The array is stored in **its own dtype**. Earlier versions wrote
-    whatever the caller had promoted to float64, which doubled the file for
-    data that arrived as float32 or as integer counts, and lost nothing by
-    doing so.
-
-    ``compress=False`` writes the array as it is, with no gzip filter: what
-    the session folder's working copies use, since they are written on the
-    GUI thread after every operation and deleted again at a normal close, so
-    the seconds gzip costs on a large cube buy nothing.
-
-    Returns the entry names it actually used, in the order given. They are
-    not always the names asked for -- HDF5 group names cannot contain "/",
-    and two datasets may be called the same thing -- and the caller needs
-    the real ones to be able to point a list row at what was just written.
-    """
-    used = set()
-    written = []
-    total = len(datasets)
-    if HANDLES.is_open(path):
-        # Overwriting a file a viewer is reading from would pull the data out
-        # from under it (and Windows refuses the write anyway, less clearly).
-        raise OSError(
-            f"{os.path.basename(path)} is open in a viewer (or listed and "
-            f"being read); close what uses it, or save under another name")
-    with h5py.File(path, "w") as f:
-        for index, item in enumerate(datasets):
-            if progress is not None:
-                progress(index, total, str(item.get("name", "")))
-            # HDF5 group names cannot contain '/', and two datasets may well
-            # have been given the same name by the user.
-            base = str(item["name"]).replace("/", "_").strip() or "dataset"
-            name, n = base, 2
-            while name in used:
-                name, n = f"{base}_{n}", n + 1
-            used.add(name)
-            written.append(name)
-
-            grp = f.create_group(name)
-            grp.attrs[NATIVE_ATTR] = str(item["kind"])
-            grp.attrs[NATIVE_FORMAT_ATTR] = NATIVE_FORMAT_VERSION
-            grp.attrs["nxsloader_name"] = str(item["name"])
-
-            axes = item["axes"]
-            # axis_w is the fourth, for a spatial scan; the first three keep
-            # their version-1 names so version-1 files stay readable.
-            for axis_name, values in zip(("axis_x", "axis_y", "axis_z", "axis_w"),
-                                         axes):
-                grp.create_dataset(axis_name, data=np.asarray(values, dtype=float))
-            value = np.asarray(item["value"])
-            # A 0-d or tiny array cannot be chunked, and compressing it would
-            # cost more in filter overhead than it saves.
-            options = (dict(NATIVE_COMPRESSION)
-                       if compress and value.size > 1024 else {})
-            grp.create_dataset("value", data=value, **options)
-
-            for axis, label in (item.get("labels") or {}).items():
-                if label:
-                    grp.create_dataset(f"label_{axis}", data=np.bytes_(str(label).encode()))
-
-            info = grp.create_group("info")
-            for key, val in (item.get("info") or {}).items():
-                try:
-                    info.attrs[str(key)] = val if isinstance(
-                        val, (int, float, np.integer, np.floating)) else str(val)
-                except (TypeError, ValueError):
-                    info.attrs[str(key)] = str(val)
-            motors = grp.create_group("motors")
-            for key, val in (item.get("motors") or {}).items():
-                try:
-                    motors.attrs[str(key)] = float(val)
-                except (TypeError, ValueError):
-                    motors.attrs[str(key)] = str(val)
-    return written
-
-
 def list_datasets(path: str) -> "list[dict]":
     """Every independently-openable dataset in a ``.nxs`` file.
 
@@ -1904,8 +1093,7 @@ def load_soleil_nxs(path: str, entry: Optional[str] = None,
                     progress=None) -> NxsScan:
     """Load a SOLEIL ANTARES nano-ARPES ``*.nxs`` file. Returns an
     :class:`NxsScan`. Raises for unsupported/unrecognized files rather than
-    silently returning garbage (unlike the .m file, which would error out
-    inside an undefined ``switch`` variable in the same situation).
+    silently returning garbage.
 
     ``entry``: which top-level NeXus entry to parse, if the file has more
     than one (see :func:`list_entries`). By default the entry is picked
@@ -1972,7 +1160,7 @@ def load_soleil_nxs(path: str, entry: Optional[str] = None,
             raise KeyError(
                 f"Entry '{g}' in {path} doesn't match any known case (its "
                 f"content was inspected, not just its name) -- add support "
-                f"for it in loader/nxs_file.py once you know its structure. "
+                f"for it in loader/beamlines/antares.py once you know its structure. "
                 f"Run inspect_nxs('{path}') to look at the file. "
                 f"All top-level entries in this file: {top_level}"
             )
@@ -2020,45 +1208,6 @@ def load_soleil_nxs(path: str, entry: Optional[str] = None,
             HANDLES.release(path, f)
 
 
-def to_kspace_cube(scan: NxsScan, kinetic_energy_eV=None, work_function_eV: float = 4.5):
-    """For a ``kind == "map"`` scan, convert the raw deflector-angle axis
-    (``scan.x``, in degrees) into momentum ``kx`` using
-    :func:`deflector_angle_to_k`, returning ``(kx, ky, E, cube)`` where
-    ``ky`` is the analyzer's own (already-in-k) axis and ``cube`` has shape
-    ``(len(kx), len(ky), len(E))``.
-
-    ``kinetic_energy_eV``: reference kinetic energy for the conversion.
-        - If None, uses ``scan.info["center_ke"]`` if available.
-        - May be a scalar (one KE for the whole cube -- an approximation,
-          fine for a narrow energy window) or an array of length
-          ``len(scan.z)`` (one KE per energy channel, for a wide window
-          where KE varies non-negligibly across it).
-    ``work_function_eV``: only used if you pass binding energies instead of
-        kinetic energies for ``scan.z`` and want KE = hv - BE - work
-        function; unused by default. Provided for convenience/consistency
-        checks, not applied automatically.
-
-    This function does not resample onto a rectilinear (kx, ky) grid -- kx
-    is energy-dependent in general (kx = f(angle, KE)) and a proper
-    rectilinear (kx, ky, E) volume requires per-slice interpolation. For a
-    single representative slice this is usually a fine approximation; for
-    quantitative work across a wide energy range, interpolate per-E-slice
-    before treating this as a uniform-grid volume.
-    """
-    if scan.kind != "map":
-        raise ValueError(f"to_kspace_cube expects kind=='map', got '{scan.kind}'")
-    if kinetic_energy_eV is None:
-        # 'MBS.center_ke' is the current namespaced key; 'center_ke' is the
-        # older flat one, still accepted so existing scripts keep working.
-        kinetic_energy_eV = scan.info.get("MBS.center_ke", scan.info.get("center_ke"))
-        if kinetic_energy_eV is None:
-            raise ValueError(
-                "No kinetic_energy_eV given and neither scan.info['MBS.center_ke'] "
-                "nor scan.info['center_ke'] is available in this file.")
-    kx = deflector_angle_to_k(scan.x, kinetic_energy_eV)
-    return kx, scan.k, scan.z, scan.value
-
-
 # --------------------------------------------------------------------------
 # Diagnostics
 # --------------------------------------------------------------------------
@@ -2088,9 +1237,55 @@ def inspect_nxs(path: str, max_depth: int = 6) -> None:
         f.visititems(lambda name, obj: _walk(name, obj, name.count("/")))
 
 
+# --------------------------------------------------------------------------
+# The loader
+# --------------------------------------------------------------------------
+# Imported here, after everything above exists: importing the registry
+# installs every loader, and several import names from this module.
+from arpes_viewer.loader.registry import Loader, register  # noqa: E402
+
+
+class SoleilAntaresLoader(Loader):
+    name = "SOLEIL ANTARES"
+    description = ("Nano-ARPES .nxs files from the ANTARES beamline at "
+                   "SOLEIL: spatial scans, deflector maps, single cuts and "
+                   "photon-energy (PhD) scans.")
+    patterns = ("*.nxs",)
+    priority = 10
+
+    def can_open(self, path: str) -> bool:
+        """Recognised by *structure*, not by filename.
+
+        ``_classify_entry`` looks at what an entry actually contains -- which
+        scan_data datasets exist and what shape the actuators are -- which is
+        the same check the reader itself uses, so "can_open said yes" and
+        "load worked" cannot disagree.
+        """
+        try:
+            with HANDLES.borrow(path) as f:
+                for name in f.keys():
+                    try:
+                        if _classify_entry(f, "/" + name) is not None:
+                            return True
+                    except Exception:
+                        continue
+        except Exception:
+            return False
+        return False
+
+    def list_entries(self, path: str) -> list:
+        return list_datasets(path)
+
+    def load(self, path: str, entry: str = None, progress=None):
+        return load_soleil_nxs(path, entry=entry, progress=progress)
+
+
+register(SoleilAntaresLoader())
+
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         inspect_nxs(sys.argv[1])
     else:
-        print("Usage: python loader/nxs_file.py <path-to-file.nxs>   # prints file structure")
+        print("Usage: python -m arpes_viewer.loader.beamlines.antares <path-to-file.nxs>   # prints file structure")

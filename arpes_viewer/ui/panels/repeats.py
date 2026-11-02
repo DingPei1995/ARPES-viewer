@@ -28,7 +28,7 @@ from PyQt5.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                              QLineEdit, QPushButton, QTableWidget,
                              QTableWidgetItem, QVBoxLayout, QWidget)
 
-from arpes_viewer.loader.nxs_file import axis_slots
+from arpes_viewer.loader.scan import axis_slots
 from arpes_viewer.tools.processing import cutops
 from arpes_viewer.tools.processing import process as P
 from arpes_viewer.tools.processing import repeats as R

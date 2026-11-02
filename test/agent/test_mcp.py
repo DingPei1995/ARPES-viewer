@@ -24,7 +24,7 @@ def _edge(energy, ef=EF, kt=0.01):
 
 @pytest.fixture(scope="module")
 def data_file(tmp_path_factory):
-    from arpes_viewer.loader.nxs_file import save_dataset
+    from arpes_viewer.loader.native import save_dataset
     path = str(tmp_path_factory.mktemp("agent") / "demo.nxs")
     cut = np.tile(_edge(EKIN), (SLIT.size, 1)) * 100
     cube = np.tile(cut, (DEFL.size, 1, 1))

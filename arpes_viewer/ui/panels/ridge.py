@@ -28,7 +28,7 @@ from PyQt5.QtWidgets import (QComboBox, QDialog, QDoubleSpinBox, QFileDialog,
                              QSlider, QVBoxLayout, QWidget, QCheckBox,
                              QGroupBox)
 
-from arpes_viewer.loader.nxs_file import axis_slots
+from arpes_viewer.loader.scan import axis_slots
 from arpes_viewer.tools.processing import process as P
 from arpes_viewer.tools.processing import ridge as RD
 from arpes_viewer.ui.common.screen import fits_screen

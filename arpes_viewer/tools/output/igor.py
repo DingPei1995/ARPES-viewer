@@ -134,7 +134,7 @@ def wave_from_dataset(item: dict, taken=()) -> IgorWaveSpec:
     The axes come in constructor order; a 4-D spatial scan is stored as
     (y, x, k, E), so its first two are swapped to match the array.
     """
-    from arpes_viewer.loader.nxs_file import axis_slots
+    from arpes_viewer.loader.scan import axis_slots
 
     kind = item.get("kind", "")
     value = np.asarray(item["value"])

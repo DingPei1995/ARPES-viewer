@@ -7,7 +7,7 @@ Three things can be exported from a viewer panel, and they exist because a
 figure is built from three different kinds of file:
 
 ``.nxs``
-    The panel's own data, written by ``loader.nxs_file.save_dataset`` so this
+    The panel's own data, written by ``loader.native.save_dataset`` so this
     program opens it again as a dataset like any measured one. This is the
     archival export -- axes, labels and the file's metadata all travel with
     the numbers.

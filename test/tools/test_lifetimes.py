@@ -23,7 +23,8 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from arpes_viewer.loader.nxs_file import HANDLES, save_dataset          # noqa: E402
+from arpes_viewer.loader.scan import HANDLES          # noqa: E402
+from arpes_viewer.loader.native import save_dataset          # noqa: E402
 from arpes_viewer.loader.session import MemoryBudget                    # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(

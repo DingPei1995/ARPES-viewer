@@ -4,7 +4,7 @@ ui/viewers/widgets.py
 Qt widgets for browsing SOLEIL nano-ARPES ``*.nxs`` files, playing the same
 role ``h5Loader_Widgets.py`` played for the old ``*.h5`` format.
 
-What each data ``kind`` (see loader.nxs_file.NxsScan.kind) gets:
+What each data ``kind`` (see loader.scan.NxsScan.kind) gets:
 
 - ``spem_4d`` / ``spem_1d`` (real-space scan): :class:`SpatialImageView`
   (spatial overview, drag the red target to move the readout pixel) next to
@@ -55,8 +55,9 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
 from arpes_viewer.tools.output import colormaps
 from arpes_viewer.tools.output import export
 from arpes_viewer.loader.cubecache import widen
-from arpes_viewer.loader.nxs_file import (load_soleil_nxs, to_kspace_cube, NxsScan,
-                             save_dataset, CUBE_KINDS)
+from arpes_viewer.loader.scan import to_kspace_cube, NxsScan, CUBE_KINDS
+from arpes_viewer.loader.native import save_dataset
+from arpes_viewer.loader.beamlines.antares import load_soleil_nxs
 from arpes_viewer.ui.viewers.plot_tools import draw_guides, guides_of, plot_tools_button
 
 pg.setConfigOption("background", (245, 241, 249))
@@ -690,7 +691,7 @@ def _options_key(options):
 class NxsData:
     """Loads one data file through the loader registry (:mod:`loader.registry`)
     and exposes the GUI-friendly derived views on top of it. ``self.scan`` is
-    the raw :class:`~loader.nxs_file.NxsScan`."""
+    the raw :class:`~loader.scan.NxsScan`."""
 
     #: path -> the single open NxsData for it (see acquire()).
     _open_files: dict = {}
@@ -941,7 +942,7 @@ class NxsData:
 
     def kcube(self, kinetic_energy_eV=None):
         """Optional, NOT used by the GUI by default: converts the
-        deflector-angle axis to momentum via loader.nxs_file.to_kspace_cube
+        deflector-angle axis to momentum via loader.scan.to_kspace_cube
         (small-angle free-electron approximation). Returns
         (kx, ky, E, cube). Available for scripted/offline analysis."""
         assert self.kind == "map"
@@ -949,7 +950,7 @@ class NxsData:
 
 
 class _MemScan:
-    """The subset of :class:`loader.nxs_file.NxsScan` that a computed dataset
+    """The subset of :class:`loader.scan.NxsScan` that a computed dataset
     needs to expose.
 
     A converted k-map, an arbitrary-direction cut and a Fermi-corrected map
@@ -964,7 +965,7 @@ class _MemScan:
     """
 
     def __init__(self, kind, axes, value, labels, info, fourd_info=None):
-        from arpes_viewer.loader.nxs_file import axis_slots
+        from arpes_viewer.loader.scan import axis_slots
 
         self.kind = kind
         self.labels = labels
@@ -975,7 +976,7 @@ class _MemScan:
         self.value4d = None
         self.x = self.y = self.k = self.z = None
 
-        # Which slots this kind fills comes from loader.nxs_file.AXIS_SLOTS,
+        # Which slots this kind fills comes from loader.scan.AXIS_SLOTS,
         # the one table that says so -- this used to be one of five
         # hand-written copies of it.
         slots = axis_slots(kind, "constructor")
@@ -4779,7 +4780,7 @@ class KCubeExplorer(QWidget):
 
     Deliberately labeled in raw **angles**, not kx/ky: converting the
     deflector axis to momentum needs a reference kinetic energy and a
-    small-angle approximation (see loader.nxs_file.deflector_angle_to_k),
+    small-angle approximation (see loader.scan.deflector_angle_to_k),
     a modeling choice better made explicitly during analysis than baked
     into the default viewer. Use ``NxsData.kcube()`` for the converted
     version in a script.

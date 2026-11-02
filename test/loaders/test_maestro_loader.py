@@ -13,7 +13,7 @@ import pytest
 
 from arpes_viewer.loader.beamlines import maestro as maestro_loader
 from arpes_viewer.loader import registry
-from arpes_viewer.loader.nxs_file import HANDLES
+from arpes_viewer.loader.scan import HANDLES
 
 
 def _row(tag, value):

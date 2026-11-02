@@ -3130,7 +3130,7 @@ def panel_from_dataset(data, name="") -> Panel:
     """A Cut (or anything with a 2-D ``scan.value``) as a panel; a curve
     dataset as its curves, with ±σ where it carries uncertainties."""
     scan = data.scan
-    from arpes_viewer.loader.nxs_file import CURVE_KINDS
+    from arpes_viewer.loader.scan import CURVE_KINDS
     if getattr(data, "kind", None) in CURVE_KINDS:
         from arpes_viewer.tools.spectra import curves as C
         from arpes_viewer.ui.viewers.curves import curve_panel, _colour

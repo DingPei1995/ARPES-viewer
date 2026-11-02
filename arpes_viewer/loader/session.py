@@ -18,7 +18,7 @@ browser's list. Two consequences followed, and both were routinely painful:
   had no notion of a budget, an eviction policy or a ceiling.
 
 So every derived dataset is written to a **session folder** the moment it
-exists, in the program's own format (:func:`loader.nxs_file.save_dataset`,
+exists, in the program's own format (:func:`loader.native.save_dataset`,
 which keeps the array's dtype and is recognised on sight when read back;
 these working copies are written *uncompressed*, since they are written on
 the GUI thread after every operation and gzip cost seconds per large cube). The list then holds a *path*, exactly as it already did
@@ -49,7 +49,8 @@ from collections import OrderedDict
 
 import numpy as np
 
-from arpes_viewer.loader.nxs_file import save_dataset, list_datasets, load_soleil_nxs
+from arpes_viewer.loader.native import save_dataset
+from arpes_viewer.loader.beamlines.antares import list_datasets, load_soleil_nxs
 
 __all__ = ["SessionStore", "MemoryBudget", "DEFAULT_ROOT", "KEEP_DAYS",
            "LOG_NAME", "dataset_dict", "scan_to_dict", "read_log",
@@ -95,9 +96,9 @@ def _sanitise(name: str) -> str:
 
 def scan_to_dict(kind: str, scan, name: str) -> dict:
     """One dataset in the plain ``{name, kind, axes, labels, value, info,
-    motors}`` form :func:`loader.nxs_file.save_dataset` takes.
+    motors}`` form :func:`loader.native.save_dataset` takes.
 
-    Which axes a kind has comes from ``loader.nxs_file.AXIS_SLOTS``, so this
+    Which axes a kind has comes from ``loader.scan.AXIS_SLOTS``, so this
     works for any kind listed there and needs no edit when one is added --
     it used to be a fourth hand-written copy of that table.
 
@@ -105,7 +106,7 @@ def scan_to_dict(kind: str, scan, name: str) -> dict:
     saved file's ``axis_x``/``axis_y``/... are read back as, and for a 4-D
     spatial scan the two differ.
     """
-    from arpes_viewer.loader.nxs_file import axis_slots
+    from arpes_viewer.loader.scan import axis_slots
     slots = axis_slots(kind, "constructor")
     if not slots:
         raise ValueError(f"{kind!r} has no plain axes-and-array form")
@@ -300,7 +301,7 @@ class SessionStore:
         be logged as a success and then quietly found again at the next
         start.
         """
-        from arpes_viewer.loader.nxs_file import HANDLES
+        from arpes_viewer.loader.scan import HANDLES
 
         roots = [self.root]
         if self.root == DEFAULT_ROOT:
@@ -413,7 +414,7 @@ class SessionStore:
         deleted, and Windows refuses to delete an open file. Returns how
         many dataset files were removed.
         """
-        from arpes_viewer.loader.nxs_file import HANDLES
+        from arpes_viewer.loader.scan import HANDLES
 
         self.budget.clear()
         removed = 0
@@ -449,7 +450,7 @@ class SessionStore:
     # -- reading back --------------------------------------------------------
     def load_scan(self, path: str):
         """The :class:`NxsScan` stored at ``path``. Its array is a
-        :class:`loader.nxs_file.LazyArray`, so this is cheap and stays cheap
+        :class:`loader.scan.LazyArray`, so this is cheap and stays cheap
         until something asks for the numbers."""
         return load_soleil_nxs(path)
 

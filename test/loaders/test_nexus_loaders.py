@@ -14,7 +14,7 @@ import pytest
 from arpes_viewer.loader.beamlines import alba as alba_loader, diamond as diamond_loader
 from arpes_viewer.loader.formats import nexus_arpes
 from arpes_viewer.loader import registry
-from arpes_viewer.loader.nxs_file import HANDLES
+from arpes_viewer.loader.scan import HANDLES
 
 NA, NE = 5, 6
 

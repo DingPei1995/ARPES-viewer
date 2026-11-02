@@ -55,7 +55,7 @@ extra axis -- each of which is an ordinary map or spatial scan.
 
 Nothing is read until a dataset is opened, and then only what is looked at:
 the spectra stay in the file behind :class:`MaestroCube`, the way a SOLEIL
-spatial scan does behind :class:`loader.nxs_file.LazyCube`.
+spatial scan does behind :class:`loader.scan.LazyCube`.
 
 Nothing in here imports Qt.
 """
@@ -68,7 +68,7 @@ from itertools import product
 import h5py
 import numpy as np
 
-from arpes_viewer.loader.nxs_file import HANDLES, NxsScan
+from arpes_viewer.loader.scan import HANDLES, NxsScan
 from arpes_viewer.loader.registry import Loader, register
 
 __all__ = ["MaestroLoader", "MaestroCube", "ScanMotor", "ScanPlan",

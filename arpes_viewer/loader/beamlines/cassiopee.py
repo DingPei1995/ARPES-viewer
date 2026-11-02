@@ -45,7 +45,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from arpes_viewer.loader.nxs_file import NxsScan
+from arpes_viewer.loader.scan import NxsScan
 from arpes_viewer.loader.registry import Loader, register
 
 __all__ = ["CassiopeeLoader", "parse_scienta", "read_parameter_file",

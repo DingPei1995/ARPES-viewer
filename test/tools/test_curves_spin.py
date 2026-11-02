@@ -216,7 +216,7 @@ def test_steepest_drop_finds_the_edge_beside_a_band():
 
 
 def test_curve_kinds_in_the_tables():
-    from arpes_viewer.loader.nxs_file import CURVE_KINDS, AXIS_SLOTS, KIND_LABELS, energy_slot
+    from arpes_viewer.loader.scan import CURVE_KINDS, AXIS_SLOTS, KIND_LABELS, energy_slot
     for kind in CURVE_KINDS:
         assert AXIS_SLOTS[kind]["array"] == ("x", "y")
         assert kind in KIND_LABELS

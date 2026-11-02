@@ -53,7 +53,7 @@ from arpes_viewer.tools.processing.dataops import (truncate, self_normalize, com
                                       ARRAY_AXES, CONSTRUCTOR_AXES,
                                       normalise_presets)
 from arpes_viewer.loader.cubecache import CubeCache
-from arpes_viewer.loader.nxs_file import CUBE_KINDS, CURVE_KINDS, MOMENTUM_KINDS, energy_slot
+from arpes_viewer.loader.scan import CUBE_KINDS, CURVE_KINDS, MOMENTUM_KINDS, energy_slot
 
 from arpes_viewer.ui.viewers.cursorlink import CursorLink
 from arpes_viewer.ui.viewers.widgets import (SpatialImageView, FrameImageView, ImagePanel,
@@ -987,7 +987,7 @@ class SpatialScanWindow(ViewerWindow):
         """Draw the spatial map the way its beamline does, where the loader
         said how (``Spatial.swap_xy`` / ``Spatial.invert_x`` /
         ``Spatial.invert_y`` in the metadata -- set for ANTARES scans only,
-        see ``loader.nxs_file.antares_spatial_orientation``). Anything else
+        see ``loader.beamlines.antares.antares_spatial_orientation``). Anything else
         keeps the plotting default. Display only, and only the starting
         state: right-click "swap" and the view bar's "Inv" boxes still
         change it, and the data keeps the order the file has."""
@@ -2313,7 +2313,7 @@ class BrillouinZoneDialog(QDialog):
 
     #: flat "bz.<key>" keys in scan.info, matching the app's own
     #: "kconv.*"/"arbcut.*" convention -- save_dataset only ever writes
-    #: scalars (see loader.nxs_file.save_dataset), so settings are flattened
+    #: scalars (see loader.native.save_dataset), so settings are flattened
     #: rather than kept as one nested dict.
     _PREFIX = "bz."
 
@@ -3679,7 +3679,7 @@ class ContourWindow(ViewerWindow):
     def full_cube(self):
         """The whole cube as a real numpy array.
 
-        ``self.cube`` wraps a :class:`loader.nxs_file.LazyCube` reading
+        ``self.cube`` wraps a :class:`loader.scan.LazyCube` reading
         from the file as it is sliced, which is what makes opening a map
         instant and lets a browsed-but-unused map cost nothing; once the map
         is being browsed it is held in memory, and this is a copy of that

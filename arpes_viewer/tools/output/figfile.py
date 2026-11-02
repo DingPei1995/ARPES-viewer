@@ -314,7 +314,7 @@ def _write_processed(panel, folder: str, picture_writer=None) -> list:
     """What the panel shows, as data: an image as a cut in the program's
     own .nxs (it opens in the viewer again), its drawn lines (calculated
     bands, contours, curves) as CSV, a picture as PNG."""
-    from arpes_viewer.loader.nxs_file import save_dataset
+    from arpes_viewer.loader.native import save_dataset
 
     data = panel.data
     os.makedirs(folder, exist_ok=True)

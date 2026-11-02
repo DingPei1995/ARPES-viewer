@@ -6,7 +6,7 @@ instead of once per slice.
 
 Why this exists
 ---------------
-A map is opened lazily (``loader.nxs_file.LazyCube``/``LazyArray``): the
+A map is opened lazily (``loader.scan.LazyCube``/``LazyArray``): the
 numbers stay in the file and each slice is read as it is asked for. That is
 right for *opening* a map, and it is right for the orthogonal cuts, which are
 contiguous runs on disk. It is exactly wrong for the constant-energy contour.

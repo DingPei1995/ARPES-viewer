@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import h5py
 
-from arpes_viewer.loader.nxs_file import LazyCube, LazyArray
+from arpes_viewer.loader.scan import LazyCube, LazyArray
 
 
 @pytest.fixture()

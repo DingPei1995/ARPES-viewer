@@ -301,7 +301,7 @@ A `kz_map` gets its own conversion rather than the in-plane one: turning a
 photon energy into k_z needs the inner potential, which is a property of the
 sample and not of the measurement.
 
-Which axes a kind has lives in **one** table, `loader/nxs_file.AXIS_SLOTS`.
+Which axes a kind has lives in **one** table, `loader/scan.AXIS_SLOTS`.
 Everything else -- the save format, the memory data wrapper, the processing
 panels, which axis is the energy -- derives from it.
 
@@ -311,7 +311,7 @@ Readers are added for public large-scale facilities only (see *Terms of
 use* at the top); for one of those, or to collaborate, contact
 [ding.pei@synchrotron-soleil.fr](mailto:ding.pei@synchrotron-soleil.fr).
 
-Copy `loader/beamlines/soleil.py` (HDF5) or `loader/beamlines/cassiopee.py`
+Copy `loader/beamlines/alba.py` (HDF5) or `loader/beamlines/cassiopee.py`
 (text), implement four things, and add the module's name to
 `_install_default_loaders()` in `loader/registry.py`. Nothing else changes.
 
@@ -349,7 +349,7 @@ to `h5py` (documented MATLAB behaviour, not a bug), so
 `load_soleil_nxs.m`'s `permute(value, [3 4 2 1])` cannot be copied
 index-for-index into Python.
 
-Rather than guessing a fixed transpose, `loader.nxs_file.align_and_transpose`
+Rather than guessing a fixed transpose, `loader.scan.align_and_transpose`
 matches each raw array axis to a physical axis (x/y/k/E/deflx) **by length**
 against the independently-read calibration arrays. Robust unless two axes
 have the same number of points, in which case it warns and picks one.
@@ -357,7 +357,7 @@ have the same number of points, in which case it warns and picks one.
 Before trusting the output on a new set of files:
 
 ```python
-from loader.nxs_file import inspect_nxs
+from arpes_viewer.loader.beamlines.antares import inspect_nxs
 inspect_nxs("your_file.nxs")
 ```
 

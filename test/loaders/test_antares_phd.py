@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 import arpes_viewer.loader.registry as L
-from arpes_viewer.loader.nxs_file import list_datasets, load_soleil_nxs
+from arpes_viewer.loader.beamlines.antares import list_datasets, load_soleil_nxs
 
 WORK_FUNCTION = 4.5
 N_ANGLE, N_ENERGY = 40, 61

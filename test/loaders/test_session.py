@@ -8,8 +8,9 @@ import os
 import numpy as np
 import pytest
 
-from arpes_viewer.loader.nxs_file import (save_dataset, load_soleil_nxs, LazyArray,
-                            NATIVE_FORMAT_VERSION)
+from arpes_viewer.loader.scan import LazyArray
+from arpes_viewer.loader.native import save_dataset, NATIVE_FORMAT_VERSION
+from arpes_viewer.loader.beamlines.antares import load_soleil_nxs
 from arpes_viewer.loader.session import SessionStore, MemoryBudget, scan_to_dict
 
 
@@ -103,7 +104,7 @@ def test_a_version_1_file_still_reads(tmp_path):
     """Files written before the format changed must keep opening: uncompressed,
     float64, no shuffle -- the reader must not depend on any of that."""
     import h5py
-    from arpes_viewer.loader.nxs_file import NATIVE_ATTR, NATIVE_FORMAT_ATTR
+    from arpes_viewer.loader.native import NATIVE_ATTR, NATIVE_FORMAT_ATTR
     path = str(tmp_path / "old.nxs")
     cube = _arpes_cube(dtype=np.float64)
     with h5py.File(path, "w") as f:
@@ -167,7 +168,7 @@ def test_bytes_on_disk_counts_what_was_written(store):
 
 
 def test_scan_to_dict_round_trips_a_cut(store):
-    from arpes_viewer.loader.nxs_file import NxsScan
+    from arpes_viewer.loader.scan import NxsScan
     scan = NxsScan(kind="cut")
     scan.x, scan.y = np.arange(10.0), np.arange(12.0)
     scan.value = np.random.default_rng(1).random((10, 12))
@@ -180,7 +181,7 @@ def test_scan_to_dict_round_trips_a_cut(store):
 
 
 def test_scan_to_dict_refuses_a_kind_it_cannot_describe():
-    from arpes_viewer.loader.nxs_file import NxsScan
+    from arpes_viewer.loader.scan import NxsScan
     with pytest.raises(ValueError, match="plain axes"):
         scan_to_dict("unsupported", NxsScan(kind="unsupported"), "x")
 
@@ -329,9 +330,9 @@ def test_a_four_dimensional_spatial_scan_keeps_all_four_axes(store):
     """Regression: the launcher's save path wrote a spem_4d with only three
     of its four axes -- (x, y, k), dropping energy -- because it carried its
     own copy of the axis table and that copy was wrong. Everything now reads
-    loader.nxs_file.AXIS_SLOTS, so there is one place for this to be right.
+    loader.scan.AXIS_SLOTS, so there is one place for this to be right.
     """
-    from arpes_viewer.loader.nxs_file import NxsScan
+    from arpes_viewer.loader.scan import NxsScan
     scan = NxsScan(kind="spem_4d")
     scan.x = np.linspace(0, 1, 4)        # spatial x
     scan.y = np.linspace(0, 2, 5)        # spatial y
@@ -356,7 +357,7 @@ def test_a_four_dimensional_spatial_scan_keeps_all_four_axes(store):
     ("spem_1d", 3), ("spem_4d", 4),
 ])
 def test_every_kind_has_one_axis_slot_per_dimension(kind, n_axes):
-    from arpes_viewer.loader.nxs_file import axis_slots
+    from arpes_viewer.loader.scan import axis_slots
     assert len(axis_slots(kind, "array")) == n_axes
     assert len(axis_slots(kind, "constructor")) == n_axes
     # the two orders are permutations of each other, never different sets
@@ -368,7 +369,7 @@ def test_every_kind_has_an_energy_axis():
     out, so a kind added to the table gets one for free -- which is the
     point, since the two panels that used to carry their own copy would
     otherwise refuse to shift a new kind's energy axis."""
-    from arpes_viewer.loader.nxs_file import AXIS_SLOTS, energy_slot
+    from arpes_viewer.loader.scan import AXIS_SLOTS, energy_slot
     for kind in AXIS_SLOTS:
         if kind == "mdc":
             continue                           # the one kind without one
@@ -386,20 +387,20 @@ def test_the_cube_kinds_are_exactly_the_three_axis_cubes():
     """CUBE_KINDS is what the viewers, the 3-D view and the processing
     panels branch on. It has to stay in step with the axis table, or a kind
     gets a window and no processing, or the reverse."""
-    from arpes_viewer.loader.nxs_file import AXIS_SLOTS, CUBE_KINDS
+    from arpes_viewer.loader.scan import AXIS_SLOTS, CUBE_KINDS
     for kind in CUBE_KINDS:
         assert AXIS_SLOTS[kind]["array"] == ("x", "k", "z"), kind
     assert set(CUBE_KINDS) == {"map", "k_map", "kz_map", "kz_map_k"}
 
 
 def test_every_kind_has_a_name_a_person_can_read():
-    from arpes_viewer.loader.nxs_file import AXIS_SLOTS, KIND_LABELS
+    from arpes_viewer.loader.scan import AXIS_SLOTS, KIND_LABELS
     for kind in AXIS_SLOTS:
         assert KIND_LABELS.get(kind), kind
 
 
 def test_the_derived_tables_match_the_authority():
-    from arpes_viewer.loader.nxs_file import AXIS_SLOTS
+    from arpes_viewer.loader.scan import AXIS_SLOTS
     from arpes_viewer.tools.processing.dataops import ARRAY_AXES, CONSTRUCTOR_AXES
     from arpes_viewer.loader.registry import _axis_slots
     assert ARRAY_AXES == {k: v["array"] for k, v in AXIS_SLOTS.items()}
@@ -448,7 +449,7 @@ def test_a_file_saved_by_the_old_program_still_opens(tmp_path):
     """The marker attributes inside a saved file keep their original names
     on purpose: renaming them would make every file anyone has already saved
     unrecognisable."""
-    from arpes_viewer.loader.nxs_file import NATIVE_ATTR, NATIVE_FORMAT_ATTR
+    from arpes_viewer.loader.native import NATIVE_ATTR, NATIVE_FORMAT_ATTR
     assert NATIVE_ATTR == "nxsloader_kind"
     assert NATIVE_FORMAT_ATTR == "nxsloader_format"
     store = SessionStore(root=str(tmp_path))
@@ -459,7 +460,7 @@ def test_a_file_saved_by_the_old_program_still_opens(tmp_path):
 
 # -- a normal close deletes the working copies; only a crash keeps them --------
 def test_finish_deletes_this_sessions_folder(tmp_path):
-    from arpes_viewer.loader.nxs_file import HANDLES
+    from arpes_viewer.loader.scan import HANDLES
     store = SessionStore(root=str(tmp_path))
     path = store.store(_map_item())
     HANDLES.acquire(path)                       # a viewer still reading it

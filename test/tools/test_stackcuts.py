@@ -277,7 +277,8 @@ def test_join_engine_resamples_and_reports_gaps():
 
 def test_combined_map_survives_a_save(app, tmp_path):
     from arpes_viewer.loader import session as nxs_session
-    from arpes_viewer.loader.nxs_file import load_soleil_nxs, save_dataset
+    from arpes_viewer.loader.native import save_dataset
+    from arpes_viewer.loader.beamlines.antares import load_soleil_nxs
     from arpes_viewer.ui.panels.stackcuts import combined_dataset
     from arpes_viewer.ui.viewers.widgets import MemoryData
     cuts = [(n, MemoryData("cut", axes, v, labels, source_label=n))

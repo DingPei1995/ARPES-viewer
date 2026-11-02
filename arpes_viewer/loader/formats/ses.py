@@ -85,7 +85,7 @@ import numpy as np
 
 from arpes_viewer.loader.formats.nexus_arpes import (Dim, Layout, build_scan,
                                         list_layout, motor_role, straighten)
-from arpes_viewer.loader.nxs_file import ANGLE_UNIT, ENERGY_UNIT, KIND_LABELS, NxsScan
+from arpes_viewer.loader.scan import ANGLE_UNIT, ENERGY_UNIT, KIND_LABELS, NxsScan
 from arpes_viewer.loader.registry import Loader
 
 __all__ = ["SESLoader", "ses_header", "ses_location", "IgorWave",

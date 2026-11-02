@@ -737,7 +737,7 @@ def test_modifier_key_is_named_for_the_platform(monkeypatch):
 def test_keep_recording_logs_each_file_added_to_the_list(launcher, tmp_path,
                                                          monkeypatch):
     import csv
-    from arpes_viewer.loader.nxs_file import save_dataset
+    from arpes_viewer.loader.native import save_dataset
     from arpes_viewer.tools.output import explog as EL
     lv = launcher
     monkeypatch.setattr("arpes_viewer.ui.panels.explog.excel_conventions",

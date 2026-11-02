@@ -52,7 +52,9 @@ from arpes_viewer.tools.runtime import memory as memory_tools
 from arpes_viewer.ui.common import notify
 import numpy as np
 
-from arpes_viewer.loader.nxs_file import list_datasets, save_dataset, CUBE_KINDS, CURVE_KINDS, MOMENTUM_KINDS
+from arpes_viewer.loader.scan import CUBE_KINDS, CURVE_KINDS, MOMENTUM_KINDS
+from arpes_viewer.loader.native import save_dataset
+from arpes_viewer.loader.beamlines.antares import list_datasets
 from arpes_viewer.tools.processing.dataops import axis_summary, same_format, ARRAY_AXES
 from arpes_viewer.tools.processing import process as process_tools
 from arpes_viewer.ui.viewers.widgets import NxsData, MemoryData, DEFAULT_COLORMAP
@@ -65,7 +67,7 @@ from arpes_viewer.ui.launcher import main_window as main_window_ui
 from arpes_viewer.ui.viewers import windows as viewer_windows_module
 from arpes_viewer.loader import registry as nxs_loaders
 from arpes_viewer.loader import session as nxs_session
-from arpes_viewer.loader import nxs_file
+from arpes_viewer.loader import scan as nxs_scan
 
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".arpes_viewer", "config.json")
 
@@ -167,7 +169,7 @@ def add_files(paths, options=None, background: bool = True):
     show a single row, labelled just by their kind.
 
     The listing reads only structure and dataset shapes
-    (loader.nxs_file.list_datasets), so adding a folder of multi-GB scans is
+    (loader.beamlines.antares.list_datasets), so adding a folder of multi-GB scans is
     instant.
     """
     figures = [p for p in paths if str(p).lower().endswith(".afig")]
@@ -929,7 +931,7 @@ def _dataset_for_saving(key):
             traceback.print_exc()
             return None, f"{record['name']}: could not be read ({exc})"
     try:
-        # nxs_session.scan_to_dict works from loader.nxs_file.AXIS_SLOTS, the
+        # nxs_session.scan_to_dict works from loader.scan.AXIS_SLOTS, the
         # one table that says which axes a kind has -- this used to be a
         # fifth hand-written copy of it, and the one that quietly wrote a
         # 4-D spatial scan with only three of its four axes.
@@ -2307,7 +2309,7 @@ def combine_selected(ask=None, dialog_hook=None):
                             f"maps and k-maps can.")
             return None
         names = [name for name, _ in datasets]
-        from arpes_viewer.loader.nxs_file import axis_slots
+        from arpes_viewer.loader.scan import axis_slots
         slots = axis_slots(kind, "constructor")
         pieces = []
         for _name, data in datasets:
@@ -2479,7 +2481,7 @@ def update_memory_status():
     resident = [r for r in loaded_items.values() if r.get("memory") is not None]
     resident_bytes = sum(_resident_bytes(r["memory"]) for r in resident)
     parts = [f"Viewers open: {len(windows)} (SPEM {spem})",
-             f"HDF5 files open: {nxs_file.HANDLES.open_count()}",
+             f"HDF5 files open: {nxs_scan.HANDLES.open_count()}",
              f"Computed data in memory: {len(resident)} "
              f"({memory_tools.format_bytes(resident_bytes)})"]
     if available is not None and total:

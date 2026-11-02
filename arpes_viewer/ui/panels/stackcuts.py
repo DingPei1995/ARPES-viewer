@@ -430,7 +430,7 @@ def joined_dataset(datasets, order, axis, overlap, label):
     kind (cuts, or one kind of cube); ``order`` indexes it and decides
     which piece wins an overlap when ``overlap`` is "first" or "last".
     """
-    from arpes_viewer.loader.nxs_file import axis_slots
+    from arpes_viewer.loader.scan import axis_slots
 
     ordered = [datasets[i] for i in order]
     first = ordered[0][1]

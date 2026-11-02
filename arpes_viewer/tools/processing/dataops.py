@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from arpes_viewer.loader.nxs_file import AXIS_SLOTS
+from arpes_viewer.loader.scan import AXIS_SLOTS
 
 
 #: Which scan axes correspond to the array's dimensions, in order, for each
@@ -26,7 +26,7 @@ from arpes_viewer.loader.nxs_file import AXIS_SLOTS
 #: file's own 4D dataset is put in -- so that is the order an operation sees
 #: it in, whatever the information panel calls the columns.
 #:
-#: Derived from ``loader.nxs_file.AXIS_SLOTS`` rather than written out again:
+#: Derived from ``loader.scan.AXIS_SLOTS`` rather than written out again:
 #: these two tables and three more scattered copies used to say the same
 #: thing separately, so a new kind could be added to one and missed in the
 #: others. The names are kept because they are what the rest of the program

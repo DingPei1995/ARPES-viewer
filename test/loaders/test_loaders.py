@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 import arpes_viewer.loader.registry as L
-from arpes_viewer.loader.nxs_file import NxsScan
+from arpes_viewer.loader.scan import NxsScan
 from arpes_viewer.loader.session import SessionStore
 
 

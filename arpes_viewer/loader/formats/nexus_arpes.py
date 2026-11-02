@@ -42,9 +42,8 @@ from typing import Optional
 import h5py
 import numpy as np
 
-from arpes_viewer.loader.nxs_file import (ANGLE_UNIT, ENERGY_UNIT, HANDLES, KIND_LABELS,
-                             NxsScan, PHD_WORK_FUNCTION_EV, _decode,
-                             _read_group_fields, _resample_energy, _scalarize)
+from arpes_viewer.loader.scan import ANGLE_UNIT, ENERGY_UNIT, HANDLES, KIND_LABELS, NxsScan, _decode, _scalarize
+from arpes_viewer.loader.beamlines.antares import PHD_WORK_FUNCTION_EV, _read_group_fields, _resample_energy
 
 __all__ = ["Dim", "Layout", "NexusView", "NexusArpesLoader", "text",
            "unit_text", "motor_role", "plan_entries", "build_scan"]

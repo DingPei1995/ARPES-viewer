@@ -76,7 +76,7 @@ import re
 
 import numpy as np
 
-from arpes_viewer.loader.nxs_file import NxsScan
+from arpes_viewer.loader.scan import NxsScan
 from arpes_viewer.loader.registry import Loader, register
 
 __all__ = ["CassiopeeSpinLoader", "read_krx", "read_mbs_text", "load_mbs",

@@ -52,7 +52,7 @@ __all__ = ["JobCancelled", "JobBusy", "JobRunner", "run_job", "run_blocking",
            "busy", "one_at_a_time", "busy_work", "HDF5_LOCK"]
 
 #: Serialises every read through h5py. The handles in
-#: ``loader.nxs_file.HANDLES`` are shared between the GUI thread (a viewer
+#: ``loader.scan.HANDLES`` are shared between the GUI thread (a viewer
 #: asking for one frame) and a worker (an operation reading a whole cube),
 #: and HDF5 is not safe against that on its own.
 HDF5_LOCK = threading.RLock()

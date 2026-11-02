@@ -45,17 +45,17 @@ subpackages group modules by what they are for.
 | `arpes_viewer/app.py` | The main window: the dataset list, the session folder, and the wiring between them. `main()` starts it; `ARPES_viewer.py`, `python -m arpes_viewer` and the `arpes-viewer` command all call it. |
 | **`arpes_viewer/loader/`** | |
 | `registry.py` | Which beamline wrote a file and who reads it, plus the load-time axis order and scanned-axis role. |
-| `nxs_file.py` | The SOLEIL parser, the saved format's reader and writer, `NxsScan`, the axis-slot table, and the lazy arrays that keep a measurement on disk. Start here. |
-| `native.py` | This program's own saved format -- detected, never chosen. |
+| `scan.py` | `NxsScan` (what every reader returns), the kinds and their axis-slot table, and the lazy arrays and file handles that keep a measurement on disk. Start here. |
+| `native.py` | This program's own saved format: the writer (`save_dataset`), the reader, and its loader -- detected, never chosen. |
 | `cubecache.py` | `CubeCache`: a map cube read into memory once it is being browsed, so the energy slider and the cut sliders slice an array rather than the file. |
 | `session.py` | Where a computed dataset lives: the folder it is written to as soon as it exists, the memory budget, and the operations log. |
 | `formats/nexus_arpes.py` | What the NeXus readers share: the layout, the kind it opens as, kz-map energy referencing, the lazy `NexusView`, the metadata. |
 | `formats/ses.py` | Scienta SES files: Igor `.ibw`, the map `.zip`, multi-region `.txt`, the run-mode table, and `SESLoader`, which each SES beamline subclasses. |
-| `beamlines/soleil.py` | SOLEIL ANTARES. **Copy this file to add an HDF5 beamline.** |
+| `beamlines/antares.py` | SOLEIL ANTARES `.nxs` files: spatial scans, deflector maps, cuts and photon-energy scans, and the entry dispatcher that also hands this program's saved entries to `native.py`. |
+| `beamlines/alba.py` | ALBA LOREA (BL20) `.nxs` files. **Copy this file to add an HDF5 beamline.** |
 | `beamlines/cassiopee.py` | SOLEIL CASSIOPEE: Scienta text spectra, and folders of them assembled into a map or a kz map. |
 | `beamlines/cassiopee_spin.py` | CASSIOPEE's spin end station: MBS A-1 `.krx` and `.txt` files, as a cut, a map or a spin EDC. |
 | `beamlines/maestro.py` | ALS MAESTRO (BL 7.0.2) `.h5` files: cuts, deflector maps, XY spatial scans, two-motor lines and focus scans, read lazily. |
-| `beamlines/alba.py` | ALBA LOREA (BL20) `.nxs` files. |
 | `beamlines/diamond.py` | Diamond I05 (HR-ARPES) and I05-1 (nano-ARPES) `.nxs` files, as two loaders. |
 | `beamlines/maxiv.py`, `beamlines/ape.py` | MAX IV Bloch and Elettra APE (SES). Bloch is also the fallback for any SES file no other beamline claims. |
 | `beamlines/bessy.py`, `beamlines/solaris.py` | BESSY One Cube / One Square and SOLARIS URANOS (SES), told apart by the header's `Location` and `Instrument`. |
@@ -67,7 +67,7 @@ subpackages group modules by what they are for.
 | `crystal/lattice.py`, `crystal/spacegroups.py`, `crystal/bz3d.py`, `crystal/bz2d.py`, `crystal/moire.py`, `crystal/highsym.py` | The Brillouin-zone geometry: lattices and point groups, the 3-D and 2-D zones and their irreducible wedges, the moiré zone, and the named high-symmetry points (a static table per Bravais lattice, after Setyawan & Curtarolo 2010). |
 | `crystal/cleavage.py` | From a measured k_z period to which lattice planes could have produced it. |
 | `processing/analysis.py` | Arbitrary-direction cut and Fermi-surface correction. |
-| `processing/dataops.py` | Truncate / self-normalise / compress, and the axis tables derived from `loader/nxs_file.py`. |
+| `processing/dataops.py` | Truncate / self-normalise / compress, and the axis tables derived from `loader/scan.py`. |
 | `processing/stackcuts.py`, `processing/combine.py` | Combining datasets: stacking cuts along a new axis, and joining pieces end to end along one of their own axes. |
 | `processing/process.py`, `processing/volume.py` | Smoothing, derivatives, curvature, backgrounds, symmetrisation -- in 2-D and over a cube. |
 | `processing/degrid.py` | Removing the detector grid: the map's own grid estimate, the per-slice contrast / shift / local fit, the single-cut paths, and the pixel-lock check. |

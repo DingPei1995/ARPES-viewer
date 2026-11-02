@@ -19,7 +19,7 @@ def app():
 
 def _measurement(tmp_path):
     """A cut written to a file, read back as the launcher reads it."""
-    from arpes_viewer.loader.nxs_file import save_dataset
+    from arpes_viewer.loader.native import save_dataset
     from arpes_viewer.ui.viewers.widgets import NxsData
 
     path = str(tmp_path / "raw.nxs")

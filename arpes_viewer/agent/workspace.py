@@ -5,7 +5,7 @@ The program's data operations without its windows: what the MCP server's
 headless tools do.
 
 A :class:`Workspace` holds the datasets an agent has opened or made, by a
-short id (``d1``, ``d2``...). Each is a :class:`loader.nxs_file.NxsScan`
+short id (``d1``, ``d2``...). Each is a :class:`loader.scan.NxsScan`
 with a name -- read by the same loaders as the main window, so a file the
 program opens, the agent opens too, and made by the same functions as the
 tools (the k conversions of :mod:`tools.momentum`, the Fermi-edge fit of
@@ -140,7 +140,7 @@ class Workspace:
     # -- what a dataset is ---------------------------------------------------
     @staticmethod
     def _slots(scan):
-        from arpes_viewer.loader.nxs_file import axis_slots
+        from arpes_viewer.loader.scan import axis_slots
         return list(axis_slots(scan.kind, "array"))
 
     def axes(self, ident):
@@ -201,7 +201,7 @@ class Workspace:
             if word == slot:
                 return index
         if word in ("e", "energy", "ek", "ekin", "binding"):
-            from arpes_viewer.loader.nxs_file import energy_slot
+            from arpes_viewer.loader.scan import energy_slot
             scan = self.get(ident)["scan"]
             slot = energy_slot(scan.kind)
             for index, (s, _l, _a) in enumerate(axes):
@@ -313,7 +313,7 @@ class Workspace:
     # Operations that make a new dataset
     # ==================================================================
     def _derived(self, kind, axes_by_slot, value, labels, info, name, source_id):
-        from arpes_viewer.loader.nxs_file import NxsScan
+        from arpes_viewer.loader.scan import NxsScan
         scan = NxsScan(kind=kind, info=dict(info or {}), labels=dict(labels),
                        value=np.asarray(value))
         for slot, axis in axes_by_slot.items():
@@ -446,7 +446,7 @@ class Workspace:
     def save(self, ids, path: str, fmt: str = None) -> dict:
         """Save to ``.nxs`` (this program's own, several datasets per file),
         ``.itx`` (Igor text, several waves) or ``.ibw`` (one wave)."""
-        from arpes_viewer.loader.nxs_file import save_dataset
+        from arpes_viewer.loader.native import save_dataset
         from arpes_viewer.tools.output import igor
 
         ids = [ids] if isinstance(ids, str) else list(ids)
