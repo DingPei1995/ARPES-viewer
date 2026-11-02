@@ -1,10 +1,8 @@
 # Changelog
 
-History of ARPES viewer, newest first. Each entry says what changed and,
-more usefully, *why* -- the measurement that settled a format choice, the
-bug that a check now prevents, the assumption that turned out not to hold
-on real data. The forty-eight rounds before 1.0.0 are summarised ten at a
-time at the end.
+Round-by-round history of ARPES viewer, newest first. Each entry says what
+changed and, more usefully, *why*. The forty-eight rounds before 1.0.0 are
+merged ten at a time at the end.
 
 What the program does and how to use it is in [README.md](README.md); this
 file is the record of how it got that way.
