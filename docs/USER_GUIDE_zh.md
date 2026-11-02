@@ -2,7 +2,7 @@
 
 *[English version / 英文版](USER_GUIDE_en.md) · [Version française / 法文版](USER_GUIDE_fr.md)*
 
-*最后更新：2026 年 11 月 2 日——对应 ARPES viewer v1.2.4*
+*最后更新：2026 年 11 月 2 日——对应 ARPES viewer v1.3.0*
 
 程序的版本号和更新日期显示在主窗口标题栏和主窗口最下方。报告 bug、提问或获取最新版本：
 <https://github.com/DingPei1995/ARPES-viewer>（报告 bug 时请注明版本号）。
@@ -250,7 +250,7 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 - **MCP 接口**：程序可作为 MCP 服务器（`arpes-viewer-mcp`）供任何模型的 AI 智能体调用，
   见[第 33 节](#33-让-ai-智能体调用本程序mcp)。
 
-### 功能现在的位置（v1.2.4）
+### 功能现在的位置（v1.3.0）
 
 如果你用过早期版本：工具已从右键菜单和查看窗口的 *Functions* 菜单移到了工具面板，
 每个工具只有一个入口，且始终可见。

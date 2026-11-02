@@ -9,7 +9,7 @@ only the last number (1.1.0 -> 1.1.1); new tools move the middle one
 version in ``ARPES viewer.app/Contents/Info.plist`` (the macOS launcher)
 and the version and date in ``CITATION.cff`` the same -- tests check them.
 """
-VERSION = "1.2.4"
+VERSION = "1.3.0"
 UPDATED = "2026-11-02"
 REPOSITORY = "https://github.com/DingPei1995/ARPES-viewer"
 

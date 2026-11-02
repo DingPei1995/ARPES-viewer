@@ -2,7 +2,7 @@
 
 *[English version](USER_GUIDE_en.md) · [中文版](USER_GUIDE_zh.md)*
 
-*Dernière mise à jour : 2 novembre 2026 — pour ARPES viewer v1.2.4*
+*Dernière mise à jour : 2 novembre 2026 — pour ARPES viewer v1.3.0*
 
 La version et sa date figurent dans la barre de titre et en bas de la fenêtre
 principale. Signaler un bogue, poser une question, obtenir la dernière version :
@@ -319,7 +319,7 @@ désormais l'une des façons de **Combine...**.)
   que les agents IA de tout modèle peuvent appeler, voir
   [§33](#33-piloter-le-programme-depuis-un-agent-ia-mcp).
 
-### Où se trouvent les choses maintenant (v1.2.4)
+### Où se trouvent les choses maintenant (v1.3.0)
 
 Pour qui a utilisé une version antérieure : les outils ont quitté le menu
 contextuel et les menus *Functions* des fenêtres pour le panneau d'outils ;

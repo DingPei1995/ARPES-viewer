@@ -2,7 +2,7 @@
 
 *[中文版 / Chinese version](USER_GUIDE_zh.md) · [Version française](USER_GUIDE_fr.md)*
 
-*Last updated: 2 November 2026 — for ARPES viewer v1.2.4*
+*Last updated: 2 November 2026 — for ARPES viewer v1.3.0*
 
 The version and its date are in the main window's title bar and at the bottom of
 the main window. Bug reports, questions and the latest version:
@@ -260,7 +260,7 @@ see them all. Hidden rows are deselected, so nothing out of sight is acted
 on. Right-click the list → **Sort by name** (`Cut_9` before `Cut_10`) or
 **Sort by data type** (cuts, maps, k-maps… each group by name).
 
-### Where things are now (v1.2.4)
+### Where things are now (v1.3.0)
 
 If you used an earlier version: the tools moved out of the right-click menu
 and the viewers' *Functions* menus into the tool panel, so each has one way
