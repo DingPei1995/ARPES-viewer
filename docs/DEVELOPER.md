@@ -130,3 +130,17 @@ from this folder. 859 of them, no display needed -- `conftest.py` puts the
 project root on `sys.path` and pins `QT_QPA_PLATFORM=offscreen`, and
 `test/conftest.py` runs garbage collection only between tests, the rule
 `ui/common/gcguard.py` applies in the program.
+
+## Versions and the changelog
+
+The number and its date are in `arpes_viewer/version.py`, and repeated in
+the README, `CITATION.cff`, the macOS `Info.plist`, the user guides'
+headers and the changelog's first entry; `test/test_version_consistency.py`
+checks they agree.
+
+`CHANGELOG.md` keeps one entry per release **within the current minor
+version** (1.2.0, 1.2.1, ...). When a new minor version starts -- 1.2.5 to
+1.3.0, say -- the previous minor version's entries are merged into one
+shorter summary headed `## 1.2 — 1.2.0 to 1.2.5, <first date> to <last
+date>`, placed above the older summaries (1.1, 1.0) and the rounds before
+1.0.0. The detail stays in the git history.
