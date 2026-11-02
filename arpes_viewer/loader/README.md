@@ -50,7 +50,7 @@ The stepped axis is straightened to an even grid; the motor readbacks are
 kept in `info` as `cassiopee.axis0_measured`.
 
 A **kz map** stacks the members on the first spectrum's energy axis, referred
-to the Fermi level (`E - E_F = E_kin - hv + phi`) exactly as the lab's MATLAB
+to the Fermi level (`E - E_F = E_kin - hv + phi`) as the lab's
 loader does. Nothing is interpolated or trimmed. The per-member photon
 energy, work function and energy-axis start are recorded in `info`, which is
 what a proper per-photon-energy Fermi-edge calibration will need later.
@@ -80,9 +80,8 @@ the first entry, which holds only the beamline state, is skipped.
 
 ### ALS MAESTRO (BL 7.0.2)
 
-MAESTRO's `.h5` files are read by **ALS MAESTRO** (`loader/beamlines/maestro.py`),
-ported from the MAESTRO reader in
-[TensorSpec](https://github.com/fawkesdx/TensorSpec) (MIT). A file is
+MAESTRO's `.h5` files are read by **ALS MAESTRO** (`loader/beamlines/maestro.py`;
+file layout after [TensorSpec](https://github.com/fawkesdx/TensorSpec), MIT). A file is
 recognised by its three top-level groups (`0D_Data`, `2D_Data`, `Headers`).
 The scan plan in `Headers/Low_Level_Scan` says which motors were stepped,
 and over what range:
@@ -194,35 +193,18 @@ same kind open the same way.
 - The energy of a cut, map or spatial scan is the analyser's kinetic
   energy. Set E_F from the data, as for MAESTRO.
 
-### Elettra APE and ASTRID2 SGM4 (ported from peaks, untested)
+### Elettra APE and ASTRID2 SGM4 (untested)
 
-These two were ported from the readers in
-[peaks](https://github.com/phrgab/peaks) (`loaders/ape.py`, `loaders/sgm4.py`)
-without files from either beamline. The tests build files the way those
-readers expect them. Open a real file and check it before relying on it.
+Written after the readers in [peaks](https://github.com/phrgab/peaks),
+without files from either beamline; check a real file before relying on it.
 
-- **Elettra APE** (`loader/beamlines/ape.py`) writes the same SES files as
-  Bloch. `.ibw`, `.zip` and `.txt` all go through the shared SES reader
-  (`loader/formats/ses.py`); a `.txt` is parsed by the CASSIOPEE Scienta
-  text parser. The run-mode table
-  knows APE's motor names (`polar tilt X Y Z`). Because the format is the
-  same, the facility is told by the `Location` in the SES header: a file
-  whose `Location` says APE or Elettra opens as APE, and anything else stays
-  with Bloch (or CASSIOPEE for `.txt`). Choose the reader in the Loader
-  window when `Location` was left blank. Spin data is not read, as in peaks.
-- **ASTRID2 SGM4** (`loader/beamlines/sgm4.py`): `Entry/Data/ScanDetails`
-  gives each slow and fast axis as start, step and length. The spectra in
-  `Entry/Data/TransformedData` are one row per point, with the first slow
-  axis fastest. They are read lazily through a grid view, and a scan
-  stopped early is padded with NaN (`info["sgm4.incomplete"]`).
-  - `ShiftX`/`ShiftY` (or `SALX`/`SALY`) are the deflectors, and open as a
-    map that converts to k.
-  - `FSamX/Y/Z` are the stage in µm; two of them open as a spatial scan.
-  - `LEG`/`MEG`/`HEG` are the photon energy, which opens as a kz map with
-    `W = 4.416 eV`. Each hv keeps one binding window, as in peaks.
-  - `CapZ` (focus) and `Loop` (repeats) are listed one dataset per step.
-  - A knife-edge scan holds a summed intensity per point, not spectra. It
-    is listed but does not open.
+- **Elettra APE** (`loader/beamlines/ape.py`): the same SES files as Bloch,
+  told apart by `Location` in the SES header (APE motor names
+  `polar tilt X Y Z`). Spin data is not read.
+- **ASTRID2 SGM4** (`loader/beamlines/sgm4.py`): read lazily from
+  `Entry/Data`. Deflectors (`ShiftX/Y`, `SALX/Y`) open as a k-convertible
+  map, two of `FSamX/Y/Z` as a spatial scan, `LEG`/`MEG`/`HEG` as a kz map
+  (`W = 4.416 eV`); a scan stopped early is padded with NaN.
 
 ### BESSY One Cube / One Square and SOLARIS URANOS (Scienta SES)
 

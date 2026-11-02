@@ -59,7 +59,7 @@ subpackages group modules by what they are for.
 | `beamlines/diamond.py` | Diamond I05 (HR-ARPES) and I05-1 (nano-ARPES) `.nxs` files, as two loaders. |
 | `beamlines/maxiv.py`, `beamlines/ape.py` | MAX IV Bloch and Elettra APE (SES). Bloch is also the fallback for any SES file no other beamline claims. |
 | `beamlines/bessy.py`, `beamlines/solaris.py` | BESSY One Cube / One Square and SOLARIS URANOS (SES), told apart by the header's `Location` and `Instrument`. |
-| `beamlines/sgm4.py` | ASTRID2 SGM4 `.h5` files, read lazily. Ported from peaks. |
+| `beamlines/sgm4.py` | ASTRID2 SGM4 `.h5` files, read lazily. |
 | **`arpes_viewer/tools/`** | |
 | `momentum/kspace.py`, `momentum/cutk.py` | Angle-to-momentum conversion, for a map and for a single cut, and the rotation read off a picked direction. |
 | `momentum/kzmap.py` | Calibrating a photon-energy scan against its own Fermi edges: fit per spectrum, align, crop, normalise. |
