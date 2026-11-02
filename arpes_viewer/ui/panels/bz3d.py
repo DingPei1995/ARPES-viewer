@@ -13,8 +13,10 @@ and a space group, not atoms, so it is a window of its own:
   of the *BZ overlap* tool, if it drew a 3-D one.
 - **Planes** -- as many as wanted, each with its own (hkl) normal, its
   height along it (0 through Γ, 0.5 the zone top...), colour and opacity;
-  a plane normal to k_z can carry a measured constant-energy map of a k-map
-  selected when the window was opened.
+  any of them can carry a measured constant-energy map of a k-map -- one
+  selected when the window was opened, or any k-map in the list, read when
+  it is chosen. The map's kx, ky lie along the plane's own in-plane axes
+  (k_x, k_y for a plane normal to k_z), turned by the maps' azimuth.
 - **Paths** -- as many as wanted, each through the labelled points in its
   own colour (Γ-M-K-Γ, A-L-H-A...).
 - **Export** -- a picture at any size, or straight into the figure
@@ -102,8 +104,8 @@ class PlaneRow(QWidget):
         self.map_combo.addItems(list(maps))
         self.map_combo.setToolTip(
             "Draw a measured constant-energy map on this plane, cut to the "
-            "zone -- for a plane normal to k_z (select k-maps before opening "
-            "the window).")
+            "zone: any k-map of the list (press ↻ beside Add a plane after "
+            "adding more). Its kx, ky lie along the plane's in-plane axes.")
         self.map_combo.currentIndexChanged.connect(self.changed)
         self.energy_box = QDoubleSpinBox()
         self.energy_box.setRange(-50.0, 50.0)
@@ -118,8 +120,18 @@ class PlaneRow(QWidget):
         map_row.addWidget(self.energy_box)
         self._map_row = QWidget()
         self._map_row.setLayout(map_row)
-        self._map_row.setVisible(bool(maps))
         column.addWidget(self._map_row)
+
+    def set_maps(self, names):
+        """Offer ``names``, keeping the current choice if it is still one."""
+        current = self.map_combo.currentText()
+        self.map_combo.blockSignals(True)
+        self.map_combo.clear()
+        self.map_combo.addItem("(colour only)")
+        self.map_combo.addItems(list(names))
+        index = self.map_combo.findText(current)
+        self.map_combo.setCurrentIndex(max(index, 0))
+        self.map_combo.blockSignals(False)
 
     def hkl(self):
         return tuple(int(box.value()) for box in self.hkl_boxes)
@@ -165,13 +177,21 @@ class PathRow(QWidget):
 class BrillouinZone3DDialog(QDialog):
     """The 3-D Brillouin zone of a crystal, with planes and paths in it."""
 
-    def __init__(self, parent=None, datasets=None, colormap="blue", flip=True):
+    def __init__(self, parent=None, datasets=None, colormap="blue", flip=True,
+                 map_source=None):
         super().__init__(parent)
         self.setWindowTitle("3D Brillouin zone")
         self.resize(1200, 780)
         #: k-maps whose constant-energy pictures can lie on the planes
         self.datasets = [(n, d) for n, d in (datasets or [])
                          if getattr(d, "kind", None) == "k_map"]
+        #: ``map_source()`` -> [(name, read)] of every k-map in the list,
+        #: ``read()`` giving the dataset; a map is read when first drawn,
+        #: and given back when the window closes
+        self.map_source = map_source
+        self._readers = {}
+        self._read = []
+        self.finished.connect(self._release_read)
         self.colormap, self.flip = colormap, flip
         self.cif_path = ""
         self.plane_rows, self.path_rows = [], []
@@ -219,15 +239,16 @@ class BrillouinZone3DDialog(QDialog):
     def _crystal_group(self):
         group = QGroupBox("Crystal (space group first)")
         column = QVBoxLayout(group)
+        # the file first, as in the crystal window: it fills what is below
+        self.cif_button = QPushButton("Read a CIF file...")
+        self.cif_button.setToolTip(
+            "Fill the space group and the cell below from a CIF file; the "
+            "zone is redrawn at once.")
+        self.cif_button.clicked.connect(lambda: self.read_cif())
+        column.addWidget(self.cif_button)
         self.cell_input = CellInput(group)
         self.cell_input.changed.connect(self.refresh)
         column.addWidget(self.cell_input)
-        self.cif_button = QPushButton("Read a CIF file...")
-        self.cif_button.setToolTip(
-            "Fill the space group and the cell from a CIF file; the zone is "
-            "redrawn at once.")
-        self.cif_button.clicked.connect(lambda: self.read_cif())
-        column.addWidget(self.cif_button)
         self.zone_label = QLabel("")
         self.zone_label.setWordWrap(True)
         column.addWidget(self.zone_label)
@@ -287,28 +308,34 @@ class BrillouinZone3DDialog(QDialog):
         add = QPushButton("Add a plane in 3D BZ")
         add.setToolTip("Another plane, with its own (hkl) normal, height, "
                        "colour and opacity: through Γ at 0, at the zone top "
-                       "at 0.5.")
+                       "at 0.5. Any plane can carry a measured map.")
         add.clicked.connect(lambda: self.add_plane())
-        column.addWidget(add)
-        if self.datasets:
-            maps = QFormLayout()
-            self.map_azimuth = QDoubleSpinBox()
-            self.map_azimuth.setRange(-360.0, 360.0)
-            self.map_azimuth.setSuffix(" °")
-            self.map_azimuth.setToolTip("How the maps' k_x lies against the "
-                                        "zone's k_x (the sample azimuth).")
-            self.map_window = QDoubleSpinBox()
-            self.map_window.setRange(0.0, 2.0)
-            self.map_window.setDecimals(3)
-            self.map_window.setValue(0.05)
-            self.map_window.setSuffix(" eV")
-            self.map_window.setToolTip("The energy window the maps are "
-                                       "averaged over.")
-            for box in (self.map_azimuth, self.map_window):
-                box.valueChanged.connect(self.refresh)
-            maps.addRow("Maps' azimuth", self.map_azimuth)
-            maps.addRow("Integrate", self.map_window)
-            column.addLayout(maps)
+        update = QPushButton("↻ Maps from the list")
+        update.setToolTip("Offer every k-map now in the main list on the "
+                          "planes' map choices.")
+        update.clicked.connect(self.update_maps)
+        buttons = QHBoxLayout()
+        buttons.addWidget(add, 1)
+        buttons.addWidget(update)
+        column.addLayout(buttons)
+        maps = QFormLayout()
+        self.map_azimuth = QDoubleSpinBox()
+        self.map_azimuth.setRange(-360.0, 360.0)
+        self.map_azimuth.setSuffix(" °")
+        self.map_azimuth.setToolTip("How the maps' k_x lies against the "
+                                    "zone's k_x (the sample azimuth).")
+        self.map_window = QDoubleSpinBox()
+        self.map_window.setRange(0.0, 2.0)
+        self.map_window.setDecimals(3)
+        self.map_window.setValue(0.05)
+        self.map_window.setSuffix(" eV")
+        self.map_window.setToolTip("The energy window the maps are "
+                                   "averaged over.")
+        for box in (self.map_azimuth, self.map_window):
+            box.valueChanged.connect(self.refresh)
+        maps.addRow("Maps' azimuth", self.map_azimuth)
+        maps.addRow("Integrate", self.map_window)
+        column.addLayout(maps)
         return group
 
     def add_plane(self, hkl=(0, 0, 1), height=None, colour=None, alpha=0.45):
@@ -318,14 +345,63 @@ class BrillouinZone3DDialog(QDialog):
             height = 0.5 if self.plane_rows else 0.0
         if colour is None:
             colour = PLANE_COLOURS[len(self.plane_rows) % len(PLANE_COLOURS)]
-        row = PlaneRow(hkl, height, colour, alpha,
-                       maps=[n for n, _d in self.datasets])
+        row = PlaneRow(hkl, height, colour, alpha, maps=self.map_names())
         row.changed.connect(self.refresh)
         row.removed.connect(self.remove_plane)
         self.planes_column.addWidget(row)
         self.plane_rows.append(row)
         self.refresh()
         return row
+
+    # -- the maps a plane can carry -------------------------------------------
+    def map_names(self):
+        """The k-maps a plane can carry: those handed over, then the
+        list's."""
+        names = [n for n, _d in self.datasets]
+        self._readers = {}
+        if callable(self.map_source):
+            try:
+                offered = list(self.map_source())
+            except Exception:                              # noqa: BLE001
+                offered = []
+            for name, read in offered:
+                if name not in names:
+                    names.append(name)
+                    self._readers[name] = read
+        return names
+
+    def update_maps(self):
+        names = self.map_names()
+        for row in self.plane_rows:
+            row.set_maps(names)
+        return names
+
+    def map_data(self, name):
+        """The k-map called ``name``, read from the list on first use."""
+        held = dict(self.datasets)
+        if name in held:
+            return held[name]
+        read = self._readers.get(name)
+        if read is None:
+            raise KeyError(name)
+        data = read()
+        if getattr(data, "kind", None) != "k_map":
+            try:
+                data.close()
+            except Exception:                              # noqa: BLE001
+                pass
+            raise ValueError(f"“{name}” is not a k-map")
+        self.datasets.append((name, data))
+        self._read.append(data)
+        return data
+
+    def _release_read(self, *_):
+        for data in self._read:
+            try:
+                data.close()
+            except Exception:                              # noqa: BLE001
+                pass
+        self._read = []
 
     def remove_plane(self, row):
         if row in self.plane_rows:
@@ -394,7 +470,7 @@ class BrillouinZone3DDialog(QDialog):
         from arpes_viewer.ui.panels.bands import _relative_energy
         import warnings
 
-        data = dict(self.datasets)[name]
+        data = self.map_data(name)
         scan = data.scan
         axis = _relative_energy(scan.z, scan.info)
         half = max(0.5 * self.map_window.value(),
@@ -444,7 +520,7 @@ class BrillouinZone3DDialog(QDialog):
             self.zone_label.setText(f"No zone: {exc}")
             self.view.update()
             return
-        planes = []
+        planes, problems = [], []
         for row in self.plane_rows:
             g = np.asarray(row.hkl(), dtype=float) @ g_basis
             length = float(np.linalg.norm(g))
@@ -455,9 +531,13 @@ class BrillouinZone3DDialog(QDialog):
                      "height": row.height_box.value() * length,
                      "colour": row.colour_button.colour,
                      "alpha": row.alpha_box.value()}
-            if row.map_combo.currentIndex() > 0 and abs(abs(normal[2]) - 1.0) < 1e-6:
-                plane["picture"] = self.plane_picture(row.map_combo.currentText(),
-                                                      row.energy_box.value())
+            if row.map_combo.currentIndex() > 0:
+                try:
+                    plane["picture"] = self.plane_picture(
+                        row.map_combo.currentText(), row.energy_box.value())
+                except Exception as exc:                  # noqa: BLE001
+                    problems.append(f"<b>Could not draw "
+                                    f"{row.map_combo.currentText()}:</b> {exc}")
             planes.append(plane)
         self.view.zone_planes = planes
         self.view.zone_path = []
@@ -474,7 +554,8 @@ class BrillouinZone3DDialog(QDialog):
             params = structure.lattice_params()
             self.zone_label.setText(
                 f"Space group {params.space_group or '(none: primitive)'}; "
-                f"labelled points: {', '.join(p.label for p in points)}.")
+                f"labelled points: {', '.join(p.label for p in points)}."
+                + "".join("<br>" + p for p in problems))
         except Exception as exc:                              # noqa: BLE001
             self.zone_label.setText(f"No zone: {exc}")
         self.view.update()

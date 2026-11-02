@@ -439,7 +439,7 @@ def test_the_panel_has_a_basic_and_an_advanced_section(launcher):
     ui = launcher.ui
     basic, advanced = ui.ToolSections["Basic"], ui.ToolSections["Advanced"]
     for name in ("fermi", "degrid", "background", "kcut", "corelevel", "kmap",
-                 "kzalign", "kzconv", "bz", "bz3d", "figure"):
+                 "kzalign", "kzconv", "bz"):
         assert basic.isAncestorOf(ui.ToolButtons[name]), name
     for name in ("smooth", "derivative", "curvature", "symmetry",
                  "stack", "mdcfit", "edcfit", "arithmetic", "slices3d",
@@ -553,7 +553,7 @@ def test_kz_conversion_remembers(app, monkeypatch):
 def test_the_panel_opens_on_its_basic_tab(launcher):
     tabs = launcher.ui.ToolTabs
     assert [tabs.tabText(i) for i in range(tabs.count())] == [
-        "Basic", "Advanced", "Calculation"]
+        "Basic", "Advanced", "Figure"]
     assert tabs.currentIndex() == 0
     basic = launcher.ui.ToolSections["Basic"]
     assert tabs.currentWidget().isAncestorOf(basic) or tabs.currentWidget().widget() is basic

@@ -286,7 +286,46 @@ def test_the_tool_panel_places_the_moved_tools(app):
     from arpes_viewer.ui.launcher import main_window as M
     sections = {name: [n for _h, names in groups for n in names]
                 for name, groups in M.TOOL_SECTIONS}
-    assert "bz3d" in sections["Basic"] and "figure" in sections["Basic"]
-    assert "figure" not in sections["Advanced"]
+    # the Calculation tab is now "Figure", with the composer at its top
+    assert list(sections) == ["Basic", "Advanced", "Figure"]
+    assert sections["Figure"][0] == "figure" and "bz3d" in sections["Figure"]
+    assert "figure" not in sections["Advanced"] + sections["Basic"]
+    assert "bz3d" not in sections["Basic"]
     assert M.TOOLS["bz"][0] == "BZ overlap..."
     assert M.TOOLS["bz3d"][0] == "3D BZ..."
+
+
+def test_any_plane_of_the_3d_zone_takes_a_map_from_the_list(app):
+    from arpes_viewer.ui.panels.bz3d import BrillouinZone3DDialog
+    from arpes_viewer.ui.panels.crystal import plane_basis
+
+    kmap = W.KMapData(np.linspace(-1, 1, 21), np.linspace(-1, 1, 25),
+                      np.linspace(-0.5, 0.1, 15), np.ones((21, 25, 15)),
+                      source_label="km", parameters={})
+    reads = []
+    dialog = BrillouinZone3DDialog(
+        map_source=lambda: [("km", lambda: reads.append(1) or kmap)])
+    dialog.cell_input.set_cell(221, 3.0)
+    row = dialog.add_plane((1, 0, 0), 0.0)            # not normal to k_z
+    assert row.map_combo.findText("km") > 0
+    row.map_combo.setCurrentText("km")
+    assert reads == [1]                                # read when chosen
+    pictures = [p for p in dialog.view.zone_planes if "picture" in p]
+    assert len(pictures) == 1
+    images = [i for i in dialog.view._zone_items()[0] if i[0] == "img"]
+    corners = images[0][1]
+    assert np.allclose(corners[:, 0], 0.0)             # lies in the k_x = 0 plane
+    u, v = plane_basis((1, 0, 0))
+    assert abs(u @ (1, 0, 0)) < 1e-9 and abs(v @ (1, 0, 0)) < 1e-9
+    assert not dialog.view.render_image(200, 200).isNull()
+    dialog.close()                                     # gives the map back
+
+
+def test_the_crystal_window_puts_its_cif_button_above_the_cell(app):
+    from arpes_viewer.ui.panels.crystal import CrystalDialog
+    dialog = CrystalDialog()
+    page = dialog.cif_button.parentWidget()
+    column = page.layout()
+    cell_box = dialog.cell_input.parentWidget()
+    assert column.indexOf(dialog.cif_button) < column.indexOf(cell_box)
+    dialog.close()

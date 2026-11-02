@@ -75,7 +75,7 @@ def test_memory_buttons_share_a_row_with_short_names(launcher):
 def test_the_new_tools_sit_where_they_were_asked_for(launcher):
     ui = launcher.ui
     basic, advanced = ui.ToolSections["Basic"], ui.ToolSections["Advanced"]
-    calculation = ui.ToolSections["Calculation"]
+    calculation = ui.ToolSections["Figure"]
     assert basic.isAncestorOf(ui.ToolButtons["detcorr"])
     column = basic.layout()
     assert (column.indexOf(ui.ToolButtons["detcorr"])

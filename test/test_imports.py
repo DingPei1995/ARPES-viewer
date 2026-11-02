@@ -19,7 +19,8 @@ import os
 import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PACKAGES = ("arpes_viewer.loader", "arpes_viewer.tools", "arpes_viewer.ui", "devtools")
+PACKAGES = ("arpes_viewer.loader", "arpes_viewer.tools", "arpes_viewer.ui",
+            "arpes_viewer.agent", "devtools")
 
 
 def _folder(package):
@@ -143,6 +144,8 @@ def test_every_module_imports_cleanly():
         for info in pkgutil.walk_packages([_folder(package)],
                                           prefix=f"{package}."):
             name = info.name
+            if name.endswith(".__main__"):
+                continue          # runs the program (or the MCP server)
             try:
                 importlib.import_module(name)
             except Exception as exc:                        # noqa: BLE001
@@ -158,8 +161,8 @@ def test_the_qt_free_packages_really_are():
     offenders = []
     for path in _python_files():
         relative = os.path.relpath(path, ROOT)
-        if not (relative.startswith(os.path.join("arpes_viewer", "loader") + os.sep)
-                or relative.startswith(os.path.join("arpes_viewer", "tools") + os.sep)):
+        if not any(relative.startswith(os.path.join("arpes_viewer", part) + os.sep)
+                   for part in ("loader", "tools", "agent")):
             continue
         tree = _parse(path)
         for node in ast.walk(tree):

@@ -38,6 +38,10 @@ Changelog = "https://github.com/DingPei1995/ARPES-viewer/blob/main/CHANGELOG.md"
 [project.gui-scripts]
 arpes-viewer = "arpes_viewer.app:main"
 
+[project.scripts]
+# the MCP server for AI agents (arpes_viewer/agent/), on stdin/stdout
+arpes-viewer-mcp = "arpes_viewer.agent.server:main"
+
 [tool.setuptools.dynamic]
 version = { attr = "arpes_viewer.version.VERSION" }
 

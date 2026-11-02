@@ -3,7 +3,7 @@ ui/panels/bands.py
 ==================
 Calculated band structures, compared with the measurement, step by step.
 
-Opened from the tool panel's Calculation tab (Calculated bands...), with
+Opened from the tool panel's Figure tab (Calculated bands...), with
 the measurements to compare selected -- maps converted to momentum
 (k-maps), converted photon-energy scans (kz maps in k) and cuts converted
 to k -- or with nothing selected, to look at a calculation alone. Four

@@ -23,6 +23,7 @@ arpes_viewer/        the package itself
     spectra/         EDCs/MDCs, spin, fits, core levels
     output/          export, the figure model, colormaps
     runtime/         memory, system stand-ins, the error logs
+  agent/             the MCP server for AI agents                 (no Qt)
   ui/                the windows                                  (Qt)
     launcher/        the main window, the Loader window, the list's menu
     viewers/         the per-dataset viewers and their widgets
@@ -85,6 +86,11 @@ subpackages group modules by what they are for.
 | `output/igor.py` | Igor Pro export: `.itx` text and `.ibw` binary waves with scaling, units and notes. |
 | `output/explog.py` | The experiment log: its format, each dataset's row (scanned ranges included), continuing a CSV log after its last record, and reformatting it in place. |
 | `runtime/memory.py`, `runtime/system.py` | Memory use, and the stand-ins for the lab's `tools_packages`. |
+| **`arpes_viewer/agent/`** | |
+| `agent/server.py` | The MCP server (`arpes-viewer-mcp`, `python -m arpes_viewer.agent`): every tool, its description and argument schema. |
+| `agent/workspace.py` | The headless operations behind the tools: open with the loaders, describe, curves and pictures (PNG written without Pillow), Fermi fit, k conversions, crop, save; the zone and CIFs. |
+| `agent/protocol.py` | MCP's JSON-RPC 2.0 over stdio (initialize, ping, tools/list, tools/call), with no dependency. |
+| `agent/bridge.py` | The client side of the live-viewer bridge: the token file and one-line JSON requests over 127.0.0.1. |
 | **`arpes_viewer/ui/`** | |
 | `launcher/main_window.py` | The launcher window's layout. |
 | `launcher/loader_dialog.py` | The Load-data window: files, reader, axis options. |
@@ -100,8 +106,9 @@ subpackages group modules by what they are for.
 | `panels/corelevel.py`, `panels/degrid.py` | The core-level check (elements, energy reference, results window), and the Remove detector grid window. |
 | `panels/explog.py` | The experiment log's format window, and logging the selection in that format. |
 | `panels/repeats.py`, `panels/ridge.py`, `panels/detector.py` | Sum repeated scans, ridge detection, and the detector corrections. |
-| `panels/tightbinding.py`, `panels/crystal.py` | The tight-binding fit and the crystal-structure viewer (the Calculation tab). |
-| `panels/bz3d.py` | The 3-D Brillouin zone (Basic tab, *3D BZ*): planes and coloured paths in the zone, drawn by `crystal.CrystalView`. |
+| `panels/tightbinding.py`, `panels/crystal.py` | The tight-binding fit and the crystal-structure viewer (the Figure tab). |
+| `panels/bz3d.py` | The 3-D Brillouin zone (Figure tab, *3D BZ*): planes -- any of which can carry a k-map from the list -- and coloured paths in the zone, drawn by `crystal.CrystalView`. |
+| `common/agentbridge.py` | The running program open to an AI agent on the same machine (`--agent-bridge`): a 127.0.0.1 socket with a token, answering the MCP server's `viewer_*` tools. |
 | `common/cellinput.py` | A cell typed space group first, the parameters it fixes greyed out (crystal structure, 3D BZ, tight-binding fit). |
 | `common/stepper.py` | The numbered steps with Back / Next that the multi-step tool windows are built on. |
 | `common/jobs.py` | Running one long operation at a time off the GUI thread. |

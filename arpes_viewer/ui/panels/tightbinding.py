@@ -3,7 +3,7 @@ ui/panels/tightbinding.py
 =========================
 The tight-binding fit, step by step.
 
-Opened from the tool panel's Calculation tab (Tight-binding fit...), with a
+Opened from the tool panel's Figure tab (Tight-binding fit...), with a
 map in momentum selected -- a k-map, or a converted kz map -- or with
 nothing selected, to fit band points read from a file. Four steps:
 

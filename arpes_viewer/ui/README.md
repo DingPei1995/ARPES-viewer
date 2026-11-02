@@ -112,7 +112,7 @@ Since 1.1.0 the tools that take a dataset -- Fermi edge fit, the k and kz
 conversions, Align Fermi levels (kz), Remove detector grid, Brillouin zone,
 the filters, MDC / EDC fit, cut arithmetic, Slice series figure, the 3-D
 views, the figure composer -- are buttons of the launcher's tool panel
-(Basic, Advanced and Calculation tabs), not Functions entries. What is left in
+(Basic, Advanced and Figure tabs), not Functions entries. What is left in
 **Functions** works on the window itself:
 
 | Viewer | Functions |

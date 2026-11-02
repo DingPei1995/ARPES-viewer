@@ -229,9 +229,9 @@ class Ui_MainWindow:
 
         One button per tool, so every one of them is in sight -- they used
         to be behind a right-click or on a tab of a window the user had to
-        know to open. On tabs, Basic (shown first), Advanced and Calculation
+        know to open. On tabs, Basic (shown first), Advanced and Figure
         (TOOL_SECTIONS), each grouped by the dimension of data a tool
-        takes (a third, Calculation, for what is not a dataset), and each
+        takes (a third, Figure, for the figure composer and what is not a dataset), and each
         button
         greyed out until the list's selection is something it can take; its
         tooltip then says why (ARPES_viewer.update_tool_buttons()).
@@ -247,7 +247,7 @@ class Ui_MainWindow:
         title.setAlignment(QtCore.Qt.AlignCenter)
         layout.addWidget(title)
 
-        # Three tabs, Basic, Advanced and Calculation, with Basic up front: the steps nearly
+        # Three tabs, Basic, Advanced and Figure, with Basic up front: the steps nearly
         # every dataset goes through, without the analysis tools crowding
         # them. In each, a small heading per dimension of data and the
         # buttons under it, in a scroll area so a short screen scrolls the
@@ -566,9 +566,8 @@ TOOLS = {
 
 #: The tool panel's layout: three tabs -- Basic, the steps nearly every
 #: dataset goes through (E_F, the detector grid, the background, the k
-#: conversions, the core levels, the Brillouin zone) and the figure
-#: composer, Advanced, the analysis that follows, and
-#: Calculation, what is worked out rather than measured (the crystal) --
+#: conversions, the core levels, the zone overlaid on a k-map), Advanced, the analysis that follows, and
+#: Figure, the figure composer and what is worked out rather than measured --
 #: each grouped by the dimension of data a tool takes: 1D curves (EDC, MDC),
 #: 2D cuts, 3D maps (angle maps, kz maps, k-maps).
 TOOL_SECTIONS = (
@@ -576,8 +575,6 @@ TOOL_SECTIONS = (
         ("2D && 3D \u2014 cuts, maps", ("fermi", "degrid", "detcorr")),
         ("2D only \u2014 cuts", ("background", "kcut", "corelevel")),
         ("3D only \u2014 maps", ("kmap", "kzalign", "kzconv", "bz")),
-        ("Brillouin zone \u2014 no dataset needed", ("bz3d",)),
-        ("Figures \u2014 curves, cuts, pictures", ("figure",)),
     )),
     ("Advanced", (
         ("2D && 3D \u2014 cuts, maps", ("smooth", "derivative", "curvature",
@@ -586,10 +583,13 @@ TOOL_SECTIONS = (
         ("3D only \u2014 maps", ("slicefig", "slices3d", "notch3d",
                                   "projection3d", "stack3d")),
     )),
-    # What is worked out rather than measured: the crystal itself, band
+    # Figures, and what is worked out rather than measured: the figure
+    # composer first, then the crystal, its Brillouin zone in 3-D, band
     # models fitted to the data, and calculated band structures.
-    ("Calculation", (
+    ("Figure", (
+        ("Figures \u2014 curves, cuts, pictures", ("figure",)),
         ("Crystal \u2014 real space", ("lattice",)),
+        ("Brillouin zone \u2014 3-D", ("bz3d",)),
         ("Band models \u2014 fitted to the data", ("tbfit",)),
         ("Band structures \u2014 calculated", ("bands",)),
     )),

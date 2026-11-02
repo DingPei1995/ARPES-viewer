@@ -2246,8 +2246,16 @@ def open_brillouin_zone_3d():
             datasets.append((label_for(key), data))
         else:
             data.close()
+    def k_maps_in_the_list():
+        # every k-map row, read only when a plane is given it
+        return [(label_for(key), lambda key=key: load_dataset(key))
+                for key, record in loaded_items.items()
+                if str(record.get("kind", "")).lower() == "k-map"]
+
     return _show_tool(BrillouinZone3DDialog(win, datasets, default_colormap,
-                                            default_flip), datasets)
+                                            default_flip,
+                                            map_source=k_maps_in_the_list),
+                      datasets)
 
 
 def combine_selected(ask=None, dialog_hook=None):
@@ -2960,7 +2968,12 @@ def main() -> int:
     # none) -- see tools/runtime/console.py
     from arpes_viewer.tools.runtime import console
     console.hide_own_console()
-    app = QApplication(sys.argv)
+    # --agent-bridge: let an AI agent on this machine drive the program
+    # (ui/common/agentbridge.py); taken off the arguments before Qt sees them
+    from arpes_viewer.ui.common import agentbridge
+    bridge_wanted = agentbridge.wanted(sys.argv)
+    argv = [a for a in sys.argv if a != agentbridge.FLAG]
+    app = QApplication(argv)
     # errors are kept in error_logs/ (the program's folder, or
     # ~/.arpes_viewer for an installed copy) and do not close the program --
     # see ui/common/crashguard.py
@@ -3005,11 +3018,20 @@ def main() -> int:
     update_memory_status()
 
     win.show()
+    bridge = None
+    if bridge_wanted:
+        bridge = agentbridge.start(sys.modules[__name__], win)
+        ui.statusbar.showMessage(
+            f"Agent bridge on 127.0.0.1:{bridge.serverPort()} -- an MCP client "
+            f"can drive this window (arpes-viewer-mcp)" if bridge else
+            "Agent bridge: could not listen", 15000)
     try:
         offer_recovery()
     except Exception:                                      # noqa: BLE001
         traceback.print_exc()
     error = app.exec_()
+    if bridge is not None:
+        bridge.stop()
     finish_session()
     session.log("END", "", session.folder,
                 "session closed" if clean_close else "session closed unconfirmed")

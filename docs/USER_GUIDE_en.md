@@ -12,7 +12,7 @@ number when reporting a bug).
 This guide walks through the program's features with screenshots, in the
 order of the tool panel: getting started (installing, loading, the main
 window and the viewers), then the **Basic**, **Advanced** and
-**Calculation** tabs, then figures — ending with two figures built step
+**Figure** tabs, then figures — ending with two figures built step
 by step in the figure composer. The technical
 background for each step (formulas, test results, design choices) is in the
 technical references beside the code — [reading data](../arpes_viewer/loader/README.md),
@@ -60,9 +60,9 @@ beamtime (see [Trying it with demo data](#2-trying-it-with-demo-data)).
 23. [Curves: EDCs, MDCs and spin-resolved data](#23-curves-edcs-mdcs-and-spin-resolved-data)  
 24. [Spatially resolved scans (nano-ARPES)](#24-spatially-resolved-scans-nano-arpes)
 
-**[Part IV — The Calculation tab](#part-iv--the-calculation-tab)**
+**[Part IV — The Figure tab](#part-iv--the-figure-tab)**
 
-25. [Crystal structure](#25-crystal-structure)  
+25. [Crystal structure and the 3-D Brillouin zone](#25-crystal-structure-and-the-3-d-brillouin-zone)  
 26. [Tight-binding fit](#26-tight-binding-fit)  
 27. [Calculated bands](#27-calculated-bands)
 
@@ -76,6 +76,7 @@ beamtime (see [Trying it with demo data](#2-trying-it-with-demo-data)).
 
 31. [Autosave, memory and recovery](#31-autosave-memory-and-recovery)  
 32. [Tips and troubleshooting](#32-tips-and-troubleshooting)  
+33. [Driving the program from an AI agent (MCP)](#33-driving-the-program-from-an-ai-agent-mcp)  
 
 ---
 
@@ -206,14 +207,16 @@ It has three parts:
   button, in three tabs. **Basic** (shown at start) holds what nearly every
   dataset goes through: Fermi edge fit, detector-grid removal, background
   subtraction, the three k conversions, the core-level check, aligning a kz
-  map's Fermi levels, the Brillouin zone and the detector corrections.
-  **Advanced** holds the rest:
-  figure composer, smoothing and the band-sharpening filters, symmetrising,
+  map's Fermi levels, the Brillouin zone overlay (*BZ overlap*) and the
+  detector corrections.
+  **Advanced** holds the analysis:
+  smoothing and the band-sharpening filters, symmetrising,
   ridge detection, stack plots, MDC and EDC fits, cut arithmetic, the slice
-  series figure and the four 3-D views. **Calculation** holds what is
-  worked out rather than measured: the crystal structure, the
-  tight-binding fit and calculated band structures (see
-  [Part IV](#part-iv--the-calculation-tab)).
+  series figure and the four 3-D views. **Figure** holds the **figure
+  composer** (at the top) and what is worked out rather than measured: the
+  crystal structure, the 3-D Brillouin zone (*3D BZ*), the tight-binding
+  fit and calculated band structures (see
+  [Part IV](#part-iv--the-figure-tab)).
   Within a tab the tools are grouped by the data they
   take (*2D & 3D — cuts, maps*, *2D only — cuts*, *3D only — maps* …).
 - **The list** (right), with its buttons.
@@ -270,8 +273,9 @@ in, always in sight.
 | Tool panel → Basic → **k conversion (cut)** / **(map)**, **kz conversion** | viewer *Functions → Convert to momentum* |
 | Tool panel → Basic → **Align Fermi levels (kz)...** | viewer *Functions → Align Fermi levels (kz map)* |
 | Tool panel → Basic → **BZ overlap...** | **Brillouin zone...** (v1.2.3); k-map viewer *Functions → Brillouin zone* |
-| Tool panel → Basic → **3D BZ...** | Crystal structure, step 4 *Brillouin zone* |
-| Tool panel → Basic → **Figure composer...** | Tool panel → Advanced (v1.2.3); right-click → Open in figure composer |
+| Tool panel → **Figure** tab | the **Calculation** tab (v1.2.3) |
+| Tool panel → Figure → **3D BZ...** | Crystal structure, step 4 *Brillouin zone* |
+| Tool panel → Figure → **Figure composer...** (top of the tab) | Tool panel → Advanced (v1.2.3); right-click → Open in figure composer |
 | **Combine...** → *Sum repeated scans* | Datasets box → **Sum repeated scans...** (v1.2.3) |
 | Tool panel → Basic → **Core-level check...** | right-click → Core-level check |
 | Tool panel → Basic/Advanced → **Background subtraction**, **Smooth**, **Second derivative**, **Curvature**, **Symmetrise** (one window each) | **Smooth / derivative...** (one window with tabs) |
@@ -957,27 +961,6 @@ viewers of their own.
 
 ---
 
-### 15.1 3D BZ: the zone in three dimensions
-
-Tool panel → Basic → **3D BZ...** (needs nothing selected; selected k-maps
-can be drawn on its planes). It was step 4 of the crystal-structure window.
-
-- **Crystal**: the **space group first**, then the cell — the parameters the
-  space group fixes are greyed and follow the free ones, as in BZ overlap.
-  **Read a CIF file...** fills them from a file. It starts from BZ
-  overlap's last 3-D crystal.
-- **Planes in the zone**: **Add a plane in 3D BZ** as often as you like.
-  Each has its own normal (h k l), its height along it (in units of G(hkl):
-  0 through Γ, 0.5 at the zone top), colour and opacity, and ✕ to remove
-  it. A plane normal to k_z can carry a selected k-map's constant-energy
-  map (*map*, at the energy given; *Maps' azimuth* and *Integrate* below).
-- **Paths**: **Add path** as often as you like, each through the labelled
-  points (`Γ-M-K-Γ`, `A-L-H-A`; `|` for a jump) in a colour and width of its
-  own.
-- **Display**: labels of the high-symmetry points, the k_x, k_y, k_z axes,
-  and *Label on the left*.
-- **Export**: **Save picture...** at any size, or **To figure composer...**.
-
 ## 16. Smoothing, derivatives, curvature and symmetrising
 
 Each filter has a window of its own, opened from the tool panel with one or
@@ -1297,31 +1280,32 @@ panel for the two integrations:
 
 ![Spatial scan](images/spatial_scan.png)
 
-# Part IV — The Calculation tab
+# Part IV — The Figure tab
 
-The **Calculation** tab holds what is worked out rather than measured: the
-crystal in real space and its Brillouin zone, band models fitted to the
-data, and band structures calculated by others. Its windows open as
-numbered steps.
+The **Figure** tab (called *Calculation* before v1.2.4) holds, at its top,
+the **figure composer** ([§28](#28-the-figure-composer)), then what is
+worked out rather than measured: the crystal in real space and its
+Brillouin zone in 3-D, band models fitted to the data, and band structures
+calculated by others. Most of its windows open as numbered steps.
 
-![The Calculation tab of the tool panel](images/main_window_calculation.png)
+![The Figure tab of the tool panel](images/main_window_calculation.png)
 
 ---
 
-## 25. Crystal structure
+## 25. Crystal structure and the 3-D Brillouin zone
 
-Tool panel → Calculation → **Crystal structure...** (needs nothing
-selected). Four steps (the Brillouin zone is now **3D BZ...**,
-[§15.1](#151-3d-bz-the-zone-in-three-dimensions)):
+Tool panel → Figure → **Crystal structure...** (needs nothing
+selected). Four steps (the Brillouin zone is the tool of its own **3D
+BZ...**, [§25.1](#251-3d-bz-the-zone-in-three-dimensions)):
 
 ![The crystal structure](images/crystal_structure.png)
 
-1. **The structure** — typed in, like the BZ overlap cell: the **space
-   group first** (the cell parameters it fixes are greyed and follow the
-   free ones), then the cell and the atoms of the basis (the centering
-   copies are added). **Read a CIF file...** fills the space group, cell
-   and atoms from a file, applies its symmetry operations and redraws the
-   crystal at once; everything stays editable. CIFs with several data
+1. **The structure** — **Read a CIF file...** (the button at the top)
+   fills the space group, cell and atoms from a file, applies its symmetry
+   operations and redraws the crystal at once; everything stays editable.
+   Or type it in, like the BZ overlap cell: the **space group first** (the
+   cell parameters it fixes are greyed and follow the free ones), then the
+   cell and the atoms of the basis (the centering copies are added). CIFs with several data
    blocks (FullProf's, which open on a block of journal fields) are read
    from the block that holds the structure.
 2. **The look**
@@ -1345,6 +1329,37 @@ selected). Four steps (the Brillouin zone is now **3D BZ...**,
    from a CIF names the CIF as its source, so the figure's data folder keeps
    it ([§28](#28-the-figure-composer)).
 
+### 25.1 3D BZ: the zone in three dimensions
+
+Tool panel → Figure → **3D BZ...** (needs nothing selected). It was step 4
+of the crystal-structure window.
+
+![The 3-D Brillouin zone with measured maps on its planes](images/crystal_zone.png)
+
+- **Crystal**: the **space group first**, then the cell — the parameters the
+  space group fixes are greyed and follow the free ones, as in BZ overlap.
+  **Read a CIF file...** fills them from a file. It starts from BZ
+  overlap's last 3-D crystal.
+- **Planes in the zone**: **Add a plane in 3D BZ** as often as you like.
+  Each has its own normal (h k l), its height along it (in units of G(hkl):
+  0 through Γ, 0.5 at the zone top), colour and opacity, and ✕ to remove
+  it.
+- **Measured maps on the planes**: *any* plane can carry a k-map's
+  constant-energy map — choose it in the plane's *map* list and give the
+  energy (E − E_F). The list offers the k-maps selected when the window
+  was opened and every k-map in the main list (**↻ Maps from the list**
+  brings in ones added since); a map is read only when it is chosen. The
+  map's kx, ky lie along the plane's own in-plane axes — k_x, k_y for a
+  plane normal to k_z — turned by *Maps' azimuth*, averaged over
+  *Integrate*, and cut to the zone.
+- **Paths**: **Add path** as often as you like, each through the labelled
+  points (`Γ-M-K-Γ`, `A-L-H-A`; `|` for a jump) in a colour and width of its
+  own.
+- **Display**: labels of the high-symmetry points, the k_x, k_y, k_z axes,
+  and *Label on the left* (those points labelled at their leftmost
+  equivalent, clear of the paths and axes).
+- **Export**: **Save picture...** at any size, or **To figure composer...**.
+
 ## 26. Tight-binding fit
 
 With a k-map selected (or nothing, to use a file of points):
@@ -1366,7 +1381,7 @@ With a k-map selected (or nothing, to use a file of points):
 
 ## 27. Calculated bands
 
-Tool panel → Calculation → **Calculated bands...** puts a band-structure
+Tool panel → Figure → **Calculated bands...** puts a band-structure
 calculation beside the measurement. Select what to compare it with — k-maps,
 kz maps in momentum and cuts in momentum — or nothing, to look at the
 calculation alone. Four steps.
@@ -1545,7 +1560,8 @@ the end, two figures built step by step.
 
 ## 28. The figure composer
 
-Tool panel → Basic → **Figure composer...** with **nothing selected**
+Tool panel → Figure → **Figure composer...** (the top of the tab) with
+**nothing selected**
 opens a blank page, like a figure of a manuscript: four empty panels (a),
 (b), (c), (d) at a journal's column width. With cuts (or curves) selected,
 each becomes a panel (so does a frozen slice's **Figure composer...**
@@ -1688,7 +1704,7 @@ figure composer...**: a new figure. In the composer, *Colour* tab: **Colour
 bar** on, Ends *high-low*, Position *below*, Length 60 %.
 
 **(b) Measured and calculated contours.** Select the Γ-plane k-map →
-Calculation → **Calculated bands...**; open `demo_calc_hr.dat`; in step 2
+Figure → **Calculated bands...**; open `demo_calc_hr.dat`; in step 2
 choose the **Weight** `Se-pxy`; in step 3 choose the k-map, *Integrate*
 0.050 eV, then a cut to **Fit to the cut's bands** (Z and the shift apply to
 the contours too); in step 4 tick **Constant-energy series at** `0, -0.3,
@@ -1719,7 +1735,7 @@ letter: clear the others' *Letter* box. **Save as...** `example_figure_1.afig`
 
 ![Example figure 2](images/example_figure_2.png)
 
-**(a) The crystal structure.** Calculation → **Crystal structure...** →
+**(a) The crystal structure.** Figure → **Crystal structure...** →
 *Read a CIF file* `demo_tetragonal_crystal.cif`. Step 2: Hf teal, Si dark
 blue, S yellow, gloss 85 % each, atom size 0.52; *Grey, thin bonds*;
 *Lattice constants on the cell edges* (no key of the elements). Step 3:
@@ -1727,13 +1743,13 @@ blue, S yellow, gloss 85 % each, atom size 0.52; *Grey, thin bonds*;
 grey. Turn it to azimuth −68°, elevation 14°. Step 5: **To figure
 composer...** → a new figure.
 
-**(b) The zone with the measured maps.** Select the Γ-plane and A-plane
-k-maps, then Calculation → **Crystal structure...** → *Read a CIF file*
-`demo_crystal.cif`. Step 4: *Path* `K-H` (the line where the two bands
-cross, in red); *Plane through Γ* → map *Γ-plane map* at −0.65 eV; *Plane
-at the zone top* → map *A-plane map* at −0.55 eV; *Label on the left* `L,
-M`. Step 5: *Picture of* **The Brillouin zone** → **To figure composer...**
-→ the figure of (a).
+**(b) The zone with the measured maps.** Figure → **3D BZ...** → *Read a
+CIF file* `demo_crystal.cif`. **Add a plane in 3D BZ** once (the first
+plane is through Γ, the second at the zone top); the first plane's *map* →
+*Γ-plane map* at −0.65 eV, the second's → *A-plane map* at −0.55 eV
+(select the two k-maps first, or press **↻ Maps from the list**). *Path*
+`K-H` (the line where the two bands cross); *Label on the left* `L, M`.
+**To figure composer...** → the figure of (a).
 
 **(c) The cuts stacked along k_z.** Convert the photon-energy scan to
 momentum ([§14](#14-photon-energy-scans-kz)), select it → Advanced →
@@ -1809,7 +1825,7 @@ data as shown and the measurement it came from.
   MDC fit needs a cut already in Å⁻¹, cut arithmetic two cuts). Select the
   right rows in the list and it lights up.
 - **A tool is not in a viewer's Functions menu** — it is in the tool panel
-  (see *Where things are now* in [§3](#3-the-main-window)); check all three tabs.
+  (see *Where things are now* in [§3](#3-the-main-window)); check all three tabs (Basic, Advanced, Figure).
 - **A window is taller than the screen** — it opens no taller than the
   screen, and its contents scroll; the Apply / Close buttons stay at the
   bottom. Every window can be resized.
@@ -1830,3 +1846,78 @@ data as shown and the measurement it came from.
   whatever the system language; a comma is not accepted.
 - **The machine is paging** — watch the Memory bar (amber past a third of the
   RAM, red past a half); use **Free RAM** or **Close all**.
+
+## 33. Driving the program from an AI agent (MCP)
+
+ARPES viewer is also an **MCP server** (Model Context Protocol), so an AI
+agent of any model — Claude, GPT, Gemini, or a local model in an
+MCP-capable client (Claude Desktop / Claude Code, Cursor, VS Code, Cline,
+LM Studio…) — can call it as a set of tools. Everything stays on your
+machine: files are read and written locally; only what a tool returns
+(numbers, text, pictures) goes to the client.
+
+**Set it up.** Installing the program installs the command
+`arpes-viewer-mcp` (from a checkout: `python -m arpes_viewer.agent`). Add it
+to the client's MCP servers, e.g. in a `claude_desktop_config.json`,
+`.mcp.json`, or the client's settings:
+
+```json
+{
+  "mcpServers": {
+    "arpes-viewer": {"command": "arpes-viewer-mcp"}
+  }
+}
+```
+
+(With a checkout instead of `pip install`: `"command": "python", "args":
+["-m", "arpes_viewer.agent"], "cwd": "<the ARPES-viewer folder>"`.) The
+server speaks MCP over stdin/stdout and needs nothing beyond the program's
+own requirements.
+
+**Headless tools** — no window needed; they use the program's own readers
+and algorithms:
+
+| Tool | What it does |
+|---|---|
+| `find_files`, `list_loaders` | the data files in a folder that a reader recognises, and the readers |
+| `open_dataset`, `list_datasets`, `describe`, `metadata`, `close_dataset` | open a dataset (gives an id, e.g. `d1`), its axes and metadata |
+| `get_profile` | an EDC or MDC: values along one axis, averaged over ranges of the others (optionally saved as CSV) |
+| `get_image` | a picture (PNG) of a cut, a constant-energy map or a dispersion, with colour map and levels (optionally saved as PNG / CSV) |
+| `fit_fermi_edge` | E_F and the resolution, with errors |
+| `shift_energy`, `crop` | a copy on E − E_F, a copy cut to ranges |
+| `convert_cut_to_k`, `convert_map_to_k` | the k conversions, with the same choices as their windows (Γ, rotation; *energy offset* only for an axis that is not kinetic; *output_fermi_level_eV* for an E − E_F result) |
+| `save_datasets` | `.nxs` (opens in the program), `.itx` / `.ibw` (Igor Pro) |
+| `brillouin_zone`, `read_cif` | the zone's high-symmetry points for a space group and cell; a CIF's cell and sites |
+
+Axes are named by number, by slot (`x`, `y`, `k`, `z`) or by a word of their
+label (`energy`, `slit`, `deflector`, `kx`); ranges are `[lo, hi]` in the
+axis's own units, or one number for the nearest plane.
+
+**The program on screen** — start it with the bridge on:
+
+```bash
+arpes-viewer --agent-bridge
+```
+
+(or `python -m arpes_viewer --agent-bridge`; or set
+`ARPES_VIEWER_AGENT_BRIDGE=1`). The status bar says *Agent bridge on
+127.0.0.1:…*. The `viewer_*` tools then drive that window: `viewer_status`,
+`viewer_rows`, `viewer_add_files`, `viewer_select`, `viewer_run_tool` (any
+tool-panel button for the selection — `fermi`, `kcut`, `kmap`, `bz3d`,
+`figure`, `notch3d`, `combine`…), `viewer_windows`, `viewer_screenshot`
+(a picture of any of its windows, so the agent can check what it did),
+`viewer_close_window` and `viewer_python` (Python run inside the program,
+with `A` = the program's main module — for setting a dialog's fields and
+pressing its buttons). A headless result reaches the list with
+`save_datasets` to a `.nxs` and `viewer_add_files`.
+
+**Safety.** The bridge is off unless asked for; it listens on 127.0.0.1
+only (not on the network) and answers only requests carrying the random
+token it writes, at start, to `~/.arpes_viewer/agent_bridge.json`
+(readable by you alone); the file is removed when the program closes.
+`viewer_python` runs code in the program — let an agent use it as you would
+let it type in a Python console on your computer.
+
+The file-based workflow of [docs/AGENTIC_WORKFLOW_en.md](AGENTIC_WORKFLOW_en.md)
+(command files dropped into a folder) still works; the MCP server is the
+same idea without the folder, for any agent.

@@ -186,6 +186,23 @@ python ARPES_viewer.py
   synthetic demo data above to `demo_data/`
   ([trying it with demo data](docs/USER_GUIDE_en.md#2-trying-it-with-demo-data)).
 
+### For AI agents: the MCP server
+
+The program is also an **MCP server**, so an agent of any model (Claude,
+GPT, Gemini, a local model in an MCP-capable client) can call it: open and
+describe data files, read EDCs, MDCs and pictures out of them, fit the Fermi
+edge, convert to momentum, save -- and, with the program started as
+`arpes-viewer --agent-bridge`, drive the window on screen (run any tool,
+take screenshots). Add to the client's MCP configuration:
+
+```json
+{"mcpServers": {"arpes-viewer": {"command": "arpes-viewer-mcp"}}}
+```
+
+(from a checkout: `"command": "python", "args": ["-m", "arpes_viewer.agent"]`).
+Data stay on the machine. See
+[the user guide, §33](docs/USER_GUIDE_en.md#33-driving-the-program-from-an-ai-agent-mcp).
+
 ---
 
 ## Bug reports
@@ -206,7 +223,7 @@ logs** -- and give the version number.
   [English](docs/pdf/ARPES_viewer_user_guide_en.pdf) ·
   [中文](docs/pdf/ARPES_viewer_user_guide_zh.pdf) ·
   [Français](docs/pdf/ARPES_viewer_user_guide_fr.pdf).
-- **Agentic workflow** (an AI agent driving the viewer on your own machine, no data uploaded): [guide](docs/AGENTIC_WORKFLOW_en.md) and the [`agentic/`](agentic/README.md) scripts and recipes.
+- **Agentic workflow** (an AI agent driving the viewer on your own machine, no data uploaded): the **MCP server** (`arpes-viewer-mcp`, [user guide §33](docs/USER_GUIDE_en.md#33-driving-the-program-from-an-ai-agent-mcp)), and the file-based [guide](docs/AGENTIC_WORKFLOW_en.md) with the [`agentic/`](agentic/README.md) scripts and recipes.
 - **What changed, and why**: [CHANGELOG.md](CHANGELOG.md).
 - **Technical references**, beside the code they describe -- the formulas,
   the file layouts, the assumptions and the tests behind each step:

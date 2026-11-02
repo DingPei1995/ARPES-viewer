@@ -3,7 +3,7 @@ ui/panels/crystal.py
 ====================
 The crystal structure in real space, in 3-D, step by step.
 
-Opened from the tool panel's Calculation tab (Crystal structure...). Four
+Opened from the tool panel's Figure tab (Crystal structure...). Four
 steps, the picture beside them all the time:
 
 1. **The structure** -- typed in like the Brillouin-zone tool's cell: the
@@ -258,7 +258,11 @@ class CrystalView(QWidget):
                 h = normal * plane["height"]
                 rect = [(x_range[0], y_range[0]), (x_range[1], y_range[0]),
                         (x_range[1], y_range[1]), (x_range[0], y_range[1])]
-                corners3 = np.array([[c * x - s_ * y, s_ * x + c * y, 0.0]
+                # the map's kx, ky laid along the plane's own in-plane axes
+                # (k_x, k_y for a plane normal to k_z), so a map can lie on
+                # a plane of any (hkl)
+                u, w = plane_basis(normal)
+                corners3 = np.array([(c * x - s_ * y) * u + (s_ * x + c * y) * w
                                      for x, y in rect]) + h
                 items.append(("img", corners3, image, outline,
                               float(plane.get("picture_alpha", 0.92)), -1e6))
@@ -605,6 +609,20 @@ class CrystalView(QWidget):
         self.update()
 
 
+def plane_basis(normal):
+    """Two unit vectors spanning the plane normal to ``normal``: k_x and
+    k_y for a plane normal to k_z; otherwise the first lies level (normal
+    to k_z) and the second completes a right-handed set with the normal."""
+    n = np.asarray(normal, dtype=float)
+    n = n / (np.linalg.norm(n) or 1.0)
+    if abs(abs(n[2]) - 1.0) < 1e-6:
+        u = np.array([1.0, 0.0, 0.0])
+    else:
+        u = np.cross([0.0, 0.0, 1.0], n)
+        u = u / np.linalg.norm(u)
+    return u, np.cross(n, u)
+
+
 def _subdivide(triangle, levels: int):
     """A triangle split into 4**levels smaller ones (for depth sorting)."""
     out = [tuple(np.asarray(p, dtype=float) for p in triangle)]
@@ -687,6 +705,15 @@ class CrystalDialog(QDialog):
         page = QWidget()
         column = QVBoxLayout(page)
 
+        self.cif_button = QPushButton("Read a CIF file...")
+        self.cif_button.setToolTip(
+            "Fill the space group, the cell and the atoms below from a CIF "
+            "(ICSD, COD, Materials Project, FullProf...), with its own "
+            "symmetry operations; the crystal is redrawn at once. Everything "
+            "can still be edited afterwards.")
+        self.cif_button.clicked.connect(lambda: self.read_cif())
+        column.addWidget(self.cif_button)
+
         # Typed in, as the Brillouin-zone tool takes a cell: the space group
         # first, which greys out the parameters it fixes.
         cell = QGroupBox("Cell (space group first)")
@@ -717,14 +744,6 @@ class CrystalDialog(QDialog):
         atoms_column.addLayout(buttons)
         column.addWidget(atoms, 1)
 
-        self.cif_button = QPushButton("Read a CIF file...")
-        self.cif_button.setToolTip(
-            "Fill the space group, the cell and the atoms above from a CIF "
-            "(ICSD, COD, Materials Project, FullProf...), with its own "
-            "symmetry operations; the crystal is redrawn at once. Everything "
-            "can still be edited afterwards.")
-        self.cif_button.clicked.connect(lambda: self.read_cif())
-        column.addWidget(self.cif_button)
         self.structure_label = QLabel("")
         self.structure_label.setWordWrap(True)
         column.addWidget(self.structure_label)

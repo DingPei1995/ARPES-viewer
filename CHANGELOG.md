@@ -12,8 +12,9 @@ file is the record of how it got that way.
 
 ## 1.2.4 — 2026-11-02
 
-Tools moved to where they are looked for, a CIF that would not open, and
-three things that misled or failed on k-maps.
+Tools moved to where they are looked for, a CIF that would not open,
+three things that misled or failed on k-maps -- and an MCP server, so that
+AI agents of any model can use the program.
 
 - **k conversion (map) and (cut): the energy rows.** *Energy offset* was
   often read as "type E_F here", which shifts every k. It is now behind a
@@ -43,22 +44,44 @@ three things that misled or failed on k-maps.
 - **Crystal structure.** Typed in like the Brillouin-zone tool: the space
   group first, then the cell it allows (`ui.common.cellinput.CellInput`,
   shared with 3D BZ and the tight-binding fit). *From the Brillouin-zone
-  tool* is gone; **Read a CIF file...** is a button that fills the space
-  group, the cell and the basis (the file's symmetry operations kept for its
-  own space group) and redraws.
+  tool* is gone; **Read a CIF file...** is a button, above the cell, that
+  fills the space group, the cell and the basis (the file's symmetry
+  operations kept for its own space group) and redraws.
 - **CIF reading.** A FullProf CIF opens on a `data_global` block of journal
   fields and has the structure in the next block; the parser stopped at the
   second `data_` and found no cell. Every block is now read and the one with
   the cell and the atom sites used; `#` comments and `;` text fields no
   longer leak into values, and `?` is "unknown", not a name.
-- **3D BZ** (Basic tab) is the crystal window's former zone step on its
-  own: any number of planes, each with its own (hkl), height, colour and
-  opacity (*Add a plane in 3D BZ*), any number of paths in colours of their
-  own (*Add path*), and **To figure composer**. The old *Brillouin zone...*
-  is now **BZ overlap...**.
+- **3D BZ** is the crystal window's former zone step on its own: any
+  number of planes, each with its own (hkl), height, colour and opacity
+  (*Add a plane in 3D BZ*), any number of paths in colours of their own
+  (*Add path*), and **To figure composer**. **Any** plane can carry a
+  measured constant-energy map: the k-maps selected at opening and every
+  k-map of the main list (read when chosen, given back at close; *↻ Maps
+  from the list* for ones added since), laid along the plane's own in-plane
+  axes (`crystal.plane_basis`) -- it was a plane normal to k_z only, and
+  only maps selected beforehand. The old *Brillouin zone...* is now **BZ
+  overlap...**.
 - **Tight-binding fit**: the 3-D crystal is typed space group first, the
   constrained parameters greyed out.
-- **Figure composer** moved from Advanced to Basic.
+- **The Calculation tab is now "Figure"**: the figure composer at its top
+  (it was on Advanced), then Crystal structure, 3D BZ, Tight-binding fit and
+  Calculated bands.
+- **An MCP server for AI agents** (`arpes_viewer/agent/`;
+  `arpes-viewer-mcp`, or `python -m arpes_viewer.agent`). Any agent that
+  speaks the Model Context Protocol -- Claude, GPT, Gemini, a local model --
+  starts it and calls its tools: headless ones that use the program's own
+  loaders and algorithms (find and open files, describe, EDC/MDC profiles,
+  PNG pictures, Fermi-edge fit, E − E_F shift, crop, both k conversions,
+  save as .nxs / Igor, the zone's high-symmetry points, CIFs), and
+  `viewer_*` ones that drive the program on screen when it was started with
+  `--agent-bridge` (rows, selection, any tool-panel button, screenshots of
+  its windows, Python inside it). The bridge listens on 127.0.0.1 only and
+  answers only the random token it writes to `~/.arpes_viewer/
+  agent_bridge.json`. The protocol is written out in `agent/protocol.py`,
+  so nothing new is installed; `agent/` imports no Qt, like `loader/` and
+  `tools/` (a test checks). Tested with a real subprocess speaking MCP and
+  the bridge over its socket.
 
 ## 1.2.3 — 2026-10-30
 

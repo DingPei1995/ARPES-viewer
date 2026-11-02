@@ -2,6 +2,13 @@
 
 *Version of 30 October 2026. Written from a working deployment: Claude Sonnet 5.5 (medium effort) driving the open-source ARPES viewer v1.2.3 (PyQt5 / pyqtgraph) on a Windows workstation with two monitors. All paths below are placeholders; replace them with your own.*
 
+> **Since v1.2.4 there is also an MCP server** (`arpes-viewer-mcp`): any
+> MCP-capable agent, of any model, can call the program's tools directly --
+> headless, or driving the window on screen when it is started with
+> `arpes-viewer --agent-bridge` -- without the command folders below. See
+> [the user guide, §33](USER_GUIDE_en.md#33-driving-the-program-from-an-ai-agent-mcp).
+> The file-based workflow described here keeps working.
+
 ## 1. What this gives you
 
 You talk to Claude in one chat window. Claude plans the processing, runs it **inside the ARPES viewer on your own computer**, shows you the result in the viewer on a second monitor, and asks you whenever a physical parameter is uncertain. The report is written in English with sample information removed.

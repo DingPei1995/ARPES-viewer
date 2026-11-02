@@ -12,7 +12,7 @@ de version en signalant un bogue).
 Ce guide présente les fonctions du programme, captures d'écran à l'appui,
 dans l'ordre du panneau d'outils : les premiers pas (installation,
 chargement, fenêtre principale et fenêtres de visualisation), puis les
-onglets **Basic**, **Advanced** et **Calculation**, puis les figures — pour
+onglets **Basic**, **Advanced** et **Figure**, puis les figures — pour
 finir par deux figures construites pas à pas dans le composeur de figures.
 Le contexte technique de chaque étape (formules, résultats des tests, choix
 de conception) se trouve dans les références techniques à côté du code —
@@ -65,9 +65,9 @@ le programme, c'est-à-dire en anglais.
 23. [Courbes : EDC, MDC et données résolues en spin](#23-courbes--edc-mdc-et-données-résolues-en-spin)  
 24. [Balayages résolus spatialement (nano-ARPES)](#24-balayages-résolus-spatialement-nano-arpes)
 
-**[Partie IV — L'onglet Calculation](#partie-iv--longlet-calculation)**
+**[Partie IV — L'onglet Figure](#partie-iv--longlet-figure)**
 
-25. [Structure cristalline](#25-structure-cristalline)  
+25. [Structure cristalline et zone de Brillouin 3D](#25-structure-cristalline-et-zone-de-brillouin-3d)  
 26. [Ajustement de liaisons fortes](#26-ajustement-de-liaisons-fortes)  
 27. [Bandes calculées](#27-bandes-calculées)
 
@@ -81,6 +81,7 @@ le programme, c'est-à-dire en anglais.
 
 31. [Sauvegarde automatique, mémoire et récupération](#31-sauvegarde-automatique-mémoire-et-récupération)  
 32. [Conseils et dépannage](#32-conseils-et-dépannage)  
+33. [Piloter le programme depuis un agent IA (MCP)](#33-piloter-le-programme-depuis-un-agent-ia-mcp)  
 
 ---
 
@@ -220,13 +221,15 @@ Elle a trois parties :
   ajustement du front de Fermi, suppression de la grille du détecteur,
   soustraction du fond, les trois conversions en k, la vérification des
   niveaux de cœur, l'alignement des niveaux de Fermi d'une carte kz, la zone
-  de Brillouin et les corrections du détecteur. **Advanced** contient le
-  reste : composeur de figures, lissage et filtres qui affinent les bandes,
-  symétrisation, détection de crêtes, empilements de courbes, ajustements MDC
-  et EDC, arithmétique de coupes, figure en série de tranches et les quatre
-  vues 3D. **Calculation** contient ce qui est calculé plutôt que mesuré : la
-  structure cristalline, l'ajustement de liaisons fortes et les bandes
-  calculées (voir [Partie IV](#partie-iv--longlet-calculation)). Dans chaque onglet, les outils sont groupés
+  de Brillouin superposée à une carte k (*BZ overlap*) et les corrections du
+  détecteur. **Advanced** contient l'analyse : lissage et filtres qui
+  affinent les bandes, symétrisation, détection de crêtes, empilements de
+  courbes, ajustements MDC et EDC, arithmétique de coupes, figure en série de
+  tranches et les quatre vues 3D. **Figure** contient en haut le
+  **composeur de figures**, puis ce qui est calculé plutôt que mesuré : la
+  structure cristalline, la zone de Brillouin en 3D (*3D BZ*), l'ajustement
+  de liaisons fortes et les bandes calculées (voir
+  [Partie IV](#partie-iv--longlet-figure)). Dans chaque onglet, les outils sont groupés
   selon les données qu'ils acceptent (*2D & 3D — cuts, maps*, *2D only —
   cuts*, *3D only — maps* …).
 - **La liste** (à droite), avec ses boutons.
@@ -244,7 +247,8 @@ coupes, une vue 3D une carte. Un bouton grisé explique pourquoi au survol.
 |---|---|
 | Ouvrir un jeu de données dans sa propre fenêtre | **double-clic** sur la ligne (ou clic droit → **Open**) |
 | Lancer un outil sur les lignes sélectionnées | son bouton dans le **panneau d'outils** |
-| Empiler plusieurs coupes en une carte, ou raccorder une carte / carte kz mesurée en plusieurs morceaux | **Combine...** sous la liste |
+| Empiler plusieurs coupes en une carte, raccorder une carte / carte kz mesurée en plusieurs morceaux, ou additionner des mesures répétées | **Combine...** sous la liste |
+| Chercher et trier dans la liste | la **recherche** au-dessus de la liste ; clic droit → **Sort by name** / **Sort by data type** |
 | Rogner à un intervalle, regrouper des points, normaliser chaque spectre sur lui-même | **Truncate...**, **Compress...**, **Self-normalise...** sous la liste |
 | Ouvrir la coupe le long de la fente ou de l'axe balayé d'une carte | **clic droit** sur la ligne (ou sur une sélection de lignes) |
 | Lire les métadonnées, écrire le journal d'expérience, renommer, enregistrer, retirer | le cadre **Datasets** du panneau d'outils, au-dessus de Memory |
@@ -255,16 +259,24 @@ Les quatre boutons sous la liste agissent sur les lignes sélectionnées
 au-dessus et créent de nouvelles lignes — les originaux ne sont jamais
 modifiés.
 
-**Le menu contextuel** ne contient que les façons d'ouvrir les lignes :
-**Open**, **Open slit cut** et **Open scan-axis cut** (pour une carte). Une
-entrée qui ne convient pas à la sélection est grisée, et son infobulle en
-donne la raison.
+**Le menu contextuel** contient les façons d'ouvrir les lignes :
+**Open**, **Open slit cut** et **Open scan-axis cut** (pour une carte), et
+deux façons d'ordonner toute la liste : **Sort by name** (`Cut_9` avant
+`Cut_10`) et **Sort by data type** (groupées par type, chaque groupe par
+nom). Une entrée qui ne convient pas à la sélection est grisée, et son
+infobulle en donne la raison.
+
+**La recherche** (au-dessus de la liste) n'affiche que les lignes dont le
+nom ou le type contient chacun des mots tapés (`map 80K`, sans tenir compte
+des majuscules) ; videz-la pour tout revoir. Les lignes cachées sont
+désélectionnées : rien d'invisible n'est traité.
 
 **Le cadre Datasets** (panneau d'outils, entre les outils et Memory) contient
 le reste de ce qui se fait aux lignes : **Experiment info**, **Log format...**
 et **Auto Exp. log** côte à côte (voir [le journal d'expérience](#le-journal-dexpérience)),
-**Rename**, **Save** et **Remove** sur une ligne, **Sum repeated scans...**
-et **Session log...**. Ses boutons se grisent comme les outils.
+**Rename**, **Save** et **Remove** sur une ligne, et **Session log...**. Ses
+boutons se grisent comme les outils. (Additionner des mesures répétées est
+désormais l'une des façons de **Combine...**.)
 
 ### Ce qui change en v1.2.4
 
@@ -290,13 +302,22 @@ et **Session log...**. Ses boutons se grisent comme les outils.
   les paramètres de maille ; **Read a CIF file...** est un bouton et remplit
   le tout ; les CIF à plusieurs blocs (FullProf) sont lus ; « From the
   Brillouin-zone tool » disparaît.
-- **3D BZ...** (Basic) : la zone de Brillouin en 3-D, qui était l'étape 4 de
-  Crystal structure, avec autant de plans (**Add a plane in 3D BZ**) et de
-  chemins colorés (**Add path**) que voulu, et l'envoi au composeur de
-  figures. L'ancien **Brillouin zone...** s'appelle **BZ overlap...**.
+- **3D BZ...** : la zone de Brillouin en 3-D, qui était l'étape 4 de
+  Crystal structure, avec autant de plans (**Add a plane in 3D BZ**) que
+  voulu — **chacun** peut porter la carte à énergie constante d'une carte k
+  (n'importe laquelle de la liste) — et de chemins colorés (**Add path**),
+  et l'envoi au composeur de figures. L'ancien **Brillouin zone...**
+  s'appelle **BZ overlap...**.
 - **Tight-binding fit** : le réseau 3-D se saisit aussi groupe d'espace
   d'abord.
-- **Figure composer...** passe dans l'onglet Basic.
+- L'onglet **Calculation** devient **Figure** : en haut **Figure
+  composer...**, puis Crystal structure, **3D BZ...**, Tight-binding fit,
+  Calculated bands.
+- Dans Crystal structure, le bouton **Read a CIF file...** est au-dessus de
+  la maille.
+- **Interface MCP** : le programme est un serveur MCP (`arpes-viewer-mcp`)
+  que les agents IA de tout modèle peuvent appeler, voir
+  [§33](#33-piloter-le-programme-depuis-un-agent-ia-mcp).
 
 ### Où se trouvent les choses maintenant (v1.2.4)
 
@@ -311,7 +332,8 @@ chacun a ainsi une seule entrée, toujours visible.
 | Panneau → Basic → **k conversion (cut)** / **(map)**, **kz conversion** | fenêtre *Functions → Convert to momentum* |
 | Panneau → Basic → **Align Fermi levels (kz)...** | fenêtre *Functions → Align Fermi levels (kz map)* |
 | Panneau → Basic → **BZ overlap...** | **Brillouin zone...** (v1.2.3) ; carte k *Functions → Brillouin zone* |
-| Panneau → Basic → **3D BZ...** | Crystal structure, étape 4 *Brillouin zone* |
+| Panneau → onglet **Figure** | onglet **Calculation** (v1.2.3) |
+| Panneau → Figure → **3D BZ...** | Crystal structure, étape 4 *Brillouin zone* |
 | **Combine...** → *Sum repeated scans* | cadre Datasets → **Sum repeated scans...** (v1.2.3) |
 | Panneau → Basic → **Core-level check...** | clic droit → Core-level check |
 | Panneau → Basic/Advanced → **Background subtraction**, **Smooth**, **Second derivative**, **Curvature**, **Symmetrise** (une fenêtre chacun) | **Smooth / derivative...** (une fenêtre à onglets) |
@@ -320,7 +342,7 @@ chacun a ainsi une seule entrée, toujours visible.
 | Panneau → Advanced → **Cut arithmetic (two cuts)** | clic droit / fenêtre *Functions → Cut arithmetic* |
 | Panneau → Advanced → **Slice series figure...** | carte *Functions → Multi-slice figure* |
 | Panneau → Advanced → **3D slices**, **Notched cube**, **Volume projection** | clic droit → 3D view (une fenêtre, trois modes) |
-| Panneau → Basic → **Figure composer...** | Panneau → Advanced (v1.2.3) ; clic droit → Open in figure composer |
+| Panneau → Figure → **Figure composer...** (en haut de l'onglet) | Panneau → Advanced (v1.2.3) ; clic droit → Open in figure composer |
 | Clic droit → **Open scan-axis cut**, bouton **Scan-axis cut** | Open deflector cut, Deflector cut |
 | Cadre Memory → **Free RAM**, **Close all**, **Autosaves** (une ligne) | sous la liste ; puis Free memory, Close all viewers, Open auto-save folder |
 | Cadre Datasets → **Experiment info** | clic droit → Show information |
@@ -399,7 +421,7 @@ dans Excel et cliquez à nouveau.
 
 ### Combiner des jeux de données : empiler et raccorder
 
-**Combine...** (sous la liste) fait deux choses différentes, et demande
+**Combine...** (sous la liste) fait trois choses différentes, et demande
 laquelle :
 
 - **Stack (empiler)** — *coupes seulement*. Chaque coupe devient une tranche
@@ -412,13 +434,23 @@ laquelle :
   du déflecteur a été balayée en deux parties, une carte kz dont la plage
   d'énergie de photon a été répartie sur plusieurs acquisitions, une coupe
   dont la fenêtre d'énergie a été prise en deux moitiés.
+- **Sum repeated scans (additionner)** — la même mesure prise plusieurs
+  fois : **Combine** ouvre la fenêtre des mesures répétées (voir
+  [ci-dessous](#additionner-des-mesures-répétées)).
 
 **Empiler des coupes**
 
 1. Sélectionnez les coupes dans la liste (Ctrl/Maj-clic) et cliquez sur
-   **Combine...**. L'empilement exige les mêmes axes point par point
-   (même nombre de points, mêmes valeurs, mêmes unités) ; sinon *Stack* est
-   grisé avec la première différence, et *Join* est proposé à la place.
+   **Combine...**. L'empilement exige un axe identique point par point
+   (même nombre de points, mêmes valeurs, mêmes unités). Si **l'autre** axe
+   diffère — des fenêtres d'énergie un peu décalées d'une coupe à l'autre,
+   en général — les coupes sont empilées quand même : cet axe est d'abord
+   **tronqué** à la plage que toutes couvrent, et chaque coupe rééchantillonnée
+   sur les points de la première dans cette plage (la fenêtre l'indique).
+   Si la plage commune fait moins de la moitié de celle d'une coupe, ce sont
+   plutôt les morceaux d'une mesure : utilisez *Join*. Si les deux axes
+   diffèrent, ou si les plages ne se recouvrent pas, *Stack* est grisé avec
+   la raison, et *Join* est proposé à la place.
 2. Il demande s'il faut les combiner **dans l'ordre de la liste**. *Yes* garde
    cet ordre ; *No* permet de le choisir.
 3. Choisissez **Stack**, puis définissez le nouvel axe : **New axis is**
@@ -476,7 +508,8 @@ Traitement des axes :
 
 Pour une coupe ou une carte fine prise en plusieurs balayages courts, afin de
 repérer un échantillon qui vieillit. Sélectionnez les balayages (au moins
-deux, d'un même type) → **Sum repeated scans...** :
+deux, d'un même type) → **Combine...** → **Sum repeated scans** →
+**Combine**, qui ouvre la fenêtre des mesures répétées :
 
 1. **Est-ce bien la même mesure ?** La grille et les conditions enregistrées
    de chaque balayage (énergie de photon, polarisation, angles, position,
@@ -828,7 +861,14 @@ coupe a été mesurée.
 - **Advanced: Γ off this cut** est pour une coupe qui ne passe pas par Γ :
   saisissez les angles déflecteur et fente de Γ, ou **From a converted
   map...** pour les reprendre d'une carte du même échantillon déjà convertie.
-- Si la coupe est déjà en E − E_F, **Energy offset** est rempli avec le E_F
+- **Output energy — Energy axis as E − E_F** (décochée par défaut) :
+  cochez-la et donnez la position de E_F sur l'axe en énergie de la coupe
+  elle-même ; l'axe en énergie du résultat est alors E − E_F. Les moments
+  ne changent pas : la conversion utilise toujours les énergies cinétiques.
+- **Energy offset** (une case, décochée par défaut) n'est *pas* le niveau
+  de Fermi : cochée, sa valeur est ajoutée à l'axe en énergie avant la
+  conversion, pour un axe qui n'est pas une vraie énergie cinétique. Si la
+  coupe est déjà en E − E_F, elle est cochée et remplie avec le E_F
   soustrait (la note en dessous le signale) : la conversion utilise les
   vraies énergies cinétiques, et le résultat reste en E − E_F.
 - **Réglages mémorisés.** La fenêtre part de la dernière conversion d'une
@@ -918,9 +958,14 @@ résultat est une nouvelle ligne `k-map` dans la liste.
 - **Output grid** : nombre de points, ou résolution (Å⁻¹, meV). Les nombres
   de points partent de ceux de la mesure — autant de points kx que d'angles
   déflecteur, de points ky que d'angles de fente, de points E que d'énergies.
-- **Energy offset** est ajouté à l'axe en énergie avant la conversion, pour
-  un axe qui n'est pas une vraie énergie cinétique (rempli automatiquement
-  pour une carte en E − E_F).
+- **Output energy — Energy axis as E − E_F** (décochée par défaut) :
+  cochez-la et donnez E_F tel qu'il est sur l'axe en énergie de la carte ;
+  la carte k sort alors en E − E_F. Les moments sont les mêmes dans les deux
+  cas.
+- **Energy offset** (une case, décochée par défaut) n'est pas le niveau de
+  Fermi : cochée, elle est ajoutée à l'axe en énergie avant la conversion,
+  pour un axe qui n'est pas une vraie énergie cinétique (cochée et remplie
+  automatiquement pour une carte en E − E_F).
 - Les réglages partent de la dernière conversion d'une carte de même
   taille : une deuxième carte d'une série n'a rien à ressaisir.
 
@@ -985,7 +1030,8 @@ part de la dernière conversion d'un balayage de même taille.
 ## 15. Zone de Brillouin
 
 Sélectionnez une carte k (ou une carte kz convertie) et appuyez sur panneau
-→ Basic → **Brillouin zone...**. Comme la conversion de carte, il ouvre un
+→ Basic → **BZ overlap...** (appelé *Brillouin zone...* avant la v1.2.4).
+Comme la conversion de carte, il ouvre un
 contour à lui avec la fenêtre de la zone, et les deux se ferment ensemble.
 
 ![Fenêtre de la zone de Brillouin](images/brillouin_dialog.png)
@@ -1247,6 +1293,10 @@ propre fenêtre — faites glisser l'image pour la faire tourner :
 - **Volume projection...** — tout le volume projeté selon la direction de
   vue : intensité maximale, somme, composition alpha, ou isosurface ombrée.
 - **Stacked slices...** — des tranches parallèles empilées en 3D (ci-dessous).
+- Pour une **carte k**, les vues 3D commencent aux premiers plans k_x et k_y
+  remplis de données : le cube converti est la boîte autour d'un cône de
+  lumière qui se resserre loin de E_F, et ses plans extérieurs se
+  dessinaient en faces vides. *Change sampling... → Whole range* montre tout.
 
 | 3D slices | Notched cube |
 |---|---|
@@ -1374,29 +1424,36 @@ droit sur un panneau donne les deux intégrations :
 
 ![Balayage spatial](images/spatial_scan.png)
 
-# Partie IV — L'onglet Calculation
+# Partie IV — L'onglet Figure
 
-L'onglet **Calculation** contient ce qui est calculé plutôt que mesuré : le
-cristal dans l'espace réel et sa zone de Brillouin, des modèles de bandes
-ajustés aux données, et des structures de bandes calculées par d'autres. Ses
-fenêtres s'ouvrent en étapes numérotées.
+L'onglet **Figure** (appelé *Calculation* avant la v1.2.4) contient en haut
+le **composeur de figures** ([§28](#28-le-composeur-de-figures)), puis ce qui
+est calculé plutôt que mesuré : le cristal dans l'espace réel et sa zone de
+Brillouin en 3D, des modèles de bandes ajustés aux données, et des
+structures de bandes calculées par d'autres. La plupart de ses fenêtres
+s'ouvrent en étapes numérotées.
 
-![L'onglet Calculation du panneau d'outils](images/main_window_calculation.png)
+![L'onglet Figure du panneau d'outils](images/main_window_calculation.png)
 
 ---
 
-## 25. Structure cristalline
+## 25. Structure cristalline et zone de Brillouin 3D
 
-Panneau → Calculation → **Crystal structure...** (rien à sélectionner ; des
-k-maps sélectionnées peuvent être dessinées sur les plans de la zone de
-Brillouin). Cinq étapes :
+Panneau → Figure → **Crystal structure...** (rien à sélectionner). Quatre
+étapes (la zone de Brillouin est l'outil à part **3D BZ...**,
+[§25.1](#251-3d-bz--la-zone-en-trois-dimensions)) :
 
 ![La structure cristalline](images/crystal_structure.png)
 
-1. **La structure** — la saisir (maille, groupe d'espace pour son mode de
-   réseau, atomes), reprendre le dernier cristal de l'outil zone de
-   Brillouin, ou **Read a CIF file** (ses opérations de symétrie sont
-   appliquées, son groupe d'espace lu).
+1. **La structure** — **Read a CIF file...** (le bouton du haut) remplit le
+   groupe d'espace, la maille et les atomes depuis un fichier, applique ses
+   opérations de symétrie et redessine aussitôt le cristal ; tout reste
+   modifiable. Un CIF à plusieurs blocs (celui de FullProf, qui commence par
+   un bloc de champs de revue) est lu dans le bloc qui contient la
+   structure. Ou la saisir, comme la maille de BZ overlap : **d'abord le
+   groupe d'espace** (les paramètres de maille qu'il fixe sont grisés et
+   suivent les libres), puis la maille et les atomes de la base (les copies
+   du mode de réseau sont ajoutées).
 2. **L'aspect**
    - nombre de mailles selon a, b, c, taille globale des atomes, arêtes de
      la maille et liaisons (aux couleurs des atomes, ou *grey, thin*) ;
@@ -1415,32 +1472,51 @@ Brillouin). Cinq étapes :
    glisser, ou double-cliquez une **couche atomique** de la liste pour l'y
    placer ; *Hide the atoms above* montre la terminaison ; les atomes du plan
    sont cerclés de rouge.
-4. **Zone de Brillouin** — la zone du cristal, ses points de haute symétrie
-   nommés et un **chemin** qui les relie (en rouge, p. ex.
-   `Γ-M-K-Γ-A-L-H-A` ou un seul segment, `K-H`), les axes k_x, k_y, k_z en
-   flèches, et jusqu'à deux **plans** normaux à (hkl) — par défaut par Γ et
-   au sommet de la zone, chacun de sa couleur.
-   - **map** sur un plan : la carte à énergie constante d'une k-map
-     sélectionnée à l'énergie donnée (moyennée sur *integrate*), dessinée
-     sur ce plan et découpée à la zone — la surface de Fermi mesurée dans la
-     zone où elle a été mesurée. *azimuth* tourne les cartes par rapport au
-     k_x de la zone.
-   - **Label on the left** : les points nommés ici (`L, M`) sont étiquetés à
-     leur équivalent par symétrie le plus à gauche quand l'image tourne, à
-     l'écart du chemin et des axes.
-
-   ![La zone avec des cartes mesurées sur ses plans](images/crystal_zone.png)
-5. **Export** — le cristal ou la zone : **Save picture...** (PNG à toute
+4. **Export** — le cristal : **Save picture...** (PNG à toute
    taille, redessiné à cette taille) ou **To figure composer...**. Une image
    issue d'un CIF a ce CIF pour source, et le dossier de données de la figure
    le conserve ([§28](#28-le-composeur-de-figures)).
+
+### 25.1 3D BZ : la zone en trois dimensions
+
+Panneau → Figure → **3D BZ...** (rien à sélectionner). C'était l'étape 4 de
+la fenêtre de la structure cristalline.
+
+![La zone avec des cartes mesurées sur ses plans](images/crystal_zone.png)
+
+- **Cristal** : **d'abord le groupe d'espace**, puis la maille — les
+  paramètres que le groupe fixe sont grisés et suivent les libres, comme
+  dans BZ overlap. **Read a CIF file...** les remplit depuis un fichier. La
+  fenêtre part du dernier cristal 3D de BZ overlap.
+- **Plans dans la zone** : **Add a plane in 3D BZ** autant de fois que
+  voulu. Chacun a sa normale (h k l), sa hauteur le long de celle-ci (en
+  unités de G(hkl) : 0 par Γ, 0,5 au sommet de la zone), sa couleur et son
+  opacité, et ✕ pour le retirer.
+- **Cartes mesurées sur les plans** : *n'importe quel* plan peut porter la
+  carte à énergie constante d'une carte k — choisissez-la dans la liste
+  *map* du plan et donnez l'énergie (E − E_F). La liste propose les cartes k
+  sélectionnées à l'ouverture et toutes celles de la liste principale
+  (**↻ Maps from the list** ajoute celles venues depuis) ; une carte n'est
+  lue que lorsqu'elle est choisie. Ses kx, ky suivent les axes propres du
+  plan — k_x, k_y pour un plan normal à k_z —, tournés de *Maps' azimuth*,
+  moyennés sur *Integrate*, et découpés à la zone.
+- **Chemins** : **Add path** autant de fois que voulu, chacun par les points
+  nommés (`Γ-M-K-Γ`, `A-L-H-A` ; `|` pour un saut), avec sa couleur et son
+  épaisseur.
+- **Affichage** : noms des points de haute symétrie, axes k_x, k_y, k_z, et
+  *Label on the left* (ces points nommés à leur équivalent le plus à
+  gauche, à l'écart des chemins et des axes).
+- **Export** : **Save picture...** à toute taille, ou **To figure
+  composer...**.
 
 ## 26. Ajustement de liaisons fortes
 
 Avec une k-map sélectionnée (ou rien, pour lire des points dans un fichier) :
 
-1. **Le réseau** -- une couche 2D (a, b, γ) ou un cristal 3D, ou **Take the
-   crystal from the Brillouin-zone tool** ; l'azimut de a par rapport à kx ;
+1. **Le réseau** -- une couche 2D (a, b, γ) ou un cristal 3D (**d'abord le
+   groupe d'espace**, puis les paramètres de maille qu'il laisse libres --
+   les autres sont grisés et suivent), ou **Take the crystal from the
+   Brillouin-zone tool** ; l'azimut de a par rapport à kx ;
    le nombre de couches de voisins.
 2. **Points de bande** -- placez-vous à une énergie et cliquez sur **Trace
    this energy** (détection de crêtes), ou cochez *Click* et cliquez sur la
@@ -1457,7 +1533,7 @@ Avec une k-map sélectionnée (ou rien, pour lire des points dans un fichier) :
 
 ## 27. Bandes calculées
 
-Panneau → Calculation → **Calculated bands...** met un calcul de structure
+Panneau → Figure → **Calculated bands...** met un calcul de structure
 de bandes à côté de la mesure. Sélectionnez ce avec quoi le comparer —
 k-maps, cartes kz en impulsion et coupes en impulsion — ou rien, pour
 regarder le calcul seul. Quatre étapes.
@@ -1603,7 +1679,8 @@ et, pour finir, deux figures construites pas à pas.
 
 ## 28. Le composeur de figures
 
-Panneau → Basic → **Figure composer...** **sans rien sélectionner** ouvre
+Panneau → Figure → **Figure composer...** (en haut de l'onglet) **sans rien
+sélectionner** ouvre
 une page vierge, comme une figure d'article : quatre panneaux vides (a),
 (b), (c), (d) à la largeur de colonne d'une revue. Avec des coupes (ou des
 courbes) sélectionnées, chacune devient un panneau (de même pour le bouton
@@ -1758,7 +1835,7 @@ onglet *Colour* : **Colour bar** activée, Ends *high-low*, Position *below*,
 Length 60 %.
 
 **(b) Contours mesurés et calculés.** Sélectionnez la k-map du plan Γ →
-Calculation → **Calculated bands...** ; ouvrez `demo_calc_hr.dat` ; à
+Figure → **Calculated bands...** ; ouvrez `demo_calc_hr.dat` ; à
 l'étape 2 choisissez le **Weight** `Se-pxy` ; à l'étape 3 choisissez la
 k-map, *Integrate* 0,050 eV, puis une coupe pour **Fit to the cut's bands**
 (Z et le décalage s'appliquent aussi aux contours) ; à l'étape 4 cochez
@@ -1791,7 +1868,7 @@ et **PNG** / **PDF** pour l'article.
 
 ![Figure d'exemple 2](images/example_figure_2.png)
 
-**(a) La structure cristalline.** Calculation → **Crystal structure...** →
+**(a) La structure cristalline.** Figure → **Crystal structure...** →
 *Read a CIF file* `demo_tetragonal_crystal.cif`. Étape 2 : Hf bleu-vert, Si
 bleu foncé, S jaune, brillant 85 % chacun, taille des atomes 0,52 ; *Grey,
 thin bonds* ; *Lattice constants on the cell edges* (sans légende des
@@ -1799,13 +1876,13 @@ thin bonds* ; *Lattice constants on the cell edges* (sans légende des
 couches de S, en gris. Tournez-la à l'azimut −68°, élévation 14°. Étape 5 :
 **To figure composer...** → une nouvelle figure.
 
-**(b) La zone avec les cartes mesurées.** Sélectionnez les k-maps des plans
-Γ et A, puis Calculation → **Crystal structure...** → *Read a CIF file*
-`demo_crystal.cif`. Étape 4 : *Path* `K-H` (la ligne où les deux bandes se
-croisent, en rouge) ; *Plane through Γ* → map *Γ-plane map* à −0,65 eV ;
-*Plane at the zone top* → map *A-plane map* à −0,55 eV ; *Label on the
-left* `L, M`. Étape 5 : *Picture of* **The Brillouin zone** → **To figure
-composer...** → la figure de (a).
+**(b) La zone avec les cartes mesurées.** Figure → **3D BZ...** → *Read a
+CIF file* `demo_crystal.cif`. **Add a plane in 3D BZ** une fois (le premier
+plan passe par Γ, le second au sommet de la zone) ; *map* du premier →
+*Γ-plane map* à −0,65 eV, du second → *A-plane map* à −0,55 eV
+(sélectionnez d'abord les deux k-maps, ou cliquez sur **↻ Maps from the
+list**). *Path* `K-H` (la ligne où les deux bandes se croisent) ; *Label on
+the left* `L, M`. **To figure composer...** → la figure de (a).
 
 **(c) Les coupes empilées selon k_z.** Convertissez le balayage en énergie
 de photon en impulsion ([§14](#14-balayages-en-énergie-de-photon-kz)),
@@ -1892,7 +1969,8 @@ qu'affichées et la mesure dont elles proviennent.
   deux coupes). Sélectionnez les bonnes lignes dans la liste et il s'allume.
 - **Un outil manque au menu Functions d'une fenêtre** — il est dans le
   panneau d'outils (voir *Où se trouvent les choses maintenant* au
-  [§3](#3-la-fenêtre-principale)) ; regardez les trois onglets.
+  [§3](#3-la-fenêtre-principale)) ; regardez les trois onglets (Basic,
+  Advanced, Figure).
 - **Une fenêtre est plus haute que l'écran** — elle s'ouvre au plus à la
   hauteur de l'écran et son contenu défile ; les boutons Apply / Close
   restent en bas. Toutes les fenêtres se redimensionnent.
@@ -1917,3 +1995,80 @@ qu'affichées et la mesure dont elles proviennent.
 - **La machine utilise la mémoire d'échange** — surveillez la barre Memory
   (ambre au-delà d'un tiers de la RAM, rouge au-delà de la moitié) ; utilisez
   **Free RAM** ou **Close all**.
+
+## 33. Piloter le programme depuis un agent IA (MCP)
+
+ARPES viewer est aussi un **serveur MCP** (Model Context Protocol) : un
+agent IA de n'importe quel modèle — Claude, GPT, Gemini, ou un modèle local
+dans un client compatible MCP (Claude Desktop / Claude Code, Cursor,
+VS Code, Cline, LM Studio…) — peut l'appeler comme un ensemble d'outils.
+Tout reste sur votre machine : les fichiers sont lus et écrits localement ;
+seul ce qu'un outil renvoie (nombres, texte, images) va au client.
+
+**Mise en place.** L'installation du programme installe la commande
+`arpes-viewer-mcp` (depuis une copie du dépôt : `python -m
+arpes_viewer.agent`). Ajoutez-la aux serveurs MCP du client, p. ex. dans
+`claude_desktop_config.json`, `.mcp.json` ou les réglages du client :
+
+```json
+{
+  "mcpServers": {
+    "arpes-viewer": {"command": "arpes-viewer-mcp"}
+  }
+}
+```
+
+(Avec une copie du dépôt plutôt que `pip install` : `"command": "python",
+"args": ["-m", "arpes_viewer.agent"], "cwd": "<le dossier ARPES-viewer>"`.)
+Le serveur parle MCP sur stdin/stdout et ne demande rien de plus que les
+dépendances du programme.
+
+**Outils sans fenêtre** — ils utilisent les lecteurs et les algorithmes du
+programme :
+
+| Outil | Ce qu'il fait |
+|---|---|
+| `find_files`, `list_loaders` | les fichiers d'un dossier qu'un lecteur reconnaît, et les lecteurs |
+| `open_dataset`, `list_datasets`, `describe`, `metadata`, `close_dataset` | ouvrir un jeu de données (un identifiant, p. ex. `d1`), ses axes et ses métadonnées |
+| `get_profile` | une EDC ou une MDC : les valeurs le long d'un axe, moyennées sur des plages des autres (option : CSV) |
+| `get_image` | une image (PNG) d'une coupe, d'une carte à énergie constante ou d'une dispersion, avec palette et niveaux (option : PNG / CSV) |
+| `fit_fermi_edge` | E_F et la résolution, avec leurs erreurs |
+| `shift_energy`, `crop` | une copie en E − E_F, une copie rognée |
+| `convert_cut_to_k`, `convert_map_to_k` | les conversions en k, avec les mêmes choix que leurs fenêtres (Γ, rotation ; *energy offset* seulement pour un axe non cinétique ; *output_fermi_level_eV* pour un résultat en E − E_F) |
+| `save_datasets` | `.nxs` (s'ouvre dans le programme), `.itx` / `.ibw` (Igor Pro) |
+| `brillouin_zone`, `read_cif` | les points de haute symétrie pour un groupe d'espace et une maille ; la maille et les sites d'un CIF |
+
+Les axes se désignent par numéro, par nom (`x`, `y`, `k`, `z`) ou par un mot
+de leur étiquette (`energy`, `slit`, `deflector`, `kx`) ; une plage s'écrit
+`[lo, hi]` dans les unités de l'axe, ou un nombre pour le plan le plus
+proche.
+
+**Le programme à l'écran** — lancez-le avec le pont :
+
+```bash
+arpes-viewer --agent-bridge
+```
+
+(ou `python -m arpes_viewer --agent-bridge`, ou la variable
+`ARPES_VIEWER_AGENT_BRIDGE=1`). La barre d'état indique *Agent bridge on
+127.0.0.1:…*. Les outils `viewer_*` pilotent alors cette fenêtre :
+`viewer_status`, `viewer_rows`, `viewer_add_files`, `viewer_select`,
+`viewer_run_tool` (n'importe quel bouton du panneau d'outils pour la
+sélection — `fermi`, `kcut`, `kmap`, `bz3d`, `figure`, `notch3d`,
+`combine`…), `viewer_windows`, `viewer_screenshot` (une image de n'importe
+laquelle de ses fenêtres, pour que l'agent vérifie ce qu'il a fait),
+`viewer_close_window` et `viewer_python` (du Python exécuté dans le
+programme, avec `A` = son module principal — pour remplir les champs d'une
+fenêtre et cliquer ses boutons). Un résultat sans fenêtre rejoint la liste
+par `save_datasets` vers un `.nxs` puis `viewer_add_files`.
+
+**Sécurité.** Le pont est éteint sauf demande ; il n'écoute que sur
+127.0.0.1 (pas sur le réseau) et ne répond qu'aux requêtes portant le jeton
+aléatoire qu'il écrit au démarrage dans `~/.arpes_viewer/agent_bridge.json`
+(lisible par vous seul) ; le fichier est effacé à la fermeture.
+`viewer_python` exécute du code dans le programme — accordez-le à un agent
+comme vous le laisseriez taper dans une console Python de votre ordinateur.
+
+Le flux de travail par fichiers de commandes de
+[docs/AGENTIC_WORKFLOW_en.md](AGENTIC_WORKFLOW_en.md) fonctionne toujours ;
+le serveur MCP est la même idée sans le dossier, pour n'importe quel agent.

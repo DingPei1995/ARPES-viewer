@@ -8,7 +8,7 @@
 <https://github.com/DingPei1995/ARPES-viewer>（报告 bug 时请注明版本号）。
 
 本指南按照工具面板的顺序，配合截图介绍程序的功能：先是入门（安装、载入数据、
-主窗口与各查看窗口），然后依次是 **Basic**、**Advanced**、**Calculation** 三个
+主窗口与各查看窗口），然后依次是 **Basic**、**Advanced**、**Figure** 三个
 标签页，再是作图——最后用作图器一步步完成两张论文图。每一步背后的技术细节（公式、测试结果、
 设计取舍）见代码旁的技术参考——[读取数据](../arpes_viewer/loader/README.md)、[窗口](../arpes_viewer/ui/README.md)、
 [分析](../arpes_viewer/tools/README.md)——以及 [CHANGELOG](../CHANGELOG.md)（英文）。
@@ -53,9 +53,9 @@
 23. [曲线：EDC、MDC 与自旋分辨数据](#23-曲线edcmdc-与自旋分辨数据)  
 24. [空间分辨扫描（nano-ARPES）](#24-空间分辨扫描nano-arpes)
 
-**[第四部分 Calculation 标签页](#第四部分-calculation-标签页)**
+**[第四部分 Figure 标签页](#第四部分-figure-标签页)**
 
-25. [晶体结构](#25-晶体结构)  
+25. [晶体结构与三维布里渊区](#25-晶体结构与三维布里渊区)  
 26. [紧束缚拟合](#26-紧束缚拟合)  
 27. [计算能带（Calculated bands）](#27-计算能带calculated-bands)
 
@@ -69,6 +69,7 @@
 
 31. [自动保存、内存与恢复](#31-自动保存内存与恢复)  
 32. [技巧与常见问题](#32-技巧与常见问题)  
+33. [让 AI 智能体调用本程序（MCP）](#33-让-ai-智能体调用本程序mcp)  
 
 ---
 
@@ -180,10 +181,12 @@ python devtools/figure_tests.py docs/images [存放 .afig 文件的文件夹]
 
 - **工具面板**（左侧）——所有分析与处理工具都以按钮形式放在这里，分三个标签页。
   **Basic**（启动时显示）包含几乎每个数据集都要经过的步骤：费米边拟合、去除探测器
-  网格、探测器校正、扣背景、三种 k 转换、芯能级检查、对齐 kz map 的费米能级以及布里渊区。
-  **Advanced** 包含其余工具：作图器、平滑及突出能带的滤波、对称化、脊线提取、堆叠图、
-  MDC 与 EDC 拟合、cut 运算、切片组图以及四种三维视图。**Calculation** 包含计算而非
-  测量得到的内容：晶体结构、紧束缚拟合与计算能带（见[第四部分](#第四部分-calculation-标签页)）。
+  网格、探测器校正、扣背景、三种 k 转换、芯能级检查、对齐 kz map 的费米能级以及在 k-map 上
+  叠加布里渊区（*BZ overlap*）。
+  **Advanced** 包含分析工具：平滑及突出能带的滤波、对称化、脊线提取、堆叠图、
+  MDC 与 EDC 拟合、cut 运算、切片组图以及四种三维视图。**Figure** 最上面是**作图器**，
+  其下是计算而非测量得到的内容：晶体结构、三维布里渊区（*3D BZ*）、紧束缚拟合与计算能带
+  （见[第四部分](#第四部分-figure-标签页)）。
   每个标签页内按所接受的数据分组
   （*2D & 3D — cuts, maps*、*2D only — cuts*、*3D only — maps* 等）。
 - **列表**（右侧）及其下方的按钮。
@@ -199,7 +202,8 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 |---|---|
 | 在独立窗口中打开数据集 | **双击**该行（或右键 → **Open**） |
 | 对选中的行运行某个工具 | **工具面板**中对应的按钮 |
-| 把多张 cut 叠成一个 map，或把分段采集的 map / kz map 拼接起来 | 列表下方的 **Combine...** |
+| 把多张 cut 叠成一个 map、把分段采集的 map / kz map 拼接起来，或叠加重复测量 | 列表下方的 **Combine...** |
+| 在列表中查找、排序 | 列表上方的**搜索框**；右键 → **Sort by name** / **Sort by data type** |
 | 裁剪范围、合并像素、每张谱自归一 | 列表下方的 **Truncate...**、**Compress...**、**Self-normalise...** |
 | 打开 map 的 slit cut 或 scan-axis cut | **右键**该行（或选中的多行） |
 | 查看元数据、生成实验记录、重命名、保存、移除 | 工具面板中 Memory 上方的 **Datasets** 区 |
@@ -208,13 +212,18 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 
 列表下方的四个按钮都作用于上方选中的行，结果都作为新行加入列表——原数据不会被修改。
 
-**右键菜单**只保留三种打开方式：**Open**、**Open slit cut**、
-**Open scan-axis cut**（map）。不适用于当前选择的条目显示为灰色，悬停提示会说明原因。
+**右键菜单**保留三种打开方式：**Open**、**Open slit cut**、
+**Open scan-axis cut**（map），以及对整个列表排序的 **Sort by name**（按名称，`Cut_9` 排在
+`Cut_10` 前）和 **Sort by data type**（按数据类型分组，组内按名称）。不适用于当前选择的条目
+显示为灰色，悬停提示会说明原因。
+
+**搜索框**（列表上方）：只显示名称或类型中包含所输入的每个关键词的行（不区分大小写，
+如 `map 80K`）；清空即恢复全部。被隐藏的行会取消选中，因此不会对看不见的数据进行操作。
 
 **Datasets 区**（工具面板中，位于工具和 Memory 之间）包含其余对行本身的操作：
 **Experiment info**、并排的 **Log format...** 与 **Auto Exp. log**（见[实验记录](#实验记录)）、
-同一行的 **Rename**、**Save**、**Remove**，以及 **Sum repeated scans...** 和
-**Session log...**。这些按钮和工具按钮一样，会随选择变灰。
+同一行的 **Rename**、**Save**、**Remove**，以及 **Session log...**。这些按钮和工具按钮
+一样，会随选择变灰。（叠加重复测量现在是 **Combine...** 的一种方式。）
 
 ### v1.2.4 的变化
 
@@ -230,11 +239,16 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 - **Crystal structure**：默认手动输入，先输入空间群，再按对称性限制晶格常数和角度；
   *Read a CIF file...* 改为按钮，读取后自动刷新晶格；修复了含多个 data block 的 CIF（如 FullProf 输出）无法读取的问题；
   取消 “From the Brillouin-zone tool”。
-- **3D BZ...**（Basic）：原 Crystal structure 第 4 步的布里渊区独立成工具；可添加多个平面
-  （**Add a plane in 3D BZ**，各自 hkl、高度、颜色）和多段不同颜色的路径（**Add path**），可输出到作图器。
+- **3D BZ...**：原 Crystal structure 第 4 步的布里渊区独立成工具；可添加多个平面
+  （**Add a plane in 3D BZ**，各自 hkl、高度、颜色），**任意平面**都可以贴上实测 k-map 的等能面
+  （可从主列表中任选 k-map），以及多段不同颜色的路径（**Add path**），可输出到作图器。
   原 **Brillouin zone...** 更名为 **BZ overlap...**。
 - **Tight-binding fit** 的 3-D 晶格：同样先输入空间群，再按对称性限制晶格参数。
-- **Figure composer...** 移到 Basic 标签页。
+- **Calculation** 标签页更名为 **Figure**：最上面是 **Figure composer...**，其下是 Crystal
+  structure、**3D BZ...**、Tight-binding fit、Calculated bands。
+- Crystal structure 的 **Read a CIF file...** 按钮移到晶胞输入框上方。
+- **MCP 接口**：程序可作为 MCP 服务器（`arpes-viewer-mcp`）供任何模型的 AI 智能体调用，
+  见[第 33 节](#33-让-ai-智能体调用本程序mcp)。
 
 ### 功能现在的位置（v1.2.4）
 
@@ -248,7 +262,8 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 | 工具面板 → Basic → **k conversion (cut)** / **(map)**、**kz conversion** | 查看窗口 *Functions → Convert to momentum* |
 | 工具面板 → Basic → **Align Fermi levels (kz)...** | 查看窗口 *Functions → Align Fermi levels (kz map)* |
 | 工具面板 → Basic → **BZ overlap...** | **Brillouin zone...**（v1.2.3）；k-map 窗口 *Functions → Brillouin zone* |
-| 工具面板 → Basic → **3D BZ...** | Crystal structure 第 4 步 *Brillouin zone* |
+| 工具面板 → **Figure** 标签页 | **Calculation** 标签页（v1.2.3） |
+| 工具面板 → Figure → **3D BZ...** | Crystal structure 第 4 步 *Brillouin zone* |
 | **Combine...** → *Sum repeated scans* | Datasets 区 → **Sum repeated scans...**（v1.2.3） |
 | 工具面板 → Basic → **Core-level check...** | 右键 → Core-level check |
 | 工具面板 → Basic/Advanced → **Background subtraction**、**Smooth**、**Second derivative**、**Curvature**、**Symmetrise**（各自独立窗口） | **Smooth / derivative...**（一个带标签页的窗口） |
@@ -257,7 +272,7 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 | 工具面板 → Advanced → **Cut arithmetic (two cuts)** | 右键 / 查看窗口 *Functions → Cut arithmetic* |
 | 工具面板 → Advanced → **Slice series figure...** | map 窗口 *Functions → Multi-slice figure* |
 | 工具面板 → Advanced → **3D slices**、**Notched cube**、**Volume projection** | 右键 → 3D view（一个窗口三种模式） |
-| 工具面板 → Basic → **Figure composer...** | 工具面板 → Advanced（v1.2.3）；右键 → Open in figure composer |
+| 工具面板 → Figure → **Figure composer...**（该页最上方） | 工具面板 → Advanced（v1.2.3）；右键 → Open in figure composer |
 | 右键 → **Open scan-axis cut**，查看窗口按钮 **Scan-axis cut** | Open deflector cut、Deflector cut |
 | Memory 区 → **Free RAM**、**Close all**、**Autosaves**（同一行） | 列表下方；后为 Free memory、Close all viewers、Open auto-save folder |
 | Datasets 区 → **Experiment info** | 右键 → Show information |
@@ -318,7 +333,7 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 
 ### 合并数据集：叠加（Stack）与拼接（Join）
 
-**Combine...**（列表下方）可以做两件不同的事，并会让你选择：
+**Combine...**（列表下方）可以做三件不同的事，并会让你选择：
 
 - **Stack（叠加）**——*仅限 cut*。每张 cut 成为新 map 的一个切片，沿一个由你命名的
   轴：温度序列、门电压序列、每个光子能量一张的 cut。结果可以像普通 map 一样查看——
@@ -326,12 +341,17 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 - **Join（拼接）**——*cut、map、kz map 或 k-map，但须同一类型*。把一次分段采集的
   测量按其自身的某个轴首尾拼接起来：偏转角范围分两次扫描的 map、光子能量范围分几次
   采集的 kz map、能量窗口分两半采集的 cut。
+- **Sum repeated scans（叠加重复测量）**——同一测量多次采集的扫描：点 **Combine** 后打开
+  重复扫描窗口（见下文[叠加重复测量](#叠加重复测量)）。
 
 **叠加 cut**
 
 1. 在列表中选中这些 cut（Ctrl/Shift 多选），点 **Combine...**。叠加要求
-   各 cut 的坐标轴逐点一致（点数、数值、单位都相同）；若不一致，*Stack* 选项变灰并
-   指出第一处差异，此时可改用 *Join*。
+   有一个轴逐点一致（点数、数值、单位都相同）。若**另一个**轴不同——通常是各 cut 的能量
+   窗口略有差异——仍然可以叠加：该轴先**截取**到所有 cut 共同覆盖的范围，各 cut 再重采样
+   到第一张 cut 在该范围内的点上（对话框会说明范围）。共同范围少于某张 cut 自身范围的一半时，
+   它们更像是同一测量的分段，请用 *Join*。两个轴都不同或范围不重叠时，*Stack* 变灰并说明
+   原因，此时可改用 *Join*。
 2. 程序会询问是否**按列表中的顺序**合并。选 *Yes* 保持该顺序；选 *No* 则可自行
    调整顺序。
 3. 选择 **Stack**，然后设置新轴：**New axis is**（温度、门电压、光子能量、延迟、
@@ -373,7 +393,7 @@ map)* 和 *Convert to momentum (kz, k∥)*（见[第 14 节](#14-光子能量扫
 ### 叠加重复测量
 
 用于分多次短扫描采集的精细 cut 或 map，以便发现样品老化。选中这些扫描（同一类型的两个或
-更多）→ **Sum repeated scans...**：
+更多）→ **Combine...** → **Sum repeated scans** → **Combine**，打开重复扫描窗口：
 
 1. **是否为重复测量？** 列出每个扫描的网格和记录条件（光子能量、偏振、角度、位置、温度、
    通能、透镜模式）；与第一个扫描不同的值标为橙色。
@@ -645,8 +665,11 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
 
 - **Advanced: Γ off this cut** 用于不经过 Γ 的 cut：输入 Γ 的偏转器角与狭缝角，
   或用 **From a converted map...** 从同一样品已转换的 map 继承。
-- 如果该 cut 已经平移到 E − E_F，对话框会自动把扣除的 E_F 填入 **Energy offset**
-  （下方的提示会说明）：转换时使用真实的动能，而结果的能量轴仍保持 E − E_F。
+- **Output energy — Energy axis as E − E_F**（默认关闭）：勾选并填入 E_F 在该 cut 自身能量轴
+  上的位置，结果的能量轴即为 E − E_F。动量不受影响——转换仍使用动能。
+- **Energy offset**（勾选框，默认关闭）**不是**费米能级：勾选后，其数值在转换前加到能量轴上，
+  仅用于能量轴不是真实动能的情况。如果该 cut 已经平移到 E − E_F，它会自动勾选并填入扣除的
+  E_F（下方的提示会说明）：转换时使用真实的动能，而结果的能量轴仍保持 E − E_F。
 - **记住参数。** 对话框从上一次转换同样大小（各轴点数相同）的 cut 时的参数开始——
   这正是同一样品一系列 cut 的常见情形。map 和 kz 转换也是如此。
 
@@ -709,8 +732,10 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
   等能面上点击一个方向（例如沿镜面线的两点）读出旋转角。
 - **Output grid**：按点数或按分辨率（Å⁻¹、meV）设置输出网格。点数默认等于实测
   点数——kx 点数 = 偏转角数，ky 点数 = 狭缝角数，E 点数 = 能量点数。
-- **Energy offset** 在转换前加到能量轴上，用于能量轴不是真实动能的情况
-  （对 E − E_F 的 map 会自动填好）。
+- **Output energy — Energy axis as E − E_F**（默认关闭）：勾选并填入 E_F 在该 map 能量轴上的
+  位置，得到的 k-map 即位于 E − E_F。两种情况下动量相同。
+- **Energy offset**（勾选框，默认关闭）不是费米能级：勾选后在转换前加到能量轴上，用于能量轴
+  不是真实动能的情况（对 E − E_F 的 map 会自动勾选并填好）。
 - 参数从上一次转换同样大小的 map 时开始，同一系列的第二个 map 无需重新输入。
 
 ![转换后的 k-map](images/k_map_contour.png)
@@ -761,7 +786,8 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
 
 ## 15. 布里渊区
 
-选中 k-map（或已转换的 kz map），点工具面板 → Basic → **Brillouin zone...**。与 map
+选中 k-map（或已转换的 kz map），点工具面板 → Basic → **BZ overlap...**（v1.2.4 之前称为
+*Brillouin zone...*）。与 map
 转换一样，它会打开一个专用的等能面窗口和布里渊区窗口，两者一起关闭。
 
 ![布里渊区对话框](images/brillouin_dialog.png)
@@ -961,6 +987,9 @@ Advanced 页中有四个以三维方式显示 map 的工具，各自在独立窗
 - **Volume projection...**——整个体数据沿视线方向投影：最大强度、求和、alpha 合成，
   或带光照的等值面。
 - **Stacked slices...**——平行切片在三维中层叠排列（见下文）。
+- 对 **k-map**，三维视图从第一个充满数据的 k_x、k_y 平面开始显示：转换后的数据立方是远离
+  E_F 时逐渐收窄的光锥的外包盒，最外侧的平面原本会画成空白面。*Change sampling... →
+  Whole range* 可显示全部范围。
 
 | 3D slices | Notched cube |
 |---|---|
@@ -1059,24 +1088,28 @@ E-k 谱**。拖动红色靶标即可查看另一点的谱。在面板上右键�
 
 ![空间扫描](images/spatial_scan.png)
 
-# 第四部分 Calculation 标签页
+# 第四部分 Figure 标签页
 
-**Calculation** 标签页包含计算而非测量得到的内容：实空间的晶体及其布里渊区、
-拟合到数据上的能带模型，以及别人算好的能带结构。其中的窗口都以编号步骤打开。
+**Figure** 标签页（v1.2.4 之前称为 *Calculation*）最上面是**作图器**（[第 28 节](#28-作图器figure-composer)），
+其下是计算而非测量得到的内容：实空间的晶体及其三维布里渊区、拟合到数据上的能带模型，以及
+别人算好的能带结构。其中大多数窗口以编号步骤打开。
 
-![工具面板的 Calculation 标签页](images/main_window_calculation.png)
+![工具面板的 Figure 标签页](images/main_window_calculation.png)
 
 ---
 
-## 25. 晶体结构
+## 25. 晶体结构与三维布里渊区
 
-工具面板 → Calculation → **Crystal structure...**（无需选中数据；选中的 k-map 可以
-画在布里渊区的平面上）。共五步：
+工具面板 → Figure → **Crystal structure...**（无需选中数据）。共四步（布里渊区现在是独立的
+**3D BZ...** 工具，见[第 25.1 节](#251-3d-bz三维布里渊区)）：
 
 ![晶体结构](images/crystal_structure.png)
 
-1. **结构**——手动输入（晶胞、用于确定心型的空间群、原子），取布里渊区工具上次
-   用的晶体，或 **Read a CIF file**（应用其对称操作，读取其空间群）。
+1. **结构**——**Read a CIF file...**（最上方的按钮）从文件填入空间群、晶胞和原子，应用其
+   对称操作并立即重画晶体，之后仍可编辑。含多个 data block 的 CIF（如 FullProf 输出，开头是
+   期刊信息块）会从含结构的那个 block 读取。也可以手动输入，方式与 BZ overlap 相同：**先输入
+   空间群**（被空间群约束的晶格参数显示为灰色并跟随自由参数），再输入晶胞和基元原子（会自动
+   加上心型平移的副本）。
 2. **外观**
    - 沿 a、b、c 的晶胞数、原子整体大小、晶胞棱和化学键（使用原子颜色，或
      *grey, thin*）；
@@ -1091,26 +1124,38 @@ E-k 谱**。拖动红色靶标即可查看另一点的谱。在面板上右键�
 3. **解理面**——勾选 *Draw a plane*，给出 (hkl)，滑动它，或在列表中双击某个
    **原子层**把平面放在那里；*Hide the atoms above* 显示终止面；位于平面内的原子用
    红圈标出。
-4. **布里渊区**——晶体的布里渊区、标注的高对称点、穿过它们的**路径**（红色，例如
-   `Γ-M-K-Γ-A-L-H-A` 或一段 `K-H`）、带箭头的 k_x、k_y、k_z 轴，以及最多两个垂直于
-   (hkl) 的**平面**——默认过 Γ 点和在布里渊区顶面，颜色各自设置。
-   - 平面上的 **map**：选中 k-map 在给定能量的等能面（在 *integrate* 范围内平均），
-     画在该平面上并裁剪到布里渊区——实测费米面就画在它所在的布里渊区里。*azimuth*
-     使 map 相对布里渊区的 k_x 旋转。
-   - **Label on the left**：这里列出的点（`L, M`）标注在其最左侧的对称等价点上，
-     随图像旋转而更新，避开路径和坐标轴。
-
-   ![平面上画有实测 map 的布里渊区](images/crystal_zone.png)
-5. **导出**——晶体或布里渊区：**Save picture...**（任意尺寸的 PNG，按该尺寸重新
+4. **导出**——晶体：**Save picture...**（任意尺寸的 PNG，按该尺寸重新
    绘制）或 **To figure composer...**。由 CIF 生成的图片以该 CIF 为来源，因此图的
    数据文件夹会保存它（[第 28 节](#28-作图器figure-composer)）。
+
+### 25.1 3D BZ：三维布里渊区
+
+工具面板 → Figure → **3D BZ...**（无需选中数据）。原为晶体结构窗口的第 4 步。
+
+![平面上画有实测 map 的布里渊区](images/crystal_zone.png)
+
+- **晶体**：**先输入空间群**，再输入晶胞——被空间群约束的参数显示为灰色并跟随自由参数，
+  与 BZ overlap 相同。**Read a CIF file...** 从文件填入。启动时沿用 BZ overlap 上次的三维晶体。
+- **布里渊区中的平面**：**Add a plane in 3D BZ** 可添加任意多个平面。每个平面有自己的法向
+  (h k l)、沿法向的高度（以 G(hkl) 为单位：0 过 Γ，0.5 在布里渊区顶面）、颜色和不透明度，
+  ✕ 删除。
+- **平面上的实测 map**：**任意**平面都可以贴上 k-map 的等能面——在该平面的 *map* 列表中选择，
+  并给出能量（E − E_F）。列表包括打开窗口时选中的 k-map 以及主列表中的所有 k-map（之后新加的
+  点 **↻ Maps from the list** 更新）；只在被选中时才读取数据。map 的 kx、ky 沿平面自身的面内
+  轴放置——对垂直于 k_z 的平面就是 k_x、k_y——按 *Maps' azimuth* 旋转、在 *Integrate* 范围内
+  平均，并裁剪到布里渊区。
+- **路径**：**Add path** 可添加任意多条，各自穿过标注的点（`Γ-M-K-Γ`、`A-L-H-A`；`|` 表示跳断），
+  颜色和线宽各自设置。
+- **显示**：高对称点标注、k_x/k_y/k_z 坐标轴，以及 *Label on the left*（这些点标注在最左侧的
+  等价点上，避开路径和坐标轴）。
+- **导出**：任意尺寸的 **Save picture...**，或 **To figure composer...**。
 
 ## 26. 紧束缚拟合
 
 选中一个 k-map（或不选，使用点文件）：
 
-1. **晶格** —— 二维层（a、b、γ）或三维晶体，或 **Take the crystal from the Brillouin-zone
-   tool**；a 轴相对 kx 的方位角；近邻壳层数。
+1. **晶格** —— 二维层（a、b、γ）或三维晶体（**先输入空间群**，再输入它允许的晶格参数——
+   其余的显示为灰色并跟随），或 **Take the crystal from the Brillouin-zone tool**；a 轴相对 kx 的方位角；近邻壳层数。
 2. **能带点** —— 移到某个能量后点击 **Trace this energy**（脊线提取），或勾选 *Click* 在能带
    上点击，或 **Read points from a file**。两三个能量比一个好：单一等能线只确定能带形状，不确定
    能量尺度。
@@ -1122,7 +1167,7 @@ E-k 谱**。拖动红色靶标即可查看另一点的谱。在面板上右键�
 
 ## 27. 计算能带（Calculated bands）
 
-工具面板 → Calculation → **Calculated bands...** 把能带计算结果与测量放在一起。
+工具面板 → Figure → **Calculated bands...** 把能带计算结果与测量放在一起。
 选中要比较的数据——k-map、动量空间的 kz map 和动量空间的 cut——或者什么都不选，
 只看计算结果。共四步。
 
@@ -1260,7 +1305,7 @@ E_F）。
 
 ## 28. 作图器（Figure composer）
 
-**不选中任何数据**时，工具面板 → Basic → **Figure composer...** 打开一张空白画板，
+**不选中任何数据**时，工具面板 → Figure → **Figure composer...**（该页最上方） 打开一张空白画板，
 就像论文中的一张图：按期刊栏宽排好四个空面板 (a)、(b)、(c)、(d)。选中若干 cut（或
 曲线）时，每个数据集成为一个面板（冻结切片窗口的 **Figure composer...** 按钮同理；
 堆叠图和三维视图各有自己的 **To figure composer** 按钮）。
@@ -1377,7 +1422,7 @@ data for fig1/
 新建一张图。在作图器的 *Colour* 页：打开 **Colour bar**，Ends 为 *high-low*，
 Position 为 *below*，Length 60 %。
 
-**(b) 实测与计算的等能面。** 选中 Γ 平面 k-map → Calculation → **Calculated
+**(b) 实测与计算的等能面。** 选中 Γ 平面 k-map → Figure → **Calculated
 bands...**；打开 `demo_calc_hr.dat`；第 2 步 **Weight** 选 `Se-pxy`；第 3 步选择
 k-map，*Integrate* 0.050 eV，然后选一张 cut 做 **Fit to the cut's bands**（Z 和平移
 同样作用于等能线）；第 4 步勾选 **Constant-energy series at** `0, -0.3, -0.6, -0.9`，
@@ -1404,18 +1449,17 @@ composer...** → 同一张图。
 
 ![示例图 2](images/example_figure_2.png)
 
-**(a) 晶体结构。** Calculation → **Crystal structure...** → *Read a CIF file*
+**(a) 晶体结构。** Figure → **Crystal structure...** → *Read a CIF file*
 `demo_tetragonal_crystal.cif`。第 2 步：Hf 青绿、Si 深蓝、S 黄色，光泽均为 85 %，
 原子大小 0.52；*Grey, thin bonds*；*Lattice constants on the cell edges*（不显示
 元素图例）。第 3 步：*Draw a plane* (001)，放在晶胞中部、两层 S 之间，灰色。旋转
 到方位角 −68°、仰角 14°。第 5 步：**To figure composer...** → 新建一张图。
 
-**(b) 画有实测 map 的布里渊区。** 选中 Γ 平面和 A 平面的 k-map，然后 Calculation →
-**Crystal structure...** → *Read a CIF file* `demo_crystal.cif`。第 4 步：*Path*
-`K-H`（两条能带交叉的那条线，红色）；*Plane through Γ* → map 选 *Γ-plane map*，
-−0.65 eV；*Plane at the zone top* → map 选 *A-plane map*，−0.55 eV；*Label on the
-left* 填 `L, M`。第 5 步：*Picture of* **The Brillouin zone** → **To figure
-composer...** → (a) 所在的图。
+**(b) 画有实测 map 的布里渊区。** Figure → **3D BZ...** → *Read a CIF file*
+`demo_crystal.cif`。点一次 **Add a plane in 3D BZ**（第一个平面过 Γ，第二个在布里渊区顶面）；
+第一个平面的 *map* 选 *Γ-plane map*，−0.65 eV，第二个选 *A-plane map*，−0.55 eV（先选中这两个
+k-map，或点 **↻ Maps from the list**）。*Path* 填 `K-H`（两条能带交叉的那条线）；*Label on the
+left* 填 `L, M`。**To figure composer...** → (a) 所在的图。
 
 **(c) 沿 k_z 层叠的 cut。** 把光子能量扫描转换到动量空间
 （[第 14 节](#14-光子能量扫描kz)），选中它 → Advanced → **Stacked slices...**：
@@ -1478,7 +1522,7 @@ composer...** → (a) 所在的图。
 - **工具按钮是灰色的**——把鼠标悬停在按钮上，提示会说明原因（例如 MDC 拟合要求 cut
   已经是 Å⁻¹ 单位，cut 运算需要两张 cut）。在列表中选中合适的行，按钮就会亮起。
 - **查看窗口的 Functions 菜单里找不到某个工具**——它在工具面板中（见[第 3 节](#3-主窗口)
-  的“功能现在的位置”），三个标签页都看一看。
+  的“功能现在的位置”），三个标签页（Basic、Advanced、Figure）都看一看。
 - **窗口比屏幕还高**——窗口打开时不会超过屏幕高度，内容可以滚动，Apply / Close 按钮
   始终在底部。所有窗口都可以调整大小。
 - **没有提供 k 转换**——该 map 的第一个轴不是角度（而是光子能量、温度等）。请在
@@ -1493,3 +1537,65 @@ composer...** → (a) 所在的图。
 - **输入数字**——无论系统语言如何，所有数字框都使用小数点（`0.05`），不接受逗号。
 - **系统开始使用交换内存**——留意 Memory 进度条（超过内存三分之一变为琥珀色，
   超过一半变为红色），使用 **Free RAM** 或 **Close all**。
+
+## 33. 让 AI 智能体调用本程序（MCP）
+
+ARPES viewer 同时是一个 **MCP 服务器**（Model Context Protocol，模型上下文协议），因此任何模型的
+AI 智能体——Claude、GPT、Gemini，或在支持 MCP 的客户端（Claude Desktop / Claude Code、Cursor、
+VS Code、Cline、LM Studio 等）中运行的本地模型——都可以把它当作一组工具来调用。所有操作都在本机
+进行：文件在本地读写，只有工具返回的内容（数字、文本、图片）会交给客户端。
+
+**设置。** 安装本程序时会同时安装命令 `arpes-viewer-mcp`（在源码目录中则为
+`python -m arpes_viewer.agent`）。把它加入客户端的 MCP 服务器配置，例如
+`claude_desktop_config.json`、`.mcp.json` 或客户端的设置：
+
+```json
+{
+  "mcpServers": {
+    "arpes-viewer": {"command": "arpes-viewer-mcp"}
+  }
+}
+```
+
+（不经 `pip install` 而直接用源码目录时：`"command": "python", "args": ["-m",
+"arpes_viewer.agent"], "cwd": "<ARPES-viewer 文件夹>"`。）服务器通过 stdin/stdout 使用 MCP 协议，
+除程序本身的依赖外不需要其他软件包。
+
+**无界面工具**——不需要打开窗口，使用程序自身的读取器和算法：
+
+| 工具 | 作用 |
+|---|---|
+| `find_files`、`list_loaders` | 文件夹中可被识别的数据文件，以及可用的读取器 |
+| `open_dataset`、`list_datasets`、`describe`、`metadata`、`close_dataset` | 打开数据集（得到编号，如 `d1`），查看其坐标轴与元数据 |
+| `get_profile` | EDC 或 MDC：沿一个轴的数值，对其他轴的指定范围取平均（可另存为 CSV） |
+| `get_image` | cut、等能面或色散图的 PNG 图片，可设色表与色阶（可另存为 PNG / CSV） |
+| `fit_fermi_edge` | 拟合 E_F 与分辨率，并给出误差 |
+| `shift_energy`、`crop` | 平移到 E − E_F 的副本、裁剪后的副本 |
+| `convert_cut_to_k`、`convert_map_to_k` | k 转换，选项与对应窗口相同（Γ、旋转；*energy offset* 仅用于非动能的能量轴；*output_fermi_level_eV* 得到 E − E_F 的结果） |
+| `save_datasets` | 保存为 `.nxs`（本程序可打开）或 `.itx` / `.ibw`（Igor Pro） |
+| `brillouin_zone`、`read_cif` | 给定空间群与晶胞时布里渊区的高对称点；CIF 文件的晶胞和原子位置 |
+
+坐标轴可以用序号、轴名（`x`、`y`、`k`、`z`）或标签中的一个词（`energy`、`slit`、`deflector`、
+`kx`）指定；范围写成 `[lo, hi]`（该轴的单位），或一个数（取最近的平面）。
+
+**屏幕上的程序**——用 bridge 模式启动：
+
+```bash
+arpes-viewer --agent-bridge
+```
+
+（或 `python -m arpes_viewer --agent-bridge`，或设置环境变量 `ARPES_VIEWER_AGENT_BRIDGE=1`）。
+状态栏会显示 *Agent bridge on 127.0.0.1:…*。之后 `viewer_*` 工具即可操作该窗口：`viewer_status`、
+`viewer_rows`、`viewer_add_files`、`viewer_select`、`viewer_run_tool`（对所选行按下任意工具面板
+按钮——`fermi`、`kcut`、`kmap`、`bz3d`、`figure`、`notch3d`、`combine` 等）、`viewer_windows`、
+`viewer_screenshot`（任意窗口的截图，便于智能体检查结果）、`viewer_close_window` 和
+`viewer_python`（在程序内运行 Python，`A` 为程序主模块——用于设置对话框字段、按下按钮）。
+无界面得到的结果可以用 `save_datasets` 存为 `.nxs`，再用 `viewer_add_files` 加入列表。
+
+**安全。** bridge 默认关闭；开启后只监听 127.0.0.1（不对网络开放），并只接受带有随机令牌的请求——
+令牌在启动时写入 `~/.arpes_viewer/agent_bridge.json`（仅本用户可读），程序关闭时删除该文件。
+`viewer_python` 会在程序中执行代码——请像允许智能体在你电脑的 Python 控制台中输入命令那样
+谨慎授权。
+
+[docs/AGENTIC_WORKFLOW_en.md](AGENTIC_WORKFLOW_en.md) 中基于命令文件夹的工作流仍然可用；MCP
+服务器是同样的思路，但不需要文件夹，且适用于任何智能体。

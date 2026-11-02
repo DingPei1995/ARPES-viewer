@@ -4,6 +4,10 @@ Lets an AI agent (e.g. Claude, through the desktop app linked to your computer) 
 without uploading raw data or code: the agent drops small Python command files into a folder, the live viewer executes them in its
 GUI process, and results come back as text logs, screenshots and figures that you can check.
 
+Since v1.2.4 the program is also an **MCP server** (`arpes-viewer-mcp`; for the window on screen, start it with
+`arpes-viewer --agent-bridge`), which any MCP-capable agent can call without these folders -- see
+[the user guide, §33](../docs/USER_GUIDE_en.md#33-driving-the-program-from-an-ai-agent-mcp).
+
 Read the full guide first: [`docs/AGENTIC_WORKFLOW_en.md`](../docs/AGENTIC_WORKFLOW_en.md).
 
 Quick start (Windows):
