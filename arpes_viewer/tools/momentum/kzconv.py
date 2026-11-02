@@ -22,11 +22,10 @@ Why this is inverted rather than projected
 ------------------------------------------
 The obvious implementation walks the measured grid forwards, computes where
 each sample lands in ``(k_z, k_par)``, and interpolates that scattered cloud
-onto a regular grid. That is what the lab's MATLAB does, and on a real cube
-(41 photon energies, 664 angles, 629 energies) it costs about 200 s -- so the
-MATLAB then approximates, triangulating one energy slice and reusing it for
-the rest with a rigid shift in ``k_z``, which leaves the ``k_par`` axis wrong
-for every slice but the first.
+onto a regular grid. On a real cube (41 photon energies, 664 angles, 629
+energies) that costs about 200 s, and the usual shortcut -- triangulate one
+energy slice and reuse it with a rigid shift in ``k_z`` -- leaves the
+``k_par`` axis wrong for every slice but the first.
 
 None of that is necessary, because the map inverts in closed form. Given a
 target ``(k_z, k_par)`` and a binding energy, there is exactly one photon
@@ -51,10 +50,9 @@ contributes a second in-plane component
 
     k_x = sqrt(A E_kin) sin(theta_p) cos(alpha)
 
-which must be subtracted inside the square root along with ``k_par``. The
-MATLAB computes that component, comments that it is there to "check the
-deviation", and then leaves it out of ``k_z`` -- at a manipulator angle of
-20 degrees that is a 0.26 A^-1 error, a quarter of a zone for c = 6 A.
+which must be subtracted inside the square root along with ``k_par``.
+Leaving it out of ``k_z`` would be, at a manipulator angle of 20 degrees, a
+0.26 A^-1 error -- a quarter of a zone for c = 6 A.
 
 Nothing here imports Qt.
 """
@@ -270,8 +268,7 @@ def photon_arc(photon_energy: float, angle, *, inner_potential: float,
     detector angle sweeps.
 
     Drawn over a Brillouin zone this is how you see which photon energies
-    reach which high-symmetry planes -- the job of the lab's ``kz_plot.m``,
-    which draws the same arc but leaves ``theta_position`` out of ``k_z``.
+    reach which high-symmetry planes, with ``theta_position`` in ``k_z``.
     """
     alpha = np.radians(np.asarray(angle, dtype=float)) - np.radians(angle_offset)
     kinetic = float(photon_energy) - work_function + binding_energy

@@ -1,7 +1,8 @@
 """
 ui/panels/tightbinding.py
 =========================
-The tight-binding fit, step by step.
+The tight-binding fit, step by step -- of **one band**: a single band on a
+Bravais lattice, with one hopping per symmetry orbit of neighbours.
 
 Opened from the tool panel's Figure tab (Tight-binding fit...), with a
 map in momentum selected -- a k-map, or a converted kz map -- or with
@@ -168,14 +169,22 @@ class TightBindingDialog(QDialog):
         self.cell_input.changed.connect(self._lattice_changed)
         self.n_shells.valueChanged.connect(self._lattice_changed)
 
-        text = ("Describe the lattice the band lives on. A layered crystal "
+        text = ("<b>This fits one band.</b> The model is a single band on a "
+                "lattice with one orbital per site: it cannot describe two "
+                "bands, their crossing or a hybridisation gap. With several "
+                "bands, fit each on its own; the hoppings are then that "
+                "band's effective parameters. "
+                "Describe the lattice the band lives on. A layered crystal "
                 "measured at one photon energy is usually best fitted as a "
                 "<b>2-D layer</b> (its in-plane a, b and gamma); a 3-D "
                 "crystal needs the k_z of the plane the map cuts. The "
                 "<b>azimuth</b> says how the lattice is turned against the "
                 "map's kx axis -- step 3 can refine it. Each <b>shell</b> of "
-                "neighbours (all lattice vectors at one distance) gets one "
-                "hopping: start with 1-2 and add more only if the misfit "
+                "neighbours -- the lattice vectors the symmetry makes "
+                "equivalent: the space group's point group in 3-D, the "
+                "lattice's own symmetry in 2-D -- gets one hopping, so two "
+                "inequivalent neighbours at the same distance get one each. "
+                "Start with 1-2 shells and add more only if the misfit "
                 "needs them.")
         return Step("The lattice", text, page, ready=self._lattice_problem)
 
@@ -219,10 +228,29 @@ class TightBindingDialog(QDialog):
                 space_group=self.space_group.value()))
         return TB.rotate(vectors, self.azimuth.value())
 
+    def lattice_symmetry(self):
+        """The operations that split the shells, as integer matrices on the
+        lattice coordinates: the space group's point group (with
+        inversion) for a 3-D crystal, the lattice's holohedry for a 2-D
+        layer (no basis is given, so nothing lower can be known)."""
+        if self.mode_2d.isChecked():
+            return TB.lattice_symmetry(self.lattice_vectors())
+        from arpes_viewer.tools.crystal.lattice import (
+            LatticeParams, point_group_operations, primitive_vectors)
+        params = LatticeParams(
+            self.a3.value(), self.b3.value(), self.c3.value(),
+            self.alpha3.value(), self.beta3.value(), self.gamma3.value(),
+            space_group=self.space_group.value())
+        return TB.lattice_symmetry(primitive_vectors(params),
+                                   point_group_operations(params))
+
+    def _shells(self):
+        return TB.shells(self.lattice_vectors(), self.n_shells.value(),
+                         symmetry=self.lattice_symmetry())
+
     def _lattice_problem(self):
         try:
-            vectors = self.lattice_vectors()
-            TB.shells(vectors, self.n_shells.value())
+            self._shells()
         except (ValueError, AssertionError) as exc:
             return str(exc)
         return ""
@@ -238,10 +266,14 @@ class TightBindingDialog(QDialog):
         if problem:
             self.shell_label.setText(f"<b>Not a lattice:</b> {problem}")
         else:
-            found = TB.shells(self.lattice_vectors(), self.n_shells.value())
+            vectors = self.lattice_vectors()
+            found = self._shells()
+            source = ("the lattice's symmetry" if self.mode_2d.isChecked()
+                      else f"space group {self.space_group.value()}")
             self.shell_label.setText(
-                "Shells: " + ";  ".join(
-                    f"t{i + 1}: {len(v)} neighbours at {d:.4g} Å"
+                f"One band. Shells (orbits under {source}): " + ";  ".join(
+                    f"t{i + 1}: {len(v)} neighbours at {d:.4g} Å "
+                    f"{TB.shell_label(vectors, v)}"
                     for i, (d, v) in enumerate(found)))
         if hasattr(self, "stepper"):
             self.stepper.refresh()
@@ -320,7 +352,10 @@ class TightBindingDialog(QDialog):
             step = float(np.median(np.abs(np.diff(x)))) if x.size > 1 else 0.01
             self.ridge_sigma.setValue(2 * step)
 
-        text = ("Give the fit points that lie on the band. On a map: move "
+        text = ("Give the fit points that lie on <b>one band</b> -- the "
+                "model has one band, so points on a second band are "
+                "misfit (a few are set aside as outliers; many spoil the "
+                "fit). On a map: move "
                 "to an energy (E_F first) and press <b>Trace this energy</b> "
                 "-- ridge detection puts points along the contour -- or tick "
                 "<b>Click</b> and click on it. <b>Do two or three energies</b> "
@@ -543,6 +578,11 @@ class TightBindingDialog(QDialog):
         options = {}
         if self.hold_t1.isChecked():
             options["t1"] = self.hold_value.value()
+        try:
+            options["symmetry"] = self.lattice_symmetry()
+        except ValueError as exc:
+            self.fit_label.setText(f"<b>Could not fit:</b> {exc}")
+            return None
         from arpes_viewer.ui.common.jobs import busy_work
 
         try:
@@ -696,10 +736,16 @@ class TightBindingDialog(QDialog):
 
     def parameters(self) -> dict:
         m = self.model
-        return {"lattice_vectors_A": m.vectors.tolist(),
+        return {"model": "one band, one hopping per symmetry orbit",
+                "lattice_vectors_A": m.vectors.tolist(),
+                "space_group": (self.space_group.value()
+                                if self.mode_3d.isChecked() else None),
                 "azimuth_deg": m.azimuth_deg,
                 "shell_distances_A": [d for d, _ in m.shells],
                 "neighbours": [len(v) for _, v in m.shells],
+                "shell_vectors_lattice": [
+                    TB.integer_coordinates(m.vectors, v).tolist()
+                    for _, v in m.shells],
                 "e0_eV": m.e0, "e0_err_eV": m.e0_err,
                 "t_eV": m.t.tolist(), "t_err_eV": [float(e) for e in m.t_err],
                 "rms_eV": m.rms, "points": m.n_points,

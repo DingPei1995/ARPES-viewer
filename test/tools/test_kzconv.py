@@ -6,10 +6,9 @@ with a known inner potential must come out periodic with that period, and
 the map must invert exactly.
 
 The one test worth reading is
-``test_the_manipulator_angle_comes_out_of_kz``. The MATLAB original computes
-the second in-plane momentum component that a tilted manipulator produces,
-notes in a comment that it is there to check the deviation, and then leaves
-it out of k_z. It is not a small effect.
+``test_the_manipulator_angle_comes_out_of_kz``: the second in-plane momentum
+component that a tilted manipulator produces must come out of k_z. It is not
+a small effect.
 """
 import numpy as np
 import pytest
@@ -80,11 +79,10 @@ def test_normal_emission_is_pure_kz():
 
 
 def test_the_manipulator_angle_comes_out_of_kz():
-    """The bug in the MATLAB original, as a number.
+    """The tilted manipulator, as a number.
 
     A tilted manipulator gives the emitted electron a second in-plane
-    momentum component. Leaving it in k_z -- which is what the original does
-    -- inflates k_z, and at 20 degrees that is a quarter of a zone for a
+    momentum component. Leaving it in k_z inflates k_z, and at 20 degrees that is a quarter of a zone for a
     6 A repeat.
     """
     kinetic, v0 = 80.0, 12.0
@@ -99,8 +97,8 @@ def test_the_manipulator_angle_comes_out_of_kz():
 
 
 def test_kz_is_always_real_for_a_free_electron_final_state():
-    """Worth pinning down, because it is why the MATLAB's abort-on-imaginary
-    check almost never fires.
+    """Worth pinning down, because it is why an abort-on-imaginary check
+    almost never fires.
 
     With ``m* = 1`` the requirement is ``A E sin^2(a) > A (E + V0)``, and
     since ``sin^2 <= 1`` that cannot happen for any positive inner
@@ -116,9 +114,7 @@ def test_kz_is_always_real_for_a_free_electron_final_state():
 def test_momentum_beyond_the_final_state_is_not_a_number():
     """A final state lighter than a free electron *can* be outrun by the
     in-plane momentum. Those points have no real k_z, which is a region to
-    leave blank rather than an error to raise on -- the MATLAB abandons the
-    whole conversion when one point does this, and returns with its output
-    variable never assigned.
+    leave blank rather than an error to raise on.
     """
     _k_par, k_z = kzconv.forward(100.0, np.radians(80.0), inner_potential=10.0,
                                  effective_mass=0.5)

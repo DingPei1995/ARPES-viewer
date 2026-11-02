@@ -7,11 +7,9 @@ them -- the EDC/MDC stack plot (:class:`StackWindow`). Arithmetic between
 two cuts lives in :mod:`ui.panels.cutops`; MDC/EDC curve fitting has its own
 panel, :mod:`ui.panels.fit`.
 
-How this differs from the MATLAB tools it replaces
---------------------------------------------------
-Those tools process **in place**: ``Curvature.m`` overwrites ``<var>_cur``
-in the workspace, and the parameters that produced it are gone the moment
-the window closes. Here every operation produces a **new dataset in the
+Results are new datasets
+------------------------
+Nothing is processed in place: every operation produces a **new dataset in the
 launcher's list**, carrying the whole chain of steps that made it
 (``proc.step.1``, ``proc.step.2``, ...) in its metadata, which is saved
 into the ``.nxs`` and shown by "Show information". Six months later the
@@ -1171,17 +1169,17 @@ class ProcessDialog(QDialog):
 
 
 # ==========================================================================
-# The EDC/MDC stack plot  (EDC_MDC_plot.m's display half, stack_plot.m)
+# The EDC/MDC stack plot
 # ==========================================================================
 class StackWindow(QMainWindow):
     """A waterfall of curves taken across a 2-D dataset.
 
-    Three things the MATLAB pair did not do. The offset can follow the
+    The offset can follow the
     curve's **real position** rather than its index, so twenty EDCs taken at
     unevenly spaced angles stack in proportion to the angle rather than
     evenly; the colour can run along a colormap keyed to that position, which
-    is the only readable option past about eight curves where
-    ``stack_plot.m``'s eight-colour cycle starts repeating; and each curve
+    is the only readable option past about eight curves, where a colour
+    cycle starts repeating; and each curve
     can be normalised, so a stack does not simply show the intensity falling
     off with binding energy.
     """

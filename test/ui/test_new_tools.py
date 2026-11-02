@@ -1,5 +1,4 @@
-"""The tool-panel round from the MATLAB comparison: the panel's new rows and
-Calculation tab, and the windows behind the new buttons -- summing repeated
+"""The tool panel's rows and tabs, and the windows behind the new buttons -- summing repeated
 scans, ridge detection, detector corrections, the tight-binding fit, the
 crystal structure -- plus Save for Igor."""
 import os
@@ -206,6 +205,23 @@ def test_tight_binding_window_traces_fits_and_lists_a_model(app, tmp_path):
     result = dialog.model_to_list()
     assert result.kind == "k_map" and result.scan.value.shape == (121, 121, 71)
     assert os.path.exists(dialog.save_parameters(str(tmp_path / "tb.json")))
+    import json
+    saved = json.loads(open(str(tmp_path / "tb.json")).read())
+    assert saved["model"].startswith("one band")
+    assert saved["shell_vectors_lattice"][0][0] == [1, 0]
+
+
+def test_tight_binding_says_it_fits_one_band_and_uses_the_space_group(app):
+    from arpes_viewer.ui.panels.tightbinding import TightBindingDialog
+    dialog = TightBindingDialog(None)
+    assert "one band" in dialog.stepper.steps[0].text.lower()
+    assert "one band" in dialog.stepper.steps[1].text.lower()
+    assert dialog.shell_label.text().startswith("One band.")
+    dialog.mode_3d.setChecked(True)
+    dialog.cell_input.set_cell(139, 3.0, 3.0, 3.0 * np.sqrt(2.0), 90, 90, 90)
+    dialog.n_shells.setValue(2)
+    assert "space group 139" in dialog.shell_label.text()
+    assert [len(v) for _, v in dialog._shells()] == [8, 4]
 
 
 def test_tight_binding_from_a_file_alone(app, tmp_path):

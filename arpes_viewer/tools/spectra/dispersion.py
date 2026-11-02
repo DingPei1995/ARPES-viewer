@@ -4,13 +4,11 @@ tools/spectra/dispersion.py
 What comes out of a fitted band: the dispersion, the Fermi velocity, the
 effective mass, and the self-energy. No Qt.
 
-Three things here that the lab's MATLAB tools get wrong
--------------------------------------------------------
+Three things done with care
+---------------------------
 **The errors are on the fitted axis.** An MDC fit measures a *momentum* at a
 known energy, so its uncertainty is on k; an EDC fit measures an energy at a
-known momentum. ``EmassFitting.m`` and ``fit_MDC_tools.m`` both call
-``fit(x, y, ...)`` unweighted and in whichever order the arrays happened to
-be stored. Fitting ``E(k)`` when the error is on k is an errors-in-variables
+known momentum. Fitting ``E(k)`` when the error is on k is an errors-in-variables
 problem, and the fix is the effective-variance method: weight by
 ``sigma_E**2 + (dE/dk * sigma_k)**2``, iterating because the slope appears
 in its own weight. On a steep band the difference is not cosmetic.
@@ -23,9 +21,8 @@ was doing, and in a material with a kink those differ by tens of percent.
 its error against window width, so the plateau -- if there is one -- can be
 seen and quoted, and its absence can be seen too.
 
-**The constant.** ``EmassFitting.m`` uses ``m*/m_e = 7.631 / (2a)``, i.e.
-3.8155 eV*A^2 for hbar^2/2m_e. The value is 3.80998 eV*A^2, so every mass it
-has ever reported is 0.15% low. Small, but free to fix.
+**The constant.** hbar^2/2m_e = 3.80998 eV*A^2 (CODATA), not the rounded
+3.8155 that puts every mass 0.15 % low.
 """
 from __future__ import annotations
 

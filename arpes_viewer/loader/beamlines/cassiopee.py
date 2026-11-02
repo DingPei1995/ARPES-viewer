@@ -16,28 +16,21 @@ file format twice over:
   one file says which; it is the *set* that says so, by which of the two
   quantities varies across it.
 
-Ported from the lab's ``load_Soleil_Cassiopee_struct.m`` and
-``load_Soleil_Cassiopee_folder_struct.m``, with the differences noted where
-they occur. The most important ones, in one place:
+Three design points:
 
-* **The stepped quantity is worked out and then declared.** The MATLAB
-  version returns a struct whose ``x`` is a polar angle or a photon energy
-  depending on the branch it took, and nothing downstream can tell which. A
-  photon-energy series comes back here with its first axis marked
+* **The stepped quantity is worked out and then declared.** A
+  photon-energy series comes back with its first axis marked
   ``axis0.role = "photon_energy"``, which is what stops the k conversion
   being offered for it -- converting a photon energy to an in-plane momentum
   is meaningless, and it would produce a perfectly plausible-looking picture.
-* **The median filter is off by default.** The MATLAB loader ran a two-point
-  median filter along both axes of every spectrum, unconditionally, inside
-  the load. That is a processing step: on raw counts it removes single-pixel
+* **No filter at load time by default.** A two-point median filter along
+  both axes is a processing step: on raw counts it removes single-pixel
   information and biases the statistics, and doing it silently at load time
   means nobody downstream can tell it happened. It is offered here as a
   load-time option (and recorded in ``info`` when used); the despiking in
   the Process panel is the same thing, visible.
-* **A file name may contain underscores.** The MATLAB version splits names
-  on ``_`` and takes the first piece as the base, which breaks for a folder
-  called something like ``Map80eV_Phi18`` -- there is a commented-out
-  hand-set ``name_base`` in it that says as much. The series here is found by
+* **A file name may contain underscores** (``Map80eV_Phi18_3_ROI1_``). The
+  series is found by
   matching the ``_<number>_ROI<n>_`` tail with a regular expression, so the
   base can be anything.
 
@@ -62,8 +55,8 @@ __all__ = ["CassiopeeLoader", "parse_scienta", "read_parameter_file",
 #: are written out in full, which no other text format here does.
 SCIENTA_MARKER = "Dimension 1 scale="
 
-#: Measured analyser work function against photon energy, from
-#: ``load_Soleil_Cassiopee_folder_struct.m``. Beamline calibration data, not
+#: Measured analyser work function against photon energy (the lab's
+#: calibration of the beamline). Calibration data, not
 #: a formula: it is not monotonic (it dips between 95 and 111 eV), which is
 #: why it is interpolated rather than fitted.
 ANALYSER_WORK_FUNCTION = {
@@ -73,13 +66,13 @@ ANALYSER_WORK_FUNCTION = {
                          4.9464, 5.0237, 5.279),
 }
 
-#: What the single-spectrum MATLAB loader used when it had no table to go on.
+#: The work function for a single spectrum with no table to go on.
 DEFAULT_WORK_FUNCTION = 4.45
 
 #: Lines of the ``_i`` parameter file, and what they are called in ``info``.
-#: Matched on the text before the colon, case-insensitively, rather than by
-#: character position as the MATLAB version does -- the files are written by
-#: hand-rolled formatting and the spacing around the colon varies.
+#: Matched on the text before the colon, case-insensitively, not by character
+#: position -- the files are written by hand-rolled formatting and the
+#: spacing around the colon varies.
 PARAMETER_FIELDS = {
     "x (mm)": "sample_X_mm",
     "y (mm)": "sample_Y_mm",
@@ -93,7 +86,7 @@ PARAMETER_FIELDS = {
     "t_a (k)": "temperature_sample_K",
 }
 
-#: Polarisation codes, from the commented-out block in the MATLAB loader.
+#: Polarisation codes.
 POLARISATIONS = {0: "LV", 1: "LH", 2: "AV", 3: "AH", 4: "CR"}
 
 
@@ -184,12 +177,9 @@ def _data_block(lines, sections, number: str):
       ``[Run Mode Information n]`` block, after a stray ``inputA=`` line and
       a blank one.
 
-    ``load_Soleil_Cassiopee_struct.m`` handles the second by counting three
-    lines on from ``[Run Mode Information`` and trusting the offset. That
-    works for the files it was written against and breaks silently on the
-    first file with one more or one fewer trailing field -- it would read
-    counts as an axis, or an axis as counts, and still produce a picture.
-    Here the block is found by what it *is*: the run of lines that parse as
+    Counting lines from ``[Run Mode Information`` would break silently on
+    the first file with one more or one fewer trailing field. So the block
+    is found by what it *is*: the run of lines that parse as
     rows of numbers. That recognises both layouts with one rule.
     """
     explicit = sections.get(f"[Data {number}]")
@@ -282,10 +272,8 @@ def _regularise(axis: np.ndarray, name: str, path: str,
 
     The scales are printed to fixed precision, so the steps carry rounding
     jitter; the viewers draw an image and want an exactly even axis.
-    ``load_Soleil_Cassiopee_struct.m`` does the same (``polyfit`` over the
-    point index).
 
-    Unlike the original, a scale that is *genuinely* not linear is reported
+    A scale that is *genuinely* not linear is reported
     rather than quietly straightened -- silently linearising a curved scale
     moves data onto the wrong energies.
 
@@ -316,13 +304,11 @@ def _regularise(axis: np.ndarray, name: str, path: str,
 
 
 def _median_filter_2(values: np.ndarray) -> np.ndarray:
-    """The two-point median filter the MATLAB loader applied to every
-    spectrum, along both axes.
+    """A two-point median filter along both axes of a spectrum.
 
-    MATLAB's ``medfilt1`` takes the median of an even-length window as the
-    mean of its two middle values, so order 2 is the mean of each point and
-    the one before it: a mild low-pass, not a despike. That part is
-    reproduced.
+    The median of an even-length window is the mean of its two middle
+    values, so order 2 is the mean of each point and the one before it: a
+    mild low-pass, not a despike.
 
     The edge is not. ``medfilt1`` zero-pads, so its first row and first
     column come out at *half* their true value -- a visible dark line down
@@ -483,8 +469,8 @@ def _split_parameter_line(line: str):
 def read_parameter_file(path: str) -> dict:
     """Motor positions and beamline readbacks from an ``_i`` file.
 
-    Split on the colon rather than at fixed character positions (which is
-    what the MATLAB version does): the files are hand-formatted and the
+    Split on the colon rather than at fixed character positions: the files
+    are hand-formatted and the
     spacing varies, and a field that moved by a character would otherwise
     come back as a silent NaN.
     """
@@ -524,11 +510,9 @@ def read_parameter_file(path: str) -> dict:
 def work_function(photon_energy_eV: float) -> float:
     """The analyser work function at this photon energy.
 
-    Interpolated through :data:`ANALYSER_WORK_FUNCTION` with a cubic spline,
-    matching ``interp1(..., 'spline', 'extrap')`` in the MATLAB loader.
+    Interpolated through :data:`ANALYSER_WORK_FUNCTION` with a cubic spline.
 
-    Outside the calibrated 45-170 eV the spline is *extrapolated*, which the
-    MATLAB version also does silently. A cubic through a non-monotonic table
+    Outside the calibrated 45-170 eV the spline is *extrapolated*. A cubic through a non-monotonic table
     leaves its range fast, so it is warned about here: a wrong work function
     shifts the binding-energy axis of a whole photon-energy scan, and the
     picture looks fine either way.
@@ -553,7 +537,7 @@ def work_function(photon_energy_eV: float) -> float:
 # A folder of numbered spectra
 # --------------------------------------------------------------------------
 #: ``<base>_<number>_ROI<n>_`` -- anchored at the end so the base may contain
-#: underscores, which is where the MATLAB version's ``split('_')`` gives up.
+#: underscores.
 SERIES_PATTERN = re.compile(r"^(?P<base>.+)_(?P<index>\d+)_ROI(?P<roi>\d+)_?$")
 
 
@@ -665,9 +649,7 @@ def _stepped_axis(thetas, photon_energies, count):
     """Which quantity was stepped across the series, and so what the first
     axis of the assembled map *is*.
 
-    The file format does not say; the set does. This is the decision the
-    MATLAB loader makes with two ``if`` statements and then forgets -- here
-    it comes back as a role the rest of the program can act on (the k
+    The file format does not say; the set does. It comes back as a role the rest of the program can act on (the k
     conversion refuses a photon-energy axis, for one).
     """
     def varies(values):
@@ -820,8 +802,7 @@ def load_series(path: str, median_filter: bool = False, progress=None,
 #: ``"common"``      **the default.** Assume every member covers the same
 #:                   binding-energy window, and take the first member's
 #:                   referred axis for all of them. Nothing is interpolated
-#:                   and nothing is trimmed. This is what the MATLAB loader
-#:                   does, and it is right whenever the operator set each
+#:                   and nothing is trimmed. It is right whenever the operator set each
 #:                   spectrum's window from the Fermi level they measured --
 #:                   which is how an hv scan is normally taken, since the
 #:                   point is to have E_F in frame at every photon energy.
@@ -850,9 +831,8 @@ def _refer_to_fermi_level(cube, energies, photon_energies,
     cube needs one energy axis, so the members have to be brought onto a
     common one.
 
-    ``load_Soleil_Cassiopee_folder_struct.m`` does this by taking the
-    **first** member's axis, shifting it by the **first** member's photon
-    energy, and using that for the whole cube. That is only correct if every
+    Taking the **first** member's axis, shifted by the **first** member's
+    photon energy, for the whole cube is only correct if every
     member was measured over the same kinetic-energy window. On the real
     scans from this beamline they are not: across a 40-120 eV scan the
     window drifts by about 1 eV -- 250 energy channels -- because the
@@ -1173,7 +1153,7 @@ class CassiopeeLoader(Loader):
         #: Off, for the reason in the module docstring: filtering raw counts
         #: invisibly at load time is a processing step nobody downstream can
         #: see. The Process panel's despiking is the same operation, visible
-        #: and undoable. A script that wants the MATLAB behaviour can call
+        #: and undoable. A script that wants it at load time can call
         #: :func:`load_cut` or :func:`load_series` with ``median_filter=True``,
         #: or register an instance of this class made with it on.
         self.median_filter = bool(median_filter)

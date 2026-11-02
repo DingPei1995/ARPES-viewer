@@ -65,9 +65,11 @@ What each analysis does and what it assumes. The computations are in this folder
   per axis in its own unit so eV or meV gives the same answer (within
   0.2 meV on a synthetic band). The ridge image to the list, the points to
   a CSV.
-- **Tight-binding fit** (Figure tab) -- E(k) = e0 + Σ t_n Σ cos(k·R) over
-  shells of any 2-D or 3-D lattice (space group first), fitted to band
-  points from ridge detection, clicks or a file. A linear least-squares fit
+- **Tight-binding fit** (Figure tab) -- **one band**: E(k) = e0 + Σ t_n Σ
+  cos(k·R) on any 2-D or 3-D lattice (space group first), one hopping per
+  symmetry orbit of neighbours (the space group's point group, or the
+  lattice's own symmetry), fitted to band points from ridge detection,
+  clicks or a file. A linear least-squares fit
   with standard errors and Tukey reweighting; a condition-number check says
   when the points cannot tell the shells apart. Contours over the data, the
   spectral function to the list.

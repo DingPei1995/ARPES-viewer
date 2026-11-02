@@ -294,8 +294,7 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
 
     def save_slice_to_list(self):
         """Put the displayed slice in the launcher's list as a dataset of
-        its own, the way the MATLAB tool's "Save Slice" puts it back in the
-        workspace. From there it can be reopened, compared with others and
+        its own. From there it can be reopened, compared with others and
         saved to a file like any measurement."""
         entry = self._choose_panel("Save slice")
         if entry is None:
@@ -321,8 +320,8 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
         return data
 
     def pop_out_slice(self):
-        """Open the displayed slice in a window of its own, frozen: the
-        MATLAB tool's "Plot in new figure". Several can be open at once,
+        """Open the displayed slice in a window of its own, frozen. Several
+        can be open at once,
         which is the point -- two energies, or two cuts, side by side while
         this window moves on."""
         entry = self._choose_panel("Pop out")
@@ -574,7 +573,7 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
 
     def divide_fermi_cutoff(self, fit, cutoff_kt: float, info: dict = None):
         """Divide this dataset by the resolution-broadened Fermi function and
-        list the result (the MATLAB tool's "Corr FS")."""
+        list the result."""
         data = self.data
         scan = data.scan
         axes_names = CONSTRUCTOR_AXES.get(data.kind)
@@ -1391,8 +1390,7 @@ class CutWindow(ViewerWindow):
 
     def _mark_path_corners(self):
         """A cut taken along a path of several segments records where one
-        segment ends and the next begins; mark them, as the MATLAB dialog's
-        "boundary" option does, so a kink in a band is not mistaken for
+        segment ends and the next begins; mark them, so a kink in a band is not mistaken for
         physics when it is only a corner in the path."""
         joints = self.data.scan.info.get("arbcut.joints")
         if joints is None:
@@ -1446,9 +1444,7 @@ class KConversionDialog(QDialog):
     user types into one of them (after that their value is theirs, and the
     "Read cursor" button is how they ask for the cursor's again).
 
-    The remaining fields mirror the MATLAB dialog's, minus the parts that do
-    not apply here: no lattice constant (the output is in A^-1, not pi/a),
-    no k_z offset and no Ek (the 2-D-only box). A single Cut has its own
+    The output is in A^-1. A single Cut has its own
     dialog (:class:`CutKConversionDialog`), because it needs something a
     map does not: to be told where Gamma is.
     """
@@ -1484,7 +1480,7 @@ class KConversionDialog(QDialog):
             "sample's axes are rotated against the analyser's.")
         # Called by what they are -- where Gamma sits on each angle axis --
         # and named as in the cut conversion, which asks for the same two
-        # numbers. (They were "theta/phi offset", after the MATLAB dialog.)
+        # numbers.
         form.addRow("Γ deflector angle (deg)", self.theta_box)
         form.addRow("Γ slit angle (deg)", self.phi_box)
         form.addRow("Sample rotation (deg)", self.azimuth_box)
@@ -3830,7 +3826,7 @@ class ContourWindow(ViewerWindow):
         return (self.angle_defl, self.angle_slit, self.E), labels
 
     def open_slice_figure(self):
-        """The MATLAB tool's ``massplott_3D``: cut the cube along one axis
+        """Cut the cube along one axis
         at a series of positions and lay the results out as a figure."""
         from arpes_viewer.ui.panels.figure import (SliceSeriesDialog, FigureWindow,
                                       slice_panels)
@@ -3934,8 +3930,7 @@ class ContourWindow(ViewerWindow):
                        if not k.startswith("arbcut.")}
         created = []
         if separate:
-            # One dataset per segment, each starting from distance 0 -- the
-            # MATLAB dialog's "separate" option.
+            # One dataset per segment, each starting from distance 0.
             edges = list(joints) + [float(distance[-1])]
             start = 0.0
             for i, end in enumerate(edges):
@@ -4384,9 +4379,7 @@ class MapCutWindow(ViewerWindow):
 
         The fit is made on this window's slit-vs-E image (integrated over the
         deflector), and the resulting shift is applied to every deflector
-        position -- which is the point: one fit straightens the entire map,
-        exactly as ``correction.m`` corrects the whole 3D array from a single
-        slice.
+        position -- which is the point: one fit straightens the entire map.
         """
         if self.which != "slit":
             return None
@@ -4452,12 +4445,9 @@ class ArbitraryCutDialog(_PickerDialog):
     """Up to six points defining a path across the constant-energy contour;
     the cut follows that path, segment by segment.
 
-    Same shape as ``arbi_cut_plot_demo.m``: six numbered point rows, each
-    with its own enable box, a "plot" that joins the segments end to end,
-    and the choice of keeping the result as one dataset or one per segment.
-    What is different is where the points come from -- MATLAB's ``getline``
-    freezes the figure until you press Enter, while here the contour stays
-    live: click it to fill the next free row, then drag the numbers if the
+    Six numbered point rows, each with its own enable box, a "plot" that
+    joins the segments end to end, and the choice of keeping the result as
+    one dataset or one per segment. The contour stays live: click it to fill the next free row, then drag the numbers if the
     click was off.
     """
 
@@ -4597,8 +4587,7 @@ class FSCorrectionDialog(_PickerDialog):
     """Points along a feature that should be flat, and the polynomial fitted
     through them.
 
-    ``correction.m`` asks for the points with ``getpts`` and fits a
-    parabola; here the points are clicked on the live image, listed in a
+    The points are clicked on the live image, listed in a
     table where they can be corrected, and the fit is drawn over the data as
     it is built, so a bad point is obvious before anything is computed.
     """
@@ -4643,8 +4632,8 @@ class FSCorrectionDialog(_PickerDialog):
         self.order_box.setRange(1, 4)
         self.order_box.setValue(2)
         self.order_box.setToolTip(
-            "Polynomial order. 2 (a parabola) is what the MATLAB tool uses and "
-            "what analyser curvature normally looks like; an order-n fit needs "
+            "Polynomial order. 2 (a parabola) is what analyser curvature "
+            "normally looks like; an order-n fit needs "
             "at least n+1 points.")
         self.order_box.valueChanged.connect(lambda *_: self._refresh_overlay())
         row.addWidget(self.order_box)
@@ -6348,11 +6337,10 @@ class AuReferenceDialog(QDialog):
 class DataOperationsDialog(QDialog):
     """Truncate, self-normalise or compress the selected datasets.
 
-    One dialog for the three MATLAB tools (``td_demo``,
-    ``self_normalization_demo``, ``data_comb_resamp_demo``) because they are
-    the same action from the user's side: pick datasets, set a few numbers
-    per axis, get new datasets. Each result is listed under the original's
-    name with the MATLAB suffix (``_tk``, ``_s_nor``, ``_comb``), so a chain
+    One dialog for the three, because they are the same action from the
+    user's side: pick datasets, set a few numbers per axis, get new
+    datasets. Each result is listed under the original's name with a suffix
+    (``_tk``, ``_s_nor``, ``_comb``), so a chain
     of operations reads back off the names.
 
     Every tab drives **all** the selected datasets at once. That only means

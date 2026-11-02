@@ -1362,13 +1362,28 @@ of the crystal-structure window.
 
 ## 26. Tight-binding fit
 
+> **This fits one band.** The model is a single band on a Bravais lattice
+> (one orbital per site): E(k) = e0 + Σ t_n Σ cos(k·R). It cannot describe
+> two bands, their crossing or a hybridisation gap. With several bands, fit
+> each one on its own and read its hoppings as that band's effective
+> parameters, not as microscopic orbital-to-orbital hoppings.
+
+**Shells are symmetry orbits.** Each hopping t_n belongs to one set of
+neighbours that symmetry makes equivalent: the space group's point group
+(with inversion) for a 3-D crystal, the lattice's own symmetry for a 2-D
+layer. Two inequivalent neighbours at the same distance — an in-plane and
+an out-of-plane one, say — get a hopping each. Step 1 lists every shell with
+its count, distance and a representative vector in lattice coordinates
+(⟨1 0 0⟩), and **Save parameters...** writes all the vectors of each shell.
+
 With a k-map selected (or nothing, to use a file of points):
 
 1. **The lattice** -- a 2-D layer (a, b, γ) or a 3-D crystal (the **space
    group first**, then the cell parameters it leaves free -- the others are
    greyed and follow), or **Take the crystal from the Brillouin-zone tool**; the azimuth of a against kx; how
    many shells of neighbours.
-2. **Band points** -- move to an energy and press **Trace this energy**
+2. **Band points** -- on **one band** only (a few stray points are set
+   aside as outliers; many spoil the fit). Move to an energy and press **Trace this energy**
    (ridge detection), or tick *Click* and click on the band, or **Read
    points from a file**. Two or three energies are better than one: one
    contour fixes the band's shape but not its energy scale.

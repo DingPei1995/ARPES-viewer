@@ -5,30 +5,20 @@ Corrections made on the detector's own pixels, before anything else: a
 trapezoidal (keystone) image made rectangular again, and dead or bad
 regions patched from their neighbours.
 
-Ported from the lab's Quick_Panel functions ``StretchDitherImage.m`` (the
-keystone) and ``InterpRegionAlongX.m`` / ``InterpRegionAlongY.m`` (the
-patch), with ``inpaint_nans.m``'s idea for a smoother patch, and these
-changes:
-
-* **The keystone as an exact inverse map.** The .m file pushed every pixel
-  to its stretched position and re-gridded the scattered cloud with
-  ``TriScatteredInterp`` (a Delaunay triangulation of every pixel of the
-  image, for every image). Here each output pixel's source position is
+* **The keystone as an exact inverse map.** Each output pixel's source
+  position is
   written down directly -- along each row the trapezoid's edges at that
   row are mapped onto the rectangle's -- and read off the regular grid by
   linear interpolation: exact, a single vectorised pass, and no
-  triangulation artefacts at the edges.
+  triangulation, so no triangulation artefacts at the edges.
 * **Counts are kept.** Stretching a row spreads its counts over more
-  pixels; the .m file left the values as they were, so a stretched row came
-  out brighter in total than it went in. Here each row is multiplied by its
-  stretch factor's inverse (optional), so the total is conserved.
-* **The patch: from both sides, or smooth.** ``InterpRegionAlongX.m``
-  blends the column just left of the region with the one just right of it
-  (and ``...AlongY.m`` the rows above and below). That is kept ("along
-  x" / "along y"), and a third way added: the harmonic fill, which solves
-  Laplace's equation inside the region with the surrounding pixels as its
-  boundary -- the smoothest patch that meets the data on every side, the
-  idea of ``inpaint_nans.m``. Its sparse factorisation is made once and
+  pixels, so each row is multiplied by its stretch factor's inverse
+  (optional) and the total is conserved.
+* **The patch: from both sides, or smooth.** "Along x" blends the column
+  just left of the region with the one just right of it ("along y" the rows
+  above and below); the harmonic fill solves Laplace's equation inside the
+  region with the surrounding pixels as its boundary -- the smoothest patch
+  that meets the data on every side. Its sparse factorisation is made once and
   reused for every slice of a map.
 * **Bad pixels can be found.** On a map, a dead or hot detector pixel is
   dead or hot in every slice while the photoemission moves; the mean
@@ -255,7 +245,7 @@ def patch_regions(image, x_axis, y_axis, regions, method: str = METHODS[2],
     """``image`` with every region replaced from its surroundings.
 
     ``method``: "linear along x" (the pixels just outside, before and after
-    the region along x, blended -- ``InterpRegionAlongX.m``), "linear along
+    the region along x, blended), "linear along
     y", or "smooth (harmonic)" (Laplace's equation inside, the surrounding
     pixels as its boundary). ``_cache`` (a dict) keeps the harmonic
     factorisation between calls with the same mask.

@@ -63,7 +63,16 @@ AI agents of any model can use the program.
   only maps selected beforehand. The old *Brillouin zone...* is now **BZ
   overlap...**.
 - **Tight-binding fit**: the 3-D crystal is typed space group first, the
-  constrained parameters greyed out.
+  constrained parameters greyed out. **Shells are symmetry orbits**
+  (`tightbinding.lattice_symmetry`): one hopping per set of neighbours the
+  space group's point group (with inversion) makes equivalent -- the
+  lattice's own symmetry for a 2-D layer -- so two inequivalent neighbours
+  at the same distance get a hopping each; they shared one, grouped by
+  length alone. Each shell is listed with a representative vector
+  (⟨1 0 0⟩), and *Save parameters* writes the space group and every shell's
+  vectors. Every step now says the model is **one band**.
+- Code comments and docstrings describe each tool by what it does, without
+  the comparisons with the MATLAB programs it started from.
 - **The Calculation tab is now "Figure"**: the figure composer at its top
   (it was on Advanced), then Crystal structure, 3D BZ, Tight-binding fit and
   Calculated bands.

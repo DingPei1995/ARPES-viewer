@@ -13,8 +13,7 @@ exactly an affine image transform; so a painter's algorithm over
 depth-sorted faces gives a pixel-exact picture with no OpenGL driver and no
 PyOpenGL dependency. It also means the view can be painted at any size,
 which is what lets a notched cube be exported as a 300-dpi figure instead
-of a screen-sized bitmap -- ``volume_3d_plot_w_notch.m``'s output could
-only ever be as large as the window it was drawn in. The figure composer
+of a screen-sized bitmap. The figure composer
 draws a 3-D panel with the same function (:func:`paint_scene`), handing it
 the figure's font and line widths, so the axes of a 3-D panel are labelled
 like those of every other panel.

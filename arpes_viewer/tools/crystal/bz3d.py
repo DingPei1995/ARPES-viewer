@@ -6,33 +6,18 @@ an arbitrary-orientation planar cut through it, and tiling copies of it
 across a field of view -- the geometry engine behind the Brillouin-zone
 tool's "3D crystal" mode.
 
-Relation to the lab's MATLAB tools
------------------------------------
-``gen_brillouin.m`` builds the same cell by the same idea -- start from a
-box, clip it face by face with the perpendicular-bisector plane to each
-nearby reciprocal-lattice point -- but only ever considers the 26 nearest
-neighbours (``-1:1`` in each direction). That is enough for most lattices,
-but the true Wigner-Seitz cell of a sufficiently oblique cell can need a
-face from the *second* shell of neighbours (a well-known pitfall of this
-construction, not specific to this implementation of it); ``gen_brillouin.m``
-has no check for that. :func:`wigner_seitz_cell` here grows the neighbour
-shell (1, 2, 3, ...) and stops only once the resulting volume has converged,
-so it does not silently under-count faces for an oblique lattice.
-
-The clipping itself is also done differently: rather than intersecting each
-candidate plane with the *previous* polyhedron in sequence (``gen_brillouin.m``'s
-approach, and ``cut_brillouin.m``'s plane-vs-polygon-list routine for cutting
-it afterwards), everything here goes through
-:class:`scipy.spatial.HalfspaceIntersection`, which solves for all of the
-half-spaces' common intersection at once via its interior point (the origin
--- trivially interior, since every half-space here is "closer to Gamma than
-to G"). :func:`plane_cut`, likewise, does not chain intersection segments
-face-by-face into a loop the way ``cut_brillouin.m`` does (matching endpoints
-within a tolerance, which is exactly the kind of thing that gets fragile at
-a cut that grazes an edge or a vertex): because the Wigner-Seitz cell is
-convex, any planar cut through it is a single convex polygon, so its points
-can just be angle-sorted around their own centroid -- simpler, and does not
-depend on tuning an epsilon for "these two points are the same vertex".
+How
+---
+The cell is the region closer to Gamma than to any other reciprocal-lattice
+point. The true Wigner-Seitz cell of an oblique cell can need a face from
+the *second* shell of neighbours or beyond, so :func:`wigner_seitz_cell`
+grows the neighbour shell (1, 2, 3, ...) until the volume has converged.
+All the half-spaces are intersected at once by
+:class:`scipy.spatial.HalfspaceIntersection` (the origin is trivially
+interior). Because the cell is convex, any planar cut through it
+(:func:`plane_cut`) is one convex polygon, so its points are simply
+angle-sorted around their centroid -- no endpoint matching with a tolerance,
+which gets fragile where a cut grazes an edge or a vertex.
 """
 from __future__ import annotations
 
@@ -281,9 +266,8 @@ def irreducible_wedge(zone: BrillouinZone, operations) -> BrillouinZone:
 
 def plane_basis(normal: np.ndarray):
     """Two orthonormal in-plane axes (u, v) for the plane with this unit
-    normal, matching the convention ``cut_brillouin.m``/``update_cut`` use
-    (u, v pick themselves up from z-hat unless the normal already is
-    z-hat), so a cut along (0, 0, 1) reproduces the familiar kx/ky layout.
+    normal (u, v pick themselves up from z-hat unless the normal already
+    is z-hat), so a cut along (0, 0, 1) reproduces the familiar kx/ky layout.
     """
     normal = normal / np.linalg.norm(normal)
     z = np.array([0.0, 0.0, 1.0])

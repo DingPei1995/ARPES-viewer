@@ -616,9 +616,8 @@ def _upsample_axis(array: np.ndarray, factor: int, axis: int) -> np.ndarray:
 def upsample2d(array: np.ndarray, factors) -> np.ndarray:
     """Bilinear resampling of a 2D array, NaN-aware.
 
-    This is what MATLAB's ``pcolor(...); shading interp`` does for the same
-    data, and it is the reason the MATLAB plots look continuous where a
-    plain image of the same scan looks like a mosaic: a deflector map is
+    This is what makes a coarse scan look continuous where a plain image of
+    it looks like a mosaic: a deflector map is
     typically only a few tens of points across, so each data point covers a
     big block of screen. Blurring alone cannot fix that -- a Gaussian on the
     coarse grid just makes softer *blocks* -- so the array is resampled onto
@@ -1096,8 +1095,7 @@ def KMapData(kx, ky, energy, cube, *, source_label: str, parameters: dict,
     """A Map converted to momentum space, held in memory.
 
     A thin front for :class:`MemoryData` with the k-map's labels and the
-    ``kconv.*`` parameter prefix the conversion round established (the `.m`
-    file kept the same record in ``data_k.para``).
+    ``kconv.*`` parameter prefix that records the conversion.
     """
     return MemoryData("k_map", (kx, ky, energy), cube,
                       {"x": "kx (\u00c5\u207b\u00b9)", "k": "ky (\u00c5\u207b\u00b9)",
@@ -1266,7 +1264,7 @@ class _InteractiveImageBase(pg.ImageView):
            a few pixels rather than a few hundred;
         2. bilinear resampling onto a finer grid (:func:`upsample2d`), which
            is what removes the mosaic of rectangles a coarse scan otherwise
-           draws -- the same thing MATLAB's ``shading interp`` does.
+           draws.
 
         Records the per-axis resampling factors so the caller can divide the
         image scale by them and leave the picture exactly where it was.
@@ -1282,9 +1280,8 @@ class _InteractiveImageBase(pg.ImageView):
         return self._apply_gamma(upsample2d(data, factors))
 
     def _apply_gamma(self, data: np.ndarray) -> np.ndarray:
-        """Re-shape the intensities inside the colour window, the way
-        ``PlotSlices.m``'s plot() does: clip to the window, normalise, raise
-        to gamma, map back. Levels are left alone, so the numbers on the
+        """Re-shape the intensities inside the colour window: clip to the
+        window, normalise, raise to gamma, map back. Levels are left alone, so the numbers on the
         level bar still mean what they say."""
         if self._gamma == 1.0 or self._levels is None:
             return data
@@ -1379,8 +1376,8 @@ class _InteractiveImageBase(pg.ImageView):
             pass
 
     def set_gamma(self, gamma: float):
-        """Intensity exponent applied inside the colour window, as in the
-        MATLAB tool: the window is normalised to 0..1, raised to ``gamma``
+        """Intensity exponent applied inside the colour window: the window
+        is normalised to 0..1, raised to ``gamma``
         and mapped back. Below 1 it lifts weak features out of the
         background (the usual way to see a faint Fermi surface under a
         bright band), above 1 it suppresses them. Display only."""
@@ -1668,9 +1665,7 @@ class _InteractiveImageBase(pg.ImageView):
 
         This is how both tools that need points off a picture get them --
         the corners of an arbitrary cut and the points along a feature to
-        straighten. The MATLAB originals call ``getpts``/``getline``, which
-        take over the figure until the user presses Enter; here the window
-        stays live throughout, so the picked points can be looked at,
+        straighten. The window stays live throughout, so the picked points can be looked at,
         dragged and retyped while the dialog that collects them is open.
         """
         self.stop_point_picking()
@@ -3332,9 +3327,8 @@ class LevelBar(QWidget):
         self.clip_button.customContextMenuRequested.connect(self._clip_menu)
         layout.addWidget(self.clip_button)
 
-        # The same two numbers as a percentage of the data's own range, which
-        # is how the MATLAB tool asks for them: "show me the bottom 40%" is a
-        # setting that carries from one scan to the next, where an absolute
+        # The same two numbers as a percentage of the data's own range:
+        # "show me the bottom 40%" is a setting that carries from one scan to the next, where an absolute
         # count does not.
         layout.addWidget(separator())
         self.min_pct = QDoubleSpinBox()
@@ -4084,8 +4078,7 @@ class ImagePanel(QWidget):
         self.smooth_cb = QCheckBox("Smooth")
         self.smooth_cb.setToolTip(
             "Draw the image interpolated between data points instead of as one "
-            "rectangle per point -- the same thing MATLAB's \"shading interp\" does, "
-            "and what a coarse deflector map needs to stop looking like a mosaic. "
+            "rectangle per point -- what a coarse deflector map needs to stop looking like a mosaic. "
             "Display only: exported data stays raw.")
         options.addWidget(self.smooth_cb)
 
@@ -4435,12 +4428,10 @@ class _SliceControl(QWidget):
     integration half-width, sized to sit directly above the plot panel it
     drives (so it inherits that panel's column width exactly).
 
-    Pos and Ind are the two ways of naming the same slice, as in the MATLAB
-    tool: type a value in data units (eV, degrees) and the nearest
+    Pos and Ind are the two ways of naming the same slice: type a value in data units (eV, degrees) and the nearest
     measured point is shown; type an index and that point is shown. Either
     box, and the ``<`` / ``>`` step buttons, move the slider, so there is
-    one source of truth. Indices are **1-based**, matching the MATLAB
-    tool's "Ind" box, so the same number means the same slice in both.
+    one source of truth. Indices are **1-based**.
 
     The spin box is ``width_spin``, not ``width``: a ``width`` attribute
     would shadow ``QWidget.width()`` and silently break any layout code
@@ -4495,7 +4486,7 @@ class _SliceControl(QWidget):
         self.ind_box.setButtonSymbols(QSpinBox.NoButtons)
         self.ind_box.setMaximumWidth(64)
         self.ind_box.setToolTip(
-            "Slice index, 1-based as in the MATLAB tool. Type and press Enter.")
+            "Slice index, 1-based. Type and press Enter.")
         row.addWidget(self.prev_button)
         row.addWidget(self.ind_box)
         row.addWidget(self.next_button)
@@ -4519,7 +4510,7 @@ class _SliceControl(QWidget):
         self.reduce_combo.setToolTip(
             "How the points in the window are combined. mean keeps the "
             "brightness the same however wide the window is, so the levels "
-            "stay put (this is what the MATLAB tool does); sum gives total "
+            "stay put; sum gives total "
             "counts, which doubles when you double the window.")
         row.addWidget(self.reduce_combo)
         layout.addLayout(row)
@@ -4609,8 +4600,8 @@ class _SliceControl(QWidget):
 
         With a half-width of w, a slice centred nearer than w to either end
         would silently be integrated over fewer points than one in the
-        middle -- the same slice, quietly weaker. The MATLAB tool pulls the
-        slider's own limits in by w instead, which is what this does; a
+        middle -- the same slice, quietly weaker. So the slider's own limits
+        are pulled in by w; a
         half-width wider than half the axis is clamped rather than refused,
         so the box always shows a width that is actually in use.
         """

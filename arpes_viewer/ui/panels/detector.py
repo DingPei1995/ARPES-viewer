@@ -242,7 +242,7 @@ class DetectorDialog(QDialog):
         self.method_combo.setCurrentIndex(2)
         self.method_combo.setToolTip(
             "linear along x / y: blend the pixels just outside the region on "
-            "either side (the MATLAB tool's way).\nsmooth: the smoothest "
+            "either side.\nsmooth: the smoothest "
             "surface meeting the data all round the region.")
         self.method_combo.currentIndexChanged.connect(self.update_regions)
         row.addWidget(self.method_combo)

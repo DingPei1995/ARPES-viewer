@@ -14,9 +14,8 @@ perpendicular distance from it. That distance cannot be recovered from the
 cut's own intensities -- a line carries no information about where the line
 is -- so it has to come from the geometry: the angles at which Gamma sits.
 
-The lab's MATLAB ``k_space_conversion_cut.m`` asks instead for a "centre
-line" clicked on the cut, and feeds it in as ``sin(alpha + offset)``. That
-conflates two different things:
+A "centre line" clicked on the cut and fed in as ``sin(alpha + offset)``
+would conflate two different things:
 
 * **where normal emission is** -- an instrument property, which enters
   *inside* the sine and therefore sets the k axis's **scale**;
@@ -50,8 +49,7 @@ Resampling
 ``k_parallel`` is a monotonic function of the slit angle, so the conversion
 is a **one-dimensional interpolation per energy row** -- exact, cheap, and
 free of the diagonal smearing a scattered/Delaunay interpolation puts into
-a Fermi edge. (The MATLAB file builds an ``ii*jj`` point list and calls
-``griddata``, which mixes neighbouring energies into every output point.)
+a Fermi edge, mixing neighbouring energies into every output point.
 """
 from __future__ import annotations
 
@@ -192,7 +190,7 @@ def convert_cut(slit_deg, energy_eV, value, *, deflector_deg: float,
 
     ``trim=True`` cuts the output down to the k range every energy row
     covers, instead of the union (where the rows that do not reach the ends
-    leave NaN wedges, as the MATLAB version silently does).
+    leave NaN wedges).
 
     ``report`` carries what the conversion cannot put on the axes: the
     cut's distance from Gamma, how much that varies along the cut and

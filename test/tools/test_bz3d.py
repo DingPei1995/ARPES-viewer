@@ -6,10 +6,9 @@ Mermin ch. 9): simple cubic's BZ is a cube; body-centred cubic's reciprocal
 lattice is face-centred cubic, whose Wigner-Seitz cell is a truncated
 octahedron (14 faces, 24 vertices); face-centred cubic's reciprocal lattice
 is body-centred cubic, whose cell is a rhombic dodecahedron (12 faces, 14
-vertices) -- this is also exactly why ``gen_brillouin.m``'s fixed +-1
-neighbour shell is not a universal shortcut: it happens to be enough for
-these high-symmetry lattices, but nothing in this test relies on that,
-since :func:`wigner_seitz_cell` grows the shell itself.
+vertices). A fixed +-1 neighbour shell happens to be enough for these
+high-symmetry lattices, but nothing in this test relies on that, since
+:func:`wigner_seitz_cell` grows the shell itself.
 """
 import numpy as np
 import pytest
@@ -61,8 +60,8 @@ def test_bz_volume_matches_reciprocal_cell_volume(space_group, a, c, gamma):
 
 def test_shell_growth_needed_for_a_skewed_basis():
     """A basis that is not reduced -- here the simple cubic lattice written
-    with b3 = (3, 0, 1) -- needs neighbours well beyond the single +-1 shell
-    ``gen_brillouin.m`` always uses; the shell grows until the volume is
+    with b3 = (3, 0, 1) -- needs neighbours well beyond a single +-1 shell;
+    the shell grows until the volume is
     exactly the reciprocal cell's, and the cube comes out regardless."""
     b = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [3.0, 0.0, 1.0]])
     bz = wigner_seitz_cell(b)

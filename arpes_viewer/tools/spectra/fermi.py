@@ -15,15 +15,11 @@ background (dark counts, secondaries, higher-order light) is a straight line
 that is *not* multiplied by the occupation, and the whole thing is smeared
 by the analyser's Gaussian resolution.
 
-What is different from the lab's MATLAB ``FitFermiSurface``, and why:
+How it is fitted, and why:
 
-- **The convolution is a quadrature, not a padded grid.** The MATLAB code
-  builds an extended uniform grid, convolves and slices the middle out,
-  which needs the axis to be ascending and uniformly spaced, gets its own
-  step wrong by one sample (``range/N`` instead of ``range/(N-1)``) and can
-  slip a bin when the colon operator rounds. Integrating
-  ``m(E - t) G(t) dt`` at each requested energy has none of those failure
-  modes and works on any axis, ascending or not.
+- **The convolution is a quadrature, not a padded grid.** Integrating
+  ``m(E - t) G(t) dt`` at each requested energy needs no extended uniform
+  grid, so the axis can be uneven or descending and no bin can slip.
   (Gauss-Hermite quadrature would be the elegant version and is what this
   module first tried, but it under-resolves the edge whenever kT is small
   compared with the resolution -- exactly the nano-ARPES case -- so the
@@ -33,8 +29,7 @@ What is different from the lab's MATLAB ``FitFermiSurface``, and why:
   least squares over-weights the occupied side. This biases the width, and
   the width is the whole point.
 - **Uncertainties.** ``least_squares`` gives a Jacobian, so every parameter
-  comes back with an error bar and the fit with a reduced chi-squared. The
-  MATLAB tool reports no uncertainty at all.
+  comes back with an error bar and the fit with a reduced chi-squared.
 - **T and the resolution are degenerate** on a single edge: the measured
   width is roughly sqrt((3.53 kT)^2 + FWHM^2), so fitting both freely gives
   two numbers neither of which means anything on its own. The temperature
@@ -465,8 +460,8 @@ def divide_fermi(energy, values, ef: float, temperature: float,
     """Divide a spectrum by the resolution-broadened Fermi function.
 
     Only the **occupation** is divided out -- not the fitted density of
-    states, which the MATLAB version includes and so removes real spectral
-    weight along with the cut-off.
+    states, which would remove real spectral weight along with the
+    cut-off.
 
     ``background`` is the fitted ``(b0, b1)``, and if it is given it is taken
     out before the division and put back afterwards. That matters: dark

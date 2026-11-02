@@ -24,13 +24,12 @@ def _angles_deg(vectors):
     return angle(a2, a3), angle(a1, a3), angle(a1, a2)  # alpha, beta, gamma
 
 
-# -- conventional_vectors: the fix for the .m file's missing-alpha bug -----
+# -- conventional_vectors: all three angles ---------------------------------
 def test_conventional_vectors_recovers_all_three_angles_independently():
     """A general triclinic cell with alpha, beta, gamma all different must
-    come back out unchanged. ``gen_realspace_basevector.m`` fails exactly
-    this case (it has no alpha input and uses cos(beta) in alpha's place),
-    though the failure is invisible for alpha = beta = 90 deg -- this test
-    uses angles far from that to make sure the general case is right, not
+    come back out unchanged. Using cos(beta) in alpha's place would be
+    invisible for alpha = beta = 90 deg, so this test uses angles far from
+    that to make sure the general case is right, not
     just the degenerate one.
     """
     params = LatticeParams(5.0, 6.0, 7.0, alpha=80.0, beta=100.0, gamma=110.0)

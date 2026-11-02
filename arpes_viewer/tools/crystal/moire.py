@@ -18,11 +18,9 @@ lattice's own primitive reciprocal vectors, whatever the two layers'
 symmetries, lattice constants or relative rotation happen to be -- nothing
 here assumes hexagonal layers or a shared lattice constant.
 
-``moire_lattice.m`` only ever covers one case of this: two *hexagonal*
-layers (its ``plotBZ_demo_old`` call has ``gamma`` hard-coded to 120
-degrees), related by a closed-form formula for the moire lattice constant
-and orientation. :func:`hex_moire_lattice_fast` is that formula, ported
-unchanged, kept as a fast path for exactly that case (typed bilayers of the
+:func:`hex_moire_lattice_fast` is the closed-form formula for two
+*hexagonal* layers (the lab's ``moire_lattice.m``), kept as a fast path for
+exactly that case (typed bilayers of the
 same 2-D lattice type -- twisted bilayer graphene and its relatives are the
 common real case) and, in ``test_moire.py``, as a closed-form cross-check of
 the general method: for two equal hexagonal layers the two agree exactly
@@ -41,8 +39,7 @@ __all__ = ["hex_moire_lattice_fast", "moire_reciprocal_vectors", "moire_bz"]
 
 def hex_moire_lattice_fast(a_top: float, a_bot: float, twist_deg: float):
     """Moire real-space lattice constant and orientation for two hexagonal
-    layers, ported from ``moire_lattice.m``/``MiniBZ_plotter.m``'s
-    ``Plot_MiniBZ_Callback``.
+    layers (the lab's ``moire_lattice.m`` formula, unchanged).
 
     Returns ``(a_moire, rotation_deg)``: the moire supercell's lattice
     constant (angstrom) and the angle (degrees) ``plotBZ_demo_old``'s own
@@ -67,8 +64,8 @@ def hex_moire_lattice_fast(a_top: float, a_bot: float, twist_deg: float):
     independently confirmed -- and does not, checked numerically while
     writing this, reduce to the textbook zero-twist limit ``a_top * a_bot /
     abs(a_top - a_bot)`` (the ordinary two-comb beat period), the way the
-    general method does. It is ported unchanged from ``moire_lattice.m``
-    for continuity with figures already made with that tool; for a new
+    general method does. It is kept unchanged for continuity with figures
+    already made with that formula; for a new
     calculation, prefer :func:`moire_reciprocal_vectors`, which is verified
     in both limits.
     """

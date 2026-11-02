@@ -1,8 +1,7 @@
 """
 tools/processing/process.py
 ===========================
-The 2-D data operations of the lab's MATLAB tools, rewritten as plain numpy
-functions with no Qt: smoothing, derivatives, curvature, symmetrisation,
+The 2-D data operations, as plain numpy functions with no Qt: smoothing, derivatives, curvature, symmetrisation,
 background subtraction, normalisation and despiking.
 
 MDC/EDC peak fitting, band dispersion and self-energy extraction used to
@@ -16,30 +15,26 @@ result object, so the same function serves the interactive panel, a script
 and the tests. What the axes *mean* is the caller's business -- these
 functions only need to know their steps.
 
-Three deliberate departures from the MATLAB originals
------------------------------------------------------
-**Curvature is dimensionless.** ``Curvature.m`` feeds ``I_x`` (counts per
-A^-1) and ``I_y`` (counts per eV) into the same ``(a0 + I_x^2 + I_y^2)``.
-Those differ by one to two orders of magnitude, so its "isotropic" curvature
-is nothing of the sort and the best ``a0`` moves with every change of axis
-range or intensity scale. Here both axes are mapped to [0, 1] and the
+Three design choices
+--------------------
+**Curvature is dimensionless.** ``I_x`` (counts per A^-1) and ``I_y``
+(counts per eV) differ by one to two orders of magnitude, so putting them
+raw into one ``(a0 + I_x^2 + I_y^2)`` would make the "isotropic" curvature
+anisotropic and move the best ``a0`` with every change of axis range or
+intensity scale. Here both axes are mapped to [0, 1] and the
 intensity to [0, 1] before the derivatives are taken, so ``a0`` is a pure
 number that means the same thing on the next dataset. :func:`curvature`
 still takes an explicit ``ratio`` for the cases where the anisotropy is
 wanted on purpose.
 
-**Derivatives are Savitzky-Golay.** ``smooth_derivation_v1.m`` takes nested
-one-sided ``diff``s -- which offsets each order by half a pixel and offsets
-the cross terms by more -- and then forces the borders to zero, putting a
-false zero frame on the picture and poisoning the auto-levels. A local
-polynomial fit smooths and differentiates in the same step, keeps every
+**Derivatives are Savitzky-Golay.** Nested one-sided ``diff``s would offset
+each order by half a pixel (the cross terms by more), and zeroed borders
+would put a false frame on the picture. A local polynomial fit smooths and differentiates in the same step, keeps every
 stencil centred, and handles the borders by fitting the truncated window
 instead of inventing a value.
 
-**No histogram clipping.** ``Curvature.m`` ends by multiplying its result
-by a mask built from a 100-bin histogram, which silently sets every negative
-curvature to zero -- half the structure, and the half that says where the
-band is *not*. Clipping is a display decision; it belongs in the levels, and
+**No histogram clipping.** Negative curvature is kept -- it is the half of
+the structure that says where the band is *not*. Clipping is a display decision; it belongs in the levels, and
 the panel offers it there.
 """
 from __future__ import annotations
@@ -234,9 +229,9 @@ def derivative(values, axes, dim: int, order: int = 2, *, window=None,
     ``poly == order`` the derivative is a single constant across the whole
     edge window and cannot follow the curve: on a test function the error
     is 9% at the edge against 0.07% inside. One more degree makes it 0.07%
-    everywhere. Either way it beats forcing the border to zero the way
-    ``smooth_derivation_v1.m`` does -- a zero frame is a feature that is not
-    in the data, and it drags the auto-levels with it.
+    everywhere. Either way it beats forcing the border to zero -- a zero
+    frame is a feature that is not in the data, and it drags the
+    auto-levels with it.
     """
     values = np.asarray(values, dtype=float)
     dim = int(dim) % values.ndim
@@ -266,9 +261,8 @@ def laplacian(values, axes, *, window=None, poly: int = None, in_units: bool = T
               weights=None, negate: bool = True):
     """``-(d^2/dx^2 + d^2/dy^2)``, each term normalised before it is added.
 
-    ``del2`` in MATLAB silently carries a factor of 1/4 and adds the two
-    second derivatives in their own units, so whichever axis happens to be
-    in the smaller unit dominates. Here each term is divided by its own
+    Added in their own units, the second derivative along whichever axis
+    has the smaller unit would dominate. Here each term is divided by its own
     RMS first (or by ``weights``, if the caller wants a specific balance),
     which is what makes the sum mean "curvature in both directions" rather
     than "curvature along whichever axis has the coarser step".
@@ -312,8 +306,7 @@ def curvature(values, axes, *, mode: str = "2d", a0: float = 1.0,
     energy sharpens EDC peaks, ``"x"`` along momentum sharpens MDC peaks).
 
     With ``normalise`` both axes are mapped to [0, 1] and the intensity to
-    [0, 1] first. That is the whole difference from the MATLAB version:
-    ``a0`` becomes a pure number, so the value that worked yesterday works
+    [0, 1] first, so ``a0`` becomes a pure number, so the value that worked yesterday works
     today, and the 2-D form really is isotropic. ``ratio`` reintroduces a
     deliberate anisotropy -- ``C_y = C_x / ratio^2`` -- for the cases where
     one direction should be weighted more.
@@ -382,8 +375,7 @@ def suggest_a0(values, axes, *, mode: str = "2d", factor: float = 1.0) -> float:
     Zhang et al. recommend choosing ``a0`` near the scale of ``I'^2`` -- the
     point where the denominator starts to matter at all. Because the axes
     and the intensity are already dimensionless here, that recommendation
-    turns into a single number the panel can offer as a default, which is
-    what ``Curvature.m``'s log slider was really searching for by hand.
+    turns into a single number the panel can offer as a default.
     """
     values = _as_2d(values)
     work, _, _ = normalise_unit(values)
@@ -402,14 +394,11 @@ def suggest_a0(values, axes, *, mode: str = "2d", factor: float = 1.0) -> float:
 
 def gradient_enhance(values, axes, *, floor: float = 0.05, window=None,
                      normalise: bool = True):
-    """``I / |grad I|``, the contrast trick from ``Gradient.m``, made safe.
+    """``I / |grad I|``, a contrast trick, made safe.
 
-    Two repairs. ``Gradient.m`` sums the squares of **eight** neighbour
-    differences, mixing the diagonals in at the same weight as the axial
-    ones, which is not the modulus of a gradient and is not isotropic; this
-    uses ``sqrt(I_x^2 + I_y^2)`` on the normalised axes. And it divides by a
-    quantity that goes to zero wherever the image is flat, so the flattest
-    -- usually emptiest -- parts of the picture come out brightest; here the
+    The modulus is ``sqrt(I_x^2 + I_y^2)`` on the normalised axes, so it is
+    isotropic. The divisor goes to zero wherever the image is flat, which
+    would make the flattest -- usually emptiest -- parts brightest, so the
     divisor is floored at ``floor`` times its own RMS.
 
     It stays a display trick with no absolute meaning, which is why the
@@ -455,9 +444,7 @@ def _bilinear(values, x_axis, y_axis, xq, yq):
     """Sample a regular grid at arbitrary points, NaN-aware.
 
     A regular grid means a map_coordinates call rather than a Delaunay
-    triangulation: ``TriScatteredInterp`` in ``data_symmetrization_pro.m``
-    rebuilds a triangulation of every pixel to interpolate a grid it already
-    has, which is both slower and blurrier than sampling it directly.
+    triangulation of every pixel, which would be slower and blurrier.
     """
     values = np.asarray(values, dtype=float)
     x0 = float(x_axis[0])
@@ -489,8 +476,7 @@ def symmetry_operations(fold: int = 1, *, mirror_angles=(), inversion: bool = Fa
 
     ``fold`` is the rotation order (``6`` for a hexagonal surface),
     ``mirror_angles`` are the directions of any mirror lines in degrees, and
-    ``inversion`` adds ``k -> -k``. ``data_symmetrization_pro.m`` only ever
-    rotates; mirrors and inversion are the other half of a surface's point
+    ``inversion`` adds ``k -> -k``. Mirrors and inversion are the other half of a surface's point
     group and are what let a half-measured map be completed.
     """
     fold = max(1, int(fold))
@@ -577,8 +563,7 @@ def shirley_background(energy, spectrum, *, iterations: int = 30,
 
     The background at each point is proportional to the total spectral
     weight above it, iterated to convergence; the standard choice for a core
-    level or a valence-band EDC, and the one thing ``EDC_MDC_plot.m``'s
-    straight line cannot represent.
+    level or a valence-band EDC, and what a straight line cannot represent.
     """
     energy = np.asarray(energy, dtype=float)
     spectrum = np.asarray(spectrum, dtype=float)
@@ -861,9 +846,8 @@ def history_of(data) -> list:
     """Every processing step recorded on a dataset, oldest first.
 
     Read back off the ``proc.step.N`` keys in its info, so a dataset saved
-    to a file and read back still carries its history -- the thing the
-    MATLAB tools never kept, and the reason a figure could not be reproduced
-    six months later.
+    to a file and read back still carries its history, and a figure can be
+    reproduced six months later.
     """
     info = getattr(getattr(data, "scan", None), "info", None) or {}
     steps = []

@@ -2,7 +2,7 @@
 tools/processing/volume.py
 ==========================
 Three-dimensional display geometry, with no Qt and no OpenGL: orthogonal
-slices, the notched cube of ``volume_3d_plot_w_notch.m``, a shaded
+slices, the notched cube, a shaded
 isosurface and volume projections.
 
 Everything a 3-D view needs is produced here as plain arrays -- a list of
@@ -21,15 +21,11 @@ algorithm over depth-sorted faces gives a pixel-accurate result with no
 graphics driver, no PyOpenGL dependency, and -- unlike a screen grab of a
 3-D canvas -- a vector-exportable one.
 
-Two repairs to the MATLAB original
-----------------------------------
-``volume_3d_plot_w_notch.m`` writes its eight notch orientations out
-longhand, about five hundred lines of near-identical code, and computes the
-face sizes as ``round((xe - xb) / xstep)``, which is zero or negative when
-the notch vertex reaches an edge -- an empty ``linspace`` and an error from
-inside ``slice``. Here the orientation is three sign flips over one
-construction (:func:`notched_box`), and a face that has been squeezed to
-nothing is simply not produced.
+The notch
+---------
+The eight notch orientations are three sign flips over one construction
+(:func:`notched_box`), and a face the notch has squeezed to nothing (its
+vertex at an edge) is simply not produced.
 """
 from __future__ import annotations
 
@@ -164,7 +160,7 @@ def _split(interval, cut):
 
 def slice_faces(values, axes, positions, *, density: int = 400,
                 limits=None) -> list:
-    """The three orthogonal cut planes of ``slice_3d_plot.m``.
+    """The three orthogonal cut planes.
 
     ``positions`` is ``(x, y, z)``; any entry that is None is skipped, so
     one, two or three planes can be shown. ``limits`` optionally crops the
@@ -270,9 +266,8 @@ def notched_box(values, axes, notch, *, corner=(1, 1, 1), density: int = 400,
 
     ``notch`` is the ``(x, y, z)`` position of the inner vertex; ``corner``
     is three signs saying which corner is removed (``+1`` means the high
-    end of that axis). That replaces the MATLAB version's eight hand-written
-    cases and its letter-labelled diagram: the corner is now just the corner
-    the user clicked, and any of the eight follows from the signs.
+    end of that axis): the corner is just the corner the user clicked, and
+    any of the eight follows from the signs.
 
     Twelve faces come out -- three whole outer faces, three L-shaped outer
     faces cut into two rectangles each, and the three inner faces of the
@@ -677,11 +672,9 @@ def symmetrise_volume(values, x_axis, y_axis, z_axis, *, fold: int = 1,
                       sector=None, progress=None):
     """Symmetrise every constant-``z`` plane of a volume about the same axis.
 
-    The one real fix to ``data_symmetrization_pro.m``: it takes its missing
-    -data mask from the first z plane alone and applies it to all of them,
-    with a comment admitting the problem. For a photon-energy scan or a
+    The missing-data mask is taken per plane: for a photon-energy scan or a
     converted k-map the valid region is different in every plane -- that is
-    what the conversion does -- so the mask is taken per plane here.
+    what the conversion does.
 
     The origin is the caller's and is held for every plane: a per-plane
     origin would make the volume shear.

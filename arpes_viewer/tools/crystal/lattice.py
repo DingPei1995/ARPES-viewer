@@ -4,27 +4,15 @@ tools/crystal/lattice.py
 Real-space and reciprocal-space lattice vectors from unit-cell parameters
 and (optionally) a space-group number, for the Brillouin-zone tool.
 
-This has no counterpart in the lab's MATLAB tools. The closest thing,
-``brillouin_zone_plot.m``'s ``gen_realspace_basevector.m``, only reads
-``beta`` and ``gamma`` -- it has no ``alpha`` input at all (the line that
-would read it is commented out) -- and reuses ``cos(beta)`` where the
-general triclinic formula needs ``cos(alpha)``. That is invisible for the
-crystal systems with alpha = beta = 90 deg (cubic, tetragonal, orthorhombic,
-hexagonal), where both formulas happen to give zero, which is presumably why
-it went unnoticed; it gives the wrong basis for monoclinic, triclinic and
-trigonal/rhombohedral cells. Its bcc/fcc centering, likewise, is only the
-conventional-cubic-cell transform (a fixed matrix that assumes a = b = c,
-alpha = beta = gamma = 90 deg) applied unconditionally -- correct only for
-cubic I/F, silently wrong (not flagged) for a body- or face-centered cell of
-any other crystal system, and with no base-centered (A/B/C) option at all.
-
-Here the two are separated properly:
+Two steps, kept apart:
 
 * :func:`conventional_vectors` builds the general triclinic conventional
-  cell from the six parameters, correct for any crystal system.
+  cell from the six parameters (the general triclinic formula, with alpha
+  in it), correct for any crystal system.
 * :func:`primitive_vectors` applies the centering transform for whichever
   of the 14 Bravais lattices applies (from a space-group number, via
-  :mod:`tools.crystal.spacegroups`, or given directly), not just I/F-cubic.
+  :mod:`tools.crystal.spacegroups`, or given directly), base-centred A/B/C
+  included.
 
 Space-group number, not a full symmetry search
 -----------------------------------------------

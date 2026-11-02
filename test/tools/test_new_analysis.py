@@ -1,4 +1,4 @@
-"""The analysis cores added with the MATLAB port round: Igor export, summing
+"""Analysis cores: Igor export, summing
 repeated scans, ridge detection, the tight-binding fit, the detector
 corrections and the crystal structure. All Qt-free."""
 import os
@@ -215,6 +215,46 @@ def test_shells_count_the_neighbours():
     fcc = TB.shells(np.array([[0, .5, .5], [.5, 0, .5], [.5, .5, 0]]) * 4, 2)
     assert [len(v) for _, v in fcc] == [12, 6]
 
+
+
+def test_shells_are_symmetry_orbits_not_just_distances():
+    """In a tetragonal cell with c = a sqrt(2), (1 1 0) and (0 0 1) have the
+    same length but are not equivalent: one hopping each."""
+    tetragonal = np.diag([3.0, 3.0, 3.0 * np.sqrt(2.0)])
+    found = TB.shells(tetragonal, 4)
+    assert [len(v) for _, v in found] == [4, 4, 2, 8]
+    assert found[1][0] == pytest.approx(found[2][0])
+    assert [TB.shell_label(tetragonal, v) for _, v in found[1:3]] == [
+        "<1 1 0>", "<0 0 1>"]
+
+
+def test_a_space_group_splits_what_the_lattice_alone_does_not():
+    """A body-centred tetragonal cell with c = a sqrt(2) is metrically fcc:
+    its own symmetry puts 12 neighbours in the first shell, the space group
+    I4/mmm (139) splits them 8 + 4. P-3 (147) splits a hexagonal lattice's
+    12 <1 1 1>-type neighbours into two chiral orbits of 6."""
+    from arpes_viewer.tools.crystal.lattice import (
+        LatticeParams, point_group_operations, primitive_vectors)
+    bct = LatticeParams(3, 3, 3 * np.sqrt(2.0), 90, 90, 90, space_group=139)
+    vectors = primitive_vectors(bct)
+    assert len(TB.shells(vectors, 1)[0][1]) == 12
+    symmetry = TB.lattice_symmetry(vectors, point_group_operations(bct))
+    assert [len(v) for _, v in TB.shells(vectors, 2, symmetry=symmetry)] == [8, 4]
+    trigonal = LatticeParams(3, 3, 5, 90, 90, 120, space_group=147)
+    vectors = primitive_vectors(trigonal)
+    symmetry = TB.lattice_symmetry(vectors, point_group_operations(trigonal))
+    assert [len(v) for _, v in TB.shells(vectors, 5, symmetry=symmetry)] == [
+        6, 2, 6, 6, 6]
+    # integer matrices: the same whatever the azimuth
+    turned = TB.rotate(vectors, 23.0)
+    assert [len(v) for _, v in TB.shells(turned, 5, symmetry=symmetry)] == [
+        6, 2, 6, 6, 6]
+
+
+def test_a_symmetry_that_does_not_fit_the_lattice_is_refused():
+    quarter_turn = np.array([[[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]])
+    with pytest.raises(ValueError, match="does not map the lattice"):
+        TB.lattice_symmetry(np.diag([3.0, 4.0, 5.0]), quarter_turn)
 
 def _true_model(azimuth=0.0):
     vectors = TB.rotate(TB.lattice_2d(3.5, 3.5, 90), azimuth)

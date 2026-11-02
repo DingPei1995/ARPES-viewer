@@ -5,35 +5,38 @@ A one-band tight-binding model fitted to measured band points.
 
     E(k) = e0 + sum_n t_n S_n(k),      S_n(k) = sum_{R in shell n} cos(k . R)
 
-where shell ``n`` is the set of lattice vectors at the ``n``-th distance
-from the origin. One hopping per shell; in 2-D or 3-D, any lattice.
+**One band.** The model describes a single band on a Bravais lattice: one
+orbital per site, one band, no hybridisation with any other. Points traced
+on two bands, or across an anticrossing, cannot be described by it; fit
+each band on its own, and read the hoppings as that band's effective
+parameters rather than microscopic orbital-to-orbital ones.
 
-Ported from the lab's ``TB_zph_zmd`` tools (``TB_2D.m``, ``TB_3D.m`` and
-their GUIs), with these changes:
+**Shells are symmetry orbits.** Shell ``n`` is one orbit of lattice vectors
+under the crystal's point group (with inversion, since t(R) = t(-R)): all
+vectors that symmetry makes equivalent, and only those. Two inequivalent
+vectors that happen to have the same length (an in-plane and an
+out-of-plane neighbour, say) get a hopping each. Without a space group the
+lattice's own symmetry (its holohedry) is used, found from the metric.
+
+How it is fitted:
 
 * **A linear fit.** The model is linear in ``e0`` and every ``t_n``, so the
   least-squares answer is one linear solve, exact and immediate, with the
-  standard errors from its covariance. The .m files built the formula as a
-  string and handed it to MATLAB's nonlinear ``fit`` starting from every
-  parameter = 1 with bounds of +-1000 -- which can stop away from the
-  minimum, and gave no uncertainties.
+  standard errors from its covariance.
 * **The Fermi-surface-only case made explicit.** Points that all sit at
   one energy (a Fermi-surface contour) fix the *shape* of the band but not
   its energy scale: multiply every ``t_n`` and ``e0 - E`` by the same
-  number and the contour does not move. The .m file subtracted E_F and fit
-  anyway, so the answer was whatever the start point drifted to (and the
-  trivial ``t = 0`` fits a single energy perfectly). Here a single-energy
-  fit holds the first hopping at a value you choose (``t1``, by default -1
-  eV, i.e. answers "in units of t1") and fits the rest -- the honest
-  statement of what such data determine. Points at two or more energies
-  (a few constant-energy contours, or a dispersion) fit everything. Even
-  then a single contour fixes only about two shells: the cosines of more
-  distant shells can be traded for one another along one curve, which the
-  fit detects (the condition number of the scaled problem) and says.
+  number and the contour does not move (and the trivial ``t = 0`` fits a
+  single energy perfectly). A single-energy fit therefore holds the first
+  hopping at a value you choose (``t1``, by default -1 eV, i.e. answers "in
+  units of t1") and fits the rest -- the honest statement of what such
+  data determine. Points at two or more energies (a few constant-energy
+  contours, or a dispersion) fit everything. Even then a single contour
+  fixes only about two shells: the cosines of more distant shells can be
+  traded for one another along one curve, which the fit detects (the
+  condition number of the scaled problem) and says.
 * **Shells from a proper search.** All lattice vectors within the needed
-  radius, grouped by length, for any 2-D or 3-D lattice; the .m file walked
-  half a plane of a 2-D lattice by hand and had no 3-D equivalent of the
-  same care.
+  radius, split into symmetry orbits, for any 2-D or 3-D lattice.
 * **Robust to stray points.** Band points traced automatically include a
   few that lie on something else (a flat region near a saddle point, a
   second band). The fit reweights iteratively (Tukey's biweight on the
@@ -54,7 +57,8 @@ import numpy as np
 ILL_CONDITIONED = 300.0
 
 __all__ = ["ILL_CONDITIONED", "shells", "design_matrix", "TBFit", "fit", "evaluate",
-           "fit_azimuth", "rotate", "lattice_2d", "read_points"]
+           "fit_azimuth", "rotate", "lattice_2d", "read_points",
+           "lattice_symmetry", "integer_coordinates"]
 
 
 def lattice_2d(a: float, b: float, gamma_deg: float) -> np.ndarray:
@@ -73,18 +77,94 @@ def rotate(vectors: np.ndarray, azimuth_deg: float) -> np.ndarray:
     return out
 
 
-def shells(vectors: np.ndarray, count: int, tolerance: float = 1e-6):
-    """The first ``count`` neighbour shells of the lattice spanned by
-    ``vectors`` (rows, 2-D or 3-D).
-
-    Returns ``[(distance, R array (m, d)), ...]``, nearest first.
-    """
-    vectors = np.asarray(vectors, dtype=float)
+def _check_lattice(vectors: np.ndarray) -> int:
     dim = vectors.shape[0]
     if vectors.shape != (dim, dim) or dim not in (2, 3):
         raise ValueError("give 2 vectors in 2-D or 3 in 3-D")
     if abs(np.linalg.det(vectors)) < 1e-12:
         raise ValueError("the lattice vectors are not independent")
+    return dim
+
+
+def lattice_symmetry(vectors, operations=None, max_index: int = 3,
+                     tolerance: float = 1e-6) -> np.ndarray:
+    """The point-group operations as integer matrices ``M`` on the lattice
+    coordinates of ``vectors`` (rows): ``R = n @ vectors`` goes to
+    ``n @ M @ vectors``. Inversion is always included (t(R) = t(-R)).
+
+    ``operations``: Cartesian ``(N, d, d)`` rotations in the frame of
+    ``vectors`` -- the space group's point group, say
+    (:func:`tools.crystal.lattice.point_group_operations`). Each must map
+    the lattice onto itself. None: the lattice's own holohedry, every
+    integer ``M`` that keeps the metric ``G = vectors @ vectors.T``.
+
+    Integer matrices do not depend on how the lattice is turned, so the
+    same ones serve every azimuth :func:`fit_azimuth` tries.
+    """
+    vectors = np.asarray(vectors, dtype=float)
+    dim = _check_lattice(vectors)
+    inverse = np.linalg.inv(vectors)
+    found = []
+    if operations is not None:
+        for op in np.asarray(operations, dtype=float):
+            m = vectors @ op.T @ inverse
+            rounded = np.rint(m)
+            if not np.allclose(m, rounded, atol=1e-6):
+                raise ValueError("a symmetry operation does not map the "
+                                 "lattice onto itself (do the cell and the "
+                                 "space group agree?)")
+            found.append(rounded.astype(int))
+    else:
+        gram = vectors @ vectors.T
+        scale = float(np.max(np.abs(gram)))
+        idx = np.arange(-max_index, max_index + 1)
+        grid = np.stack(np.meshgrid(*[idx] * dim, indexing="ij"),
+                        -1).reshape(-1, dim)
+        norms = np.einsum("ij,jk,ik->i", grid, gram, grid)
+        rows = [grid[np.abs(norms - gram[i, i]) <= tolerance * scale]
+                for i in range(dim)]
+
+        def extend(chosen):
+            i = len(chosen)
+            if i == dim:
+                found.append(np.array(chosen, dtype=int))
+                return
+            for row in rows[i]:
+                if all(abs(float(row @ gram @ chosen[j]) - gram[i, j])
+                       <= tolerance * scale for j in range(i)):
+                    extend(chosen + [row])
+
+        extend([])
+        found = [m for m in found if abs(round(np.linalg.det(m))) == 1]
+    identity = np.eye(dim, dtype=int)
+    found += [-m for m in found] + [identity, -identity]
+    unique = {}
+    for m in found:
+        unique.setdefault(m.tobytes(), m)
+    return np.array(list(unique.values()))
+
+
+def integer_coordinates(vectors, points) -> np.ndarray:
+    """``points`` (rows, Cartesian) in units of the lattice ``vectors``."""
+    return np.rint(np.asarray(points, float) @ np.linalg.inv(
+        np.asarray(vectors, float))).astype(int)
+
+
+def shells(vectors: np.ndarray, count: int, tolerance: float = 1e-6,
+           symmetry=None):
+    """The first ``count`` neighbour shells of the lattice spanned by
+    ``vectors`` (rows, 2-D or 3-D): each one orbit of lattice vectors under
+    ``symmetry`` (integer matrices from :func:`lattice_symmetry`; None for
+    the lattice's holohedry).
+
+    Returns ``[(distance, R array (m, d)), ...]``, nearest first; orbits at
+    one distance are ordered by their first vector.
+    """
+    vectors = np.asarray(vectors, dtype=float)
+    dim = _check_lattice(vectors)
+    if symmetry is None:
+        symmetry = lattice_symmetry(vectors)
+    symmetry = np.asarray(symmetry, dtype=int)
     reach = 2
     while True:
         ranges = [np.arange(-reach, reach + 1)] * dim
@@ -92,8 +172,9 @@ def shells(vectors: np.ndarray, count: int, tolerance: float = 1e-6):
         grid = grid[np.any(grid != 0, axis=1)]
         points = grid @ vectors
         lengths = np.linalg.norm(points, axis=1)
-        order = np.argsort(lengths)
-        points, lengths = points[order], lengths[order]
+        order = np.lexsort((*[-grid[:, i] for i in range(dim - 1, -1, -1)],
+                            np.round(lengths / max(tolerance, 1e-12))))
+        grid, points, lengths = grid[order], points[order], lengths[order]
         found = []
         start = 0
         while start < len(lengths) and len(found) < count:
@@ -101,7 +182,20 @@ def shells(vectors: np.ndarray, count: int, tolerance: float = 1e-6):
             while stop < len(lengths) and lengths[stop] - lengths[start] <= \
                     tolerance * max(1.0, lengths[start]):
                 stop += 1
-            found.append((float(lengths[start]), points[start:stop]))
+            # split the vectors at this distance into symmetry orbits
+            left = [tuple(n) for n in grid[start:stop]]
+            members = set(left)
+            for n in left:
+                if n not in members:
+                    continue
+                orbit = {tuple(int(v) for v in np.asarray(n) @ m) for m in symmetry}
+                orbit &= members
+                members -= orbit
+                ordered = [tuple(g) for g in grid[start:stop] if tuple(g) in orbit]
+                found.append((float(lengths[start]),
+                              np.array(ordered, dtype=float) @ vectors))
+                if len(found) == count:
+                    break
             start = stop
         # The search box must hold every vector up to the last shell found:
         # its inscribed radius is reach times the shortest height.
@@ -158,26 +252,36 @@ class TBFit:
         rows = [("e0", self.e0, self.e0_err, "eV")]
         for i, ((distance, vectors), value, error) in enumerate(
                 zip(self.shells, self.t, self.t_err), start=1):
-            rows.append((f"t{i}  (|R| = {distance:.4g} Å, {len(vectors)} neighbours)",
+            rows.append((f"t{i}  (|R| = {distance:.4g} Å, {len(vectors)} "
+                         f"neighbours, {shell_label(self.vectors, vectors)})",
                          value, error, "eV"))
         return rows
 
 
+def shell_label(vectors, shell_vectors) -> str:
+    """One shell's vectors named by a representative, in lattice
+    coordinates: ``<1 0 0>``."""
+    first = integer_coordinates(vectors, np.atleast_2d(shell_vectors)[:1])[0]
+    return "<" + " ".join(str(int(v)) for v in first) + ">"
+
+
 def fit(k_points, energies, vectors, n_shells: int, *, weights=None,
-        t1=None, energy_tolerance: float = 1e-6, robust: bool = True) -> TBFit:
+        t1=None, energy_tolerance: float = 1e-6, robust: bool = True,
+        symmetry=None) -> TBFit:
     """Least-squares tight-binding fit.
 
     ``k_points``: (N, d) in Å⁻¹; ``energies``: (N,) in eV; ``vectors``: the
     real-space primitive vectors (rows, Å). ``t1`` holds the first hopping
     fixed: needed when every point has the same energy (see the module
     note); if None it is held at -1 eV in that case and left free
-    otherwise.
+    otherwise. ``symmetry``: integer matrices from :func:`lattice_symmetry`
+    that split the shells (None: the lattice's holohedry).
     """
     k_points = np.atleast_2d(np.asarray(k_points, dtype=float))
     energies = np.asarray(energies, dtype=float).ravel()
     if len(k_points) != len(energies):
         raise ValueError("as many energies as k points are needed")
-    shell_list = shells(vectors, n_shells)
+    shell_list = shells(vectors, n_shells, symmetry=symmetry)
     matrix = design_matrix(k_points, shell_list)
     single = float(np.ptp(energies)) <= energy_tolerance if energies.size else True
     hold = t1 if t1 is not None else (-1.0 if single else None)

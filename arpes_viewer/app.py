@@ -735,7 +735,7 @@ def run_list_action(name):
 def plot_selected_as_figure():
     """Every selected dataset as one panel of a figure.
 
-    The MATLAB tool's ``massplot_2D``, minus its guesswork: each panel keeps
+    Each panel keeps
     its own axes and labels, and anything that is not a plain 2-D dataset is
     reported rather than silently squeezed into one.
     """

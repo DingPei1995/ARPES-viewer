@@ -23,9 +23,7 @@ the same figure at 600 dpi is 2102 px.
 What the tools act on
 ---------------------
 :class:`FigureToolsDialog` edits the *selected panel* of the figure, or every
-panel at once when "Apply to all panels" is ticked -- which is the honest
-form of the MATLAB original's Apply2All, where each button had to
-re-implement the loop. Its tabs follow what a figure is made of rather than
+panel at once when "Apply to all panels" is ticked. Its tabs follow what a figure is made of rather than
 what Qt calls things: Panels, Axes, Text, Colour, Overlays, Export.
 """
 from __future__ import annotations
@@ -1972,8 +1970,7 @@ class FigureToolsDialog(QDialog):
     Each control writes into the model and asks the canvas to redraw, so
     there is no "apply" step and nothing can be set in the dialog but
     missing from the file. "Apply to all panels" makes a control act on
-    every panel at once -- the MATLAB original had to re-implement that loop
-    inside each of its forty callbacks.
+    every panel at once, the same code for one panel and for all.
     """
 
     def __init__(self, window: "FigureWindow", embedded: bool = False):
@@ -2876,7 +2873,7 @@ class FigureToolsDialog(QDialog):
         box = QHBoxLayout(row)
         box.setContentsMargins(0, 0, 0, 0)
         copy_all = QPushButton("Copy to all panels")
-        copy_all.setToolTip("The MATLAB tool's \"copy lines to all axes\".")
+        copy_all.setToolTip("Copy this panel's lines and marks to every panel.")
         copy_all.clicked.connect(self._copy_overlays)
         clear = QPushButton("Clear")
         clear.clicked.connect(lambda: (self.apply(lambda p: p.overlays.clear()),
@@ -3183,9 +3180,8 @@ class SliceSeriesDialog(QDialog):
     """A page of slices through a cube, which is what a Fermi-surface figure
     or an energy-dependence figure is made of.
 
-    The MATLAB tool's ``massplott_3D``, with its three choices kept -- which
-    axis to slice, where, and how far to integrate -- and its guesswork
-    dropped: the positions can be typed, or taken as *n* evenly spaced
+    Three choices -- which axis to slice, where, and how far to integrate:
+    the positions can be typed, or taken as *n* evenly spaced
     values, and the titles are written from the axis's own label and unit
     rather than a hard-coded list of four units.
     """

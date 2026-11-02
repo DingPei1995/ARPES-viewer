@@ -3,13 +3,6 @@ tools/crystal/structure.py
 ==========================
 A crystal in real space: the cell, the atoms in it, and planes through it.
 
-The lab's ``Lattice_plot.m`` (zqs) drew the fourteen Bravais cells with
-balls on the lattice points and a Miller plane cut through them -- one
-picture per lattice type, written out by hand (``lattice_bcc.m``,
-``lattice_fcc.m``, ``cell_hex_plot.m``... one file each), with no atoms
-of the actual crystal and no way to read a structure from a file. This
-module is the general version:
-
 * **Any cell, any atoms.** The six cell parameters, and atoms at
   fractional positions -- typed in, put on the lattice points of the
   Brillouin-zone tool's last crystal (its centering included), or read

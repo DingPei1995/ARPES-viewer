@@ -1,10 +1,9 @@
 """
 tools/processing/dataops.py
 ===========================
-The three bulk operations from the lab's MATLAB data tools, as plain numpy
-functions with no Qt: **truncate** (``td_demo.m``), **self-normalisation**
-(``self_normalization_demo.m``) and **compress** (``data_comb_resamp_demo.m``,
-its "combine" half -- resampling is deliberately left out, see below).
+Three bulk operations, as plain numpy functions with no Qt: **truncate**,
+**self-normalisation** and **compress** (binning -- resampling is
+deliberately left out, see below).
 
 All three take an array plus its axes and return the same, so they work the
 same way on a 2D cut, a 3D map and a 4D spatial scan: the axis *meanings*
@@ -44,8 +43,8 @@ CONSTRUCTOR_AXES = {kind: slots["constructor"]
 # Shared
 # --------------------------------------------------------------------------
 def axis_index(axis, value, default: int) -> int:
-    """Index of ``value`` on ``axis``, the way the MATLAB tools resolve a
-    "real scale" bound: round to the nearest step from the axis start.
+    """Index of ``value`` on ``axis`` for a "real scale" bound: round to the
+    nearest step from the axis start.
 
     ``None`` means "leave it at the end you were heading for", which is how
     the blank/"Min"/"Max" boxes behave there.
@@ -64,8 +63,7 @@ def axis_index(axis, value, default: int) -> int:
 def resolve_bounds(axis, lo, hi, by_index: bool):
     """Turn one axis's (lo, hi) request into a half-open index slice.
 
-    ``by_index`` picks whether the numbers are 1-based indices (as the
-    MATLAB boxes are) or values in the axis's own units. Either bound may be
+    ``by_index`` picks whether the numbers are 1-based indices or values in the axis's own units. Either bound may be
     None for "as far as the data goes". Out-of-range bounds are clamped
     rather than refused -- asking for more than exists means all of it.
     """
@@ -88,7 +86,7 @@ def resolve_bounds(axis, lo, hi, by_index: bool):
 # Truncate
 # --------------------------------------------------------------------------
 def truncate(values, axes, bounds, by_index: bool = False):
-    """Cut a rectangular piece out of the data (``td_demo.m``).
+    """Cut a rectangular piece out of the data.
 
     ``axes`` is one array per dimension of ``values``; ``bounds`` is one
     ``(lo, hi)`` pair per axis, either of which may be None. Returns
@@ -150,8 +148,8 @@ def self_normalize(values, axes, dims, *, window=None, by_index: bool = False,
     """Divide the data by its own intensity, line by line or plane by plane.
 
     ``dims`` names the directions the normalisation runs *along*: one axis
-    (the MATLAB "x"/"y"/"z" buttons) divides every line along it by that
-    line's own total; two axes (its "xy"/"yz"/"xz" buttons) divide every
+    ("x"/"y"/"z") divides every line along it by that line's own total; two
+    axes ("xy"/"yz"/"xz") divide every
     plane by the plane's total. This is what takes a beam-current drift, or
     a detector whose sensitivity falls off along the slit, out of a scan.
 
@@ -206,11 +204,10 @@ def compress(values, axes, factors):
     """Bin the data by summing blocks of neighbouring points.
 
     One factor per axis; 1 leaves that axis alone. Values are **summed**
-    over each block and the axis takes the block's **mean**, exactly as
-    ``data_comb_resamp_demo.m``'s combine does, so total counts are
-    preserved and each new point sits at the centre of what it came from.
-    A remainder that does not fill a whole block is dropped (the MATLAB code
-    floors the same way): a final point made of half a block would be half
+    over each block and the axis takes the block's **mean**, so total
+    counts are preserved and each new point sits at the centre of what it
+    came from. A remainder that does not fill a whole block is dropped: a
+    final point made of half a block would be half
     as bright as its neighbours for no physical reason.
     """
     values = np.asarray(values, dtype=float)

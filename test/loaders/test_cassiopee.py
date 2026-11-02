@@ -147,7 +147,7 @@ def test_a_spectrum_comes_back_as_angle_by_energy(spectrum):
 def test_the_leading_column_of_each_data_row_is_dropped(spectrum):
     """Each data row starts with its own energy, repeating Dimension 1.
     Keeping it would put the energy scale into the counts as a bright edge
-    channel -- the MATLAB loader drops it, and so must this."""
+    channel, so it is dropped."""
     path, energy, _angle, values = spectrum
     region = cassiopee.parse_scienta(path)[0]
     assert region.values.shape[1] == energy.size
@@ -214,7 +214,7 @@ def test_rounding_jitter_is_straightened_without_complaint(tmp_path):
 
 def test_a_genuinely_non_linear_scale_is_reported(tmp_path):
     """Replacing a curved scale by a straight line moves the data onto the
-    wrong energies. The MATLAB version does it silently; this says so."""
+    wrong energies, so it is said, not done silently."""
     angle = np.linspace(-15.0, 15.0, 4)
     energy = np.array([115.6, 115.7, 116.4, 116.5])      # not evenly stepped
     path = write_spectrum(str(tmp_path / "bent.txt"), energy, angle,
@@ -250,8 +250,8 @@ def test_the_median_filter_is_the_two_point_mean_along_both_axes():
 
 
 def test_the_first_row_is_not_halved():
-    """MATLAB's medfilt1 zero-pads, so its first row and column come out at
-    half value -- a dark line down two sides of every spectrum."""
+    """A zero-padded filter would halve the first row and column -- a dark
+    line down two sides of every spectrum."""
     values = np.full((3, 3), 10.0)
     out = cassiopee._median_filter_2(values)
     assert np.allclose(out, 10.0)
@@ -282,8 +282,8 @@ def test_a_spectrum_with_no_parameter_file_is_not_an_error(tmp_path):
 @pytest.mark.parametrize("spacing", [" : ", ":", " :", ": ", "  :  "])
 def test_the_parameter_file_is_split_on_the_colon_not_at_a_column(tmp_path,
                                                                  spacing):
-    """The MATLAB version reads from a fixed character offset. A field that
-    moved by one character would come back as a silent NaN."""
+    """Read at a fixed character offset, a field that moved by one character
+    would come back as a silent NaN."""
     path = write_parameters(str(tmp_path / "p.txt"), theta=12.5,
                             photon_energy=80.0, spacing=spacing)
     values = cassiopee.read_parameter_file(path)
@@ -328,9 +328,8 @@ def test_extrapolating_the_work_function_warns():
 # Finding a series by name
 # --------------------------------------------------------------------------
 def test_a_series_is_found_even_when_the_base_has_underscores(tmp_path):
-    """``Map80eV_Phi18_3_ROI1_`` -- the MATLAB version splits on ``_`` and
-    takes the first piece, which gives ``Map80eV``. It has a commented-out
-    hand-set base in it that says as much."""
+    """``Map80eV_Phi18_3_ROI1_`` -- splitting on ``_`` and taking the first
+    piece would give ``Map80eV``."""
     paths = make_series(str(tmp_path), base="Map80eV_Phi18", count=4)
     members = cassiopee.series_members(paths[2])
     assert [index for index, _ in members] == [1, 2, 3, 4]

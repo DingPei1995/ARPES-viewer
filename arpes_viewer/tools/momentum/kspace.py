@@ -1,13 +1,12 @@
 """
 tools/momentum/kspace.py
 ========================
-Angle-to-momentum conversion for ARPES Maps, ported from the beamline's
-``k_space_conversion_demo.m`` (its 3-D branch -- the one that handles a
-deflector Map; k_z is not covered here, and the single-Cut case
-lives in ``tools.momentum.cutk``, which builds on the conventions below).
+Angle-to-momentum conversion for ARPES Maps (a deflector Map; k_z is not
+covered here, and the single-Cut case lives in ``tools.momentum.cutk``,
+which builds on the conventions below).
 
-Physics, straight from the .m file
----------------------------------
+Physics
+-------
 A photoelectron leaving the sample along the angles (theta, phi) has an
 in-plane momentum whose *direction* is the unit vector::
 
@@ -25,23 +24,16 @@ direction field scaled per energy slice -- which is what makes the inversion
 in :func:`convert_map` cheap.
 
 Sample orientation enters as a rotation ``R = Rz @ Rx @ Ry`` built from the
-theta offset, the phi offset and the sample azimuth, transcribed from the
-.m file including its sign conventions (theta and the azimuth are negated
-"just for user's habit"; phi is not).
+theta offset, the phi offset and the sample azimuth (theta and the azimuth
+are negated; phi is not).
 
-Units: this module works in **inverse angstroms**. The .m file divided by
-``k_unit = pi / lattice_constant`` to express momenta in units of pi/a, so
-its lattice-constant box has no counterpart here -- ``K0_PER_SQRT_EV`` below
-is the same constant with ``k_unit = 1e10 m^-1`` instead, i.e. the familiar
-0.5123 * sqrt(E[eV]) A^-1.
+Units: this module works in **inverse angstroms**; ``K0_PER_SQRT_EV`` is the
+familiar 0.5123 * sqrt(E[eV]) A^-1.
 
-How the resampling differs from the .m file, and why
----------------------------------------------------
-The .m file goes forwards: it maps the measured angle grid into k, builds a
-Delaunay triangulation of those scattered points, interpolates onto a
-padded unit grid (``ceil(N*1.1)``), then ``interp2``-s once per energy.
-
-Here the mapping is inverted instead. For a target ``(kx, ky)`` at energy
+The resampling: inverted, not scattered
+---------------------------------------
+Rather than mapping the measured angle grid into k and interpolating the
+scattered points, the mapping is inverted. For a target ``(kx, ky)`` at energy
 ``E`` the emission angles that produced it are recovered in closed form::
 
     u = (kx, ky, sqrt(1 - kx^2 - ky^2)) / |k(E)|     # unit direction
@@ -53,8 +45,8 @@ so each output point is read straight from the measured, *regular* angle
 grid by ordinary bilinear interpolation. No triangulation, no padding
 factor, and the result is the exact inverse of the forward map rather than a
 piecewise-linear approximation of it. :func:`convert_map_forward_reference`
-implements the .m file's forward-and-scatter route so the tests can check
-the two against each other.
+implements the forward-and-scatter route so the tests can check the two
+against each other.
 
 An output grid coarser than the measurement is averaged rather than
 sampled: each angle plane is box-averaged over one output pixel's
@@ -72,7 +64,8 @@ import numpy as np
 from arpes_viewer.tools.momentum import rebin
 
 # sqrt(2 m_e e) * 2 pi / h, divided by 1e10 m^-1 per A^-1.
-# The .m file's constants: ce=1.6021892e-19, me=9.109534e-31, h=6.626176e-34.
+# Constants: ce=1.6021892e-19, me=9.109534e-31, h=6.626176e-34 (kept, so k
+# axes agree with conversions already in use to 1e-5).
 _CE = 1.6021892e-19
 _ME = 9.109534e-31
 _H = 6.626176e-34
@@ -81,17 +74,14 @@ K0_PER_SQRT_EV = np.sqrt(2.0 * _ME * _CE) * 2.0 * np.pi / _H / 1e10  # ~0.5123
 
 def rotation_matrix(theta_offset_deg: float, phi_offset_deg: float,
                     azimuth_deg: float = 0.0) -> np.ndarray:
-    """``R = Rz @ Rx @ Ry`` exactly as the .m file builds it, including its
-    sign conventions: theta and the azimuth are negated ("negative sign is
-    just for user's habit"), phi is not.
+    """``R = Rz @ Rx @ Ry``: theta and the azimuth are negated, phi is not.
 
-    These are the numbers as typed into the MATLAB dialog's boxes. They are
-    **not** the angles of the point that lands at the k-space origin -- see
-    :func:`origin_rotation`, which is what this program's GUI uses.
+    These are rotation offsets, **not** the angles of the point that lands
+    at the k-space origin -- see :func:`origin_rotation`, which is what the
+    GUI uses.
 
-    Note MATLAB's ``[a', b', c']`` builds a matrix from *columns*, so e.g.
-    its ``rx`` has ``-sin`` at (3,2) and ``+sin`` at (2,3) -- the transpose
-    of the textbook form. That is reproduced here.
+    ``rx`` has ``-sin`` at (3,2) and ``+sin`` at (2,3), the transpose of the
+    textbook form.
     """
     theta = -np.deg2rad(theta_offset_deg)
     phi = np.deg2rad(phi_offset_deg)
@@ -118,12 +108,10 @@ def origin_rotation(theta_origin_deg: float, phi_origin_deg: float,
     become k = (0, 0) on the constant-energy contour, and its own angles are
     what the boxes show.
 
-    It differs from :func:`rotation_matrix` by a sign on both angles. The .m
-    file's text boxes take the opposite convention, so its ``theta offset``
-    and ``phi offset`` are the negatives of the numbers used here -- worth
-    knowing when comparing against a MATLAB conversion of the same scan.
-    Verified in the tests: the picked angles come back as k = (0, 0) to
-    machine precision, which is not true of the raw .m convention.
+    It differs from :func:`rotation_matrix` by a sign on both angles (an
+    older conversion that takes rotation offsets needs the negatives of
+    these numbers). Verified in the tests: the picked angles come back as
+    k = (0, 0) to machine precision.
     """
     return rotation_matrix(-theta_origin_deg, -phi_origin_deg, azimuth_deg)
 
@@ -155,10 +143,8 @@ def angle_grid_to_directions(theta_deg, phi_deg, R: np.ndarray):
 def _scaled_range(values: np.ndarray, k0_min: float, k0_max: float):
     """Range of ``values * k0`` over the whole energy span.
 
-    The .m file takes its lower bound only from the lowest-energy plane and
-    its upper bound only from the highest, which is wrong whenever the
-    direction field spans zero: the most negative kx comes from the *highest*
-    energy. Both endpoints are scanned here instead.
+    Both bounds are taken over both energy ends: whenever the direction
+    field spans zero, the most negative kx comes from the *highest* energy.
     """
     lo_candidates = (values.min() * k0_min, values.min() * k0_max)
     hi_candidates = (values.max() * k0_min, values.max() * k0_max)
@@ -364,13 +350,12 @@ def convert_map(theta_deg, phi_deg, energy_eV, cube, *,
     """Convert an angle-space Map cube to a regular (kx, ky, E) grid.
 
     ``cube`` is ``(theta, phi, E)`` -- for a deflector Map that is
-    (deflector angle, angle along slit, energy), matching both the .m file's
-    ``data.value`` layout and this program's own.
+    (deflector angle, angle along slit, energy).
 
     ``theta_offset_deg`` / ``phi_offset_deg`` place the k-space origin: give
     them the angles of the point that should become (0, 0), which is what
-    picking a point on the constant-energy contour does. (The .m file's text
-    boxes use the opposite sign for these two -- see :func:`origin_rotation`.)
+    picking a point on the constant-energy contour does (see
+    :func:`origin_rotation`).
 
     ``n_kx`` / ``n_ky`` / ``n_energy`` set the output grid size, so the
     result can be coarser or finer than the measurement. ``n_energy=None``
@@ -515,7 +500,7 @@ def convert_map_forward_reference(theta_deg, phi_deg, energy_eV, cube, *,
                                   azimuth_deg: float = 0.0,
                                   energy_offset_eV: float = 0.0,
                                   n_kx: int = 100, n_ky: int = 100):
-    """The .m file's own route -- forward-map the angle grid, then scatter
+    """The forward route -- forward-map the angle grid, then scatter
     interpolate -- kept as a cross-check for :func:`convert_map`.
 
     Slower and blurrier (it is piecewise-linear over a triangulation of the

@@ -9,14 +9,10 @@ module has its own, unrelated 3-D routine), and by :mod:`tools.crystal.moire`, w
 builds a moire *reciprocal* lattice and hands it here for its own
 Wigner-Seitz cell.
 
-Relation to the lab's MATLAB tools
------------------------------------
-This generalizes ``plotBZ_demo_old`` (in ``MiniBZ_plotter.m``): same idea
--- take a small tiling of reciprocal-lattice points around the origin and
-compute the origin point's Voronoi cell -- but that version hardcodes
-``gamma = 120`` (hexagonal only). Here ``g1``/``g2`` are arbitrary, so a
-square, rectangular, centred-rectangular or oblique plane lattice works
-exactly the same way as a hexagonal one.
+The cell is the origin's Voronoi cell in a small tiling of
+reciprocal-lattice points. ``g1``/``g2`` are arbitrary, so a square,
+rectangular, centred-rectangular, oblique or hexagonal plane lattice all
+work the same way.
 """
 from __future__ import annotations
 

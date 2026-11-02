@@ -6,12 +6,11 @@ out in millimetres, with no Qt in sight. The painting of it lives in
 ``ui.panels.figure``; everything here can be exercised headlessly.
 
 Why a model at all, rather than a pile of buttons that poke at the plot
-being displayed -- which is what the lab's ``plot_tools2_demo.m`` does with
-``set(gca, ...)``. Three reasons:
+being displayed? Three reasons:
 
 * A figure in a paper is several panels that must agree with one another --
   same colour scale, same limits, labels only on the outside edges. That is
-  a property of the *figure*, not of whichever axes MATLAB last touched.
+  a property of the *figure*, not of whichever axes was last touched.
 * What you see has to be what you get. One model, one layout calculation,
   one painter: the preview on screen, the PNG, the PDF and the vector axes
   all come from the same arithmetic, so a figure cannot look right in the

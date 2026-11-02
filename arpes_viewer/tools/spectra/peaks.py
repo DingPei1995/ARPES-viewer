@@ -7,13 +7,12 @@ interpolated into a starting guess for every line, a variable-projection
 solver, and -- for EDCs -- the Fermi cut-off in the model rather than
 divided out of the data first.
 
-What this takes from the lab's MATLAB tools, and what it does differently
---------------------------------------------------------------------------
-**Seeding, from Han Peng's** ``fit_MDC_demo``. Mark a band at four or five
+Design
+------
+**Seeding** (the idea of Han Peng's ``fit_MDC_demo``). Mark a band at four or five
 energies and the rest is interpolated. Automatic peak finding fails exactly
 where it matters -- band crossings, weak features, two peaks merging -- and
-a person can point at the band in seconds. This is the single most useful
-idea in those files. The interpolation here is **PCHIP, not a spline**: a
+a person can point at the band in seconds. The interpolation here is **PCHIP, not a spline**: a
 cubic spline overshoots between widely spaced seeds and can put a starting
 centre outside the data, and a monotone interpolant cannot.
 
@@ -22,21 +21,15 @@ the whole series, with a range taken from its seeds, so a band that only
 exists below E_F is fitted only there. A fixed peak count over a whole cut
 is wrong for real data.
 
-**Variable projection, from O'Haver's** ``peakfit``. Only centres and widths
+**Variable projection** (as in O'Haver's ``peakfit``). Only centres and widths
 go to the optimiser; the heights and the background are solved exactly by
 linear least squares at every step. That halves the nonlinear dimension and
 takes the strongly correlated height parameters out of the search.
 
-**Bounds that actually apply.** Both MATLAB fitters compute bounds and then
-call ``fminsearch``, which cannot accept them -- in ``fit_MDC_demo`` the
-arrays ``x_lb`` and ``x_ub`` are built and then simply dropped. Here they go
-to ``least_squares``, which enforces them.
+**Bounds that apply**, enforced by ``least_squares``.
 
 **Errors on everything**, from the full Jacobian at the solution, with
-Poisson weights. Neither MATLAB tool reports an uncertainty on anything.
-``peakfit`` has a "bootstrap", but it randomly swaps *adjacent* points
-rather than resampling, which on smooth oversampled data barely perturbs
-the fit and so reports a standard deviation far smaller than the truth.
+Poisson weights.
 
 **The Fermi cut-off belongs in the model.** An EDC near E_F is
 ``[A(E) f(E,T)] * R``, not ``A(E)`` -- the occupation multiplies the
@@ -88,12 +81,10 @@ def peak_profile(shape: str, x, centre: float, width: float,
         half = width / 2.0
         return half ** 2 / ((x - centre) ** 2 + half ** 2)
 
-    # Voigt: the true profile from the Faddeeva function, not the
-    # pseudo-Voigt of peakfit.m -- and parameterised the way an ARPES
-    # measurement actually constrains it. The Gaussian width is the
+    # Voigt: the true profile from the Faddeeva function, parameterised the
+    # way an ARPES measurement constrains it. The Gaussian width is the
     # instrument resolution, known in meV; the Lorentzian width is the
-    # unknown being fitted. peakfit.m takes their *ratio* as a fixed input,
-    # which is the one thing nobody knows in advance.
+    # unknown being fitted.
     sigma = max(resolution, 1e-12) / SIGMA_TO_FWHM
     gamma = width / 2.0
     scale = sigma * np.sqrt(2.0)

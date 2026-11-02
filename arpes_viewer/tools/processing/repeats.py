@@ -7,9 +7,7 @@ A fine cut or a fine map is routinely acquired as many short scans rather
 than one long one, so that a sample that ages under the beam (adsorbates,
 a drifting surface potential, radiation damage) shows up as a scan that no
 longer looks like the others -- and can be left out -- instead of being
-smeared into the whole. The MATLAB tool for this (``add_two_value_arrays.m``)
-added exactly two arrays, element by element, with no check that they were
-the same measurement and no way to see which batch had changed.
+smeared into the whole.
 
 Here, for any number of repeats of one kind (cuts, maps, kz maps, k-maps):
 

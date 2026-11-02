@@ -4,10 +4,7 @@ tools/output/igor.py
 Datasets written for Igor Pro: an Igor text file (``.itx``) holding any
 number of waves, or one Igor binary wave (``.ibw``, version 5) per dataset.
 
-The MATLAB tools did this with ``Export2ScientaData.m`` /
-``ExportAsScientaData.m``, which wrote a Scienta-style text block that Igor
-then had to be taught to read (and which only took a 2-D cut). Writing Igor's
-own formats instead means a double-click in Igor opens the data with its
+Writing Igor's own formats means a double-click in Igor opens the data with its
 axes already scaled, its units set, its dimension labels named and the
 dataset's metadata in the wave note -- for a curve, a cut, a 3-D map or a
 4-D spatial scan alike.

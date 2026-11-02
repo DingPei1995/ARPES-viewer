@@ -1,6 +1,6 @@
 """Tests for tools/crystal/moire.py: the general reciprocal-vector-difference moire
-construction, cross-checked against ``moire_lattice.m``'s closed-form
-hexagonal-bilayer formula (:func:`hex_moire_lattice_fast`).
+construction, cross-checked against the closed-form hexagonal-bilayer
+formula (:func:`hex_moire_lattice_fast`).
 """
 import numpy as np
 import pytest

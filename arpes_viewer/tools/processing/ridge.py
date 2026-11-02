@@ -13,31 +13,24 @@ derivative or the curvature it does not draw a band as a pair of lobes and
 it leaves no false lines between two close bands; and every ridge point is
 located to a fraction of a pixel, so the result can be fitted.
 
-Ported from the lab's ``ridge_detection.m`` (and ``ridge_detection_3.m``),
-with what made that one depend on things it should not:
+Nothing in it depends on the units or the intensity scale:
 
-* **Smoothing in each axis' own units.** The .m file used one radius,
-  ``radius / sqrt(dx * dy)`` pixels for both axes -- a number that changes
-  with the units the axes happen to be in (degrees or Å⁻¹, eV or meV) and
-  smooths an axis with a coarse step as much as one with a fine one. Here
-  the smoothing width is given per axis in that axis' unit.
-* **A Hessian that does not depend on the units either.** The .m file took
-  finite differences in physical units, so which direction counted as
-  "across the band" turned on the ratio of eV to degrees. Here the
+* **Smoothing in each axis' own units.** The smoothing width is given per
+  axis in that axis' unit (degrees or Å⁻¹, eV or meV), so an axis with a
+  coarse step is not smoothed as much as one with a fine one.
+* **A Hessian that does not depend on the units either.** The
   derivatives are taken in units of the smoothing width along each axis
   (scale-normalised coordinates), which is the natural metric of the
   smoothed image and the same whatever the axes are measured in.
 * **Exact derivatives of the smoothed image.** Gaussian-derivative filters
   instead of differences of a smoothed image: the same smoothing, one pass
   per derivative, no extra noise from the differencing.
-* **A ridge test that does not depend on the intensity scale.** The .m file
-  accepted a pixel when the slope was below an absolute tolerance, a value
-  that had to be retuned for every image. Here a ridge is where the slope
+* **A ridge test that does not depend on the intensity scale.** A ridge
+  is where the slope
   across the band changes sign: the sub-pixel offset ``-L_p / L_pp`` of the
   maximum along that direction must fall inside the pixel. The sharpness
   threshold is a fraction of the strongest ridge.
-* **Vectorised.** The .m file looped over pixels with ``arrayfun``; this is
-  a few whole-array operations (a 1000 x 1000 cut takes a fraction of a
+* **Vectorised.** A few whole-array operations (a 1000 x 1000 cut takes a fraction of a
   second, a map is done plane by plane).
 
 Qt-free, so it can be tested on its own.

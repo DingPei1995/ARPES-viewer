@@ -1511,6 +1511,22 @@ la fenêtre de la structure cristalline.
 
 ## 26. Ajustement de liaisons fortes
 
+> **Ceci ajuste une seule bande.** Le modèle est une bande unique sur un
+> réseau de Bravais (une orbitale par site) : E(k) = e0 + Σ t_n Σ cos(k·R).
+> Il ne peut décrire ni deux bandes, ni leur croisement, ni un gap
+> d'hybridation. Avec plusieurs bandes, ajustez-les une à une et lisez les
+> sauts comme les paramètres effectifs de cette bande, non comme des sauts
+> microscopiques entre orbitales.
+
+**Les couches sont des orbites de symétrie.** Chaque saut t_n correspond à
+un ensemble de voisins que la symétrie rend équivalents : le groupe ponctuel
+du groupe d'espace (avec l'inversion) pour un cristal 3D, la symétrie propre
+du réseau pour une couche 2D. Deux voisins non équivalents à la même
+distance — l'un dans le plan, l'autre hors du plan — ont chacun leur saut.
+L'étape 1 liste chaque couche avec son nombre de voisins, sa distance et un
+vecteur représentatif en coordonnées du réseau (⟨1 0 0⟩) ; **Save
+parameters...** écrit tous les vecteurs de chaque couche.
+
 Avec une k-map sélectionnée (ou rien, pour lire des points dans un fichier) :
 
 1. **Le réseau** -- une couche 2D (a, b, γ) ou un cristal 3D (**d'abord le
@@ -1518,7 +1534,9 @@ Avec une k-map sélectionnée (ou rien, pour lire des points dans un fichier) :
    les autres sont grisés et suivent), ou **Take the crystal from the
    Brillouin-zone tool** ; l'azimut de a par rapport à kx ;
    le nombre de couches de voisins.
-2. **Points de bande** -- placez-vous à une énergie et cliquez sur **Trace
+2. **Points de bande** -- sur **une seule bande** (quelques points
+   égarés sont écartés comme aberrants ; trop gâchent l'ajustement).
+   Placez-vous à une énergie et cliquez sur **Trace
    this energy** (détection de crêtes), ou cochez *Click* et cliquez sur la
    bande, ou **Read points from a file**. Deux ou trois énergies valent mieux
    qu'une : un seul contour fixe la forme de la bande, pas son échelle
