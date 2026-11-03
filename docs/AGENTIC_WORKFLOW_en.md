@@ -112,7 +112,38 @@ Ask Claude to confirm that (1) `heartbeat.txt` is recent and (2) a screenshot of
 6. Screenshot every key step for the report.
 7. Reports in English; hide sample name and lattice constants (use a, b, c); polarisation
    labels (LH, LV, CR, CL) may stay.
+8. Never read the screen (no screenshots of the desktop, no computer-use) for processing
+   or figure work. Everything the viewer does is available through its own API: the
+   command files, the dialogs' widgets, the slice series figure and the figure composer
+   (panel.colormap / flip / levels / gamma / smooth / title / texts / overlays). Look at
+   an image only through the viewer's own widget.grab() when a visual judgement of a
+   finished figure is needed. The only exception: a command file has stalled and nothing
+   else can tell why.
+9. Figure labels use round nominal values (0, -0.1, -0.2 eV ...); the data behind each
+   label is taken from the nearest recorded position (integration window around it). If
+   the actual position differs from the label, record both in the usage/notes file.
+10. Modal dialogs (e.g. Slice series figure) block the command poller: open them with
+   QtCore.QTimer.singleShot(...) that fills and clicks them, never from a plain call.
+11. Figures with a schematic panel: build the schematic with the program's own tool (3D BZ
+   window, A.open_brillouin_zone_3d()), without data on it, axes off (its k_x,k_y,k_z are
+   crystal-frame axes, not the data's kx,ky), high-symmetry points at the left equivalents,
+   font enlarged (view.font_px) so the text in the finished panel is as large as the other
+   panels' text (about 8 pt). Do not use one symbol for two different frames.
+12. Text drawn inside a picture must be sized from the final panel: pixels per mm of the
+   panel x font size in mm. Do not guess; do not iterate by eye.
+13. Draw each Brillouin-zone edge once (neighbouring zones share edges; drawing both made
+   some dashed lines look solid).
+14. Before producing a family of figures, make ONE, state the layout (panel sizes, axis
+   labels on every panel, text size, colour scale) and let me check it; then do the rest.
+15. Every figure gets a new, unique file name; never overwrite. Save .afig with
+   with_data=False (otherwise raw data are copied next to the figure).
+16. Colour scale for blue (inverted) maps: percentile levels 2-99.5 and gamma that puts the
+   median at about 0.18 of the scale; adjust only on my feedback.
+17. After arranging a figure, print the panel frames and the figure height and check them in
+   numbers (the figure height is not updated when panels are moved by hand).
+18. Record every weekly-usage percentage I give you in the usage log with the time and step.
 ```
+
 
 ## 6. Recipes (viewer v1.2.3 internal API)
 
@@ -178,6 +209,14 @@ dlg.grab().save(HERE + r"\shots\stepNN_name.png")
 | Rows removed that you wanted to keep | Ambiguous instruction | Spell out "remove only X"; ask Claude to list the rows before and after |
 | Windows app tiers | File Explorer is click-only; `pythonw` cannot be controlled | Double-click launchers yourself once; everything else runs through the poller |
 | No window available | The batch runner runs offscreen | Use the live viewer for anything visual |
+| Figure text far too small | Picture shrunk into a 30 mm panel; the 3D BZ tool sizes its font from the picture size | Set `view.font_px` before `save_picture`; size text from the panel (rule 12) |
+| Some BZ lines solid, some dashed | Overlay polygons of neighbouring zones share edges, drawn twice | Draw unique edges (r05 `bz_lines`) |
+| y axis missing on inner panels | Composer default `edge_labels_only=True` | Set it False and `x_labels/y_labels` True |
+| Schematic tiny | Picture panel takes the data panels' size | Give the picture panel its own `frame` (r05 `finish`) |
+| Fermi fit gave E_F 75.2 +- 4.6 eV | Fit run on a self-normalised map | Fit the raw map, offset, then normalise |
+| Scan axis was an index, not an angle | Unfinished map: fewer `_i` files than ROI files | Read theta from the `_i` files, drop the last cut, patch the axis |
+| Stored BZ normal changed | A rotate test in the 3D tool wrote back | Re-set the normal and verify the stored `bz.*` properties |
+| Several rounds of figure fixes | Layout and text size not agreed first | Rule 14: one figure first |
 
 ## 9. Privacy checklist before sharing a report
 
