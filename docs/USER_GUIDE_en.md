@@ -922,6 +922,10 @@ starts from the last conversion of a scan of the same size.
   period matches the lattice — and how well that pins V0.
 - **Measure a k_z period...**: click two points that are the same feature one
   zone apart; the matching reciprocal-lattice planes are listed.
+- **Show the k_z plane in the 3D BZ...**: the BZ overlap tool's turnable
+  cut-plane view, with the plane this map measures (surface normal and k∥
+  direction, through Γ), the high-symmetry points it holds, and the measured
+  k_z range in zone periods; it follows the settings as they change.
 - The yellow banner warns when the Fermi edge still bends across the analyser
   angle — correct it first (Straighten bands (FS correction) on the slit cut).
   The bend is a parabola fitted through the edge of blocks of neighbouring

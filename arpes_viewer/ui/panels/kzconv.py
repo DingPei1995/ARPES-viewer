@@ -369,6 +369,14 @@ class KzConversionDialog(QDialog):
         self.zone_lines = QCheckBox("Draw the zone boundaries")
         self.zone_lines.setChecked(True)
         form.addRow("", self.zone_lines)
+        self.plane_button = QPushButton("Show the k_z plane in the 3D BZ...")
+        self.plane_button.setToolTip(
+            "A turnable 3-D view of the Brillouin zone with the plane this "
+            "map measures (the surface normal and the k_par direction, "
+            "through Γ) in it -- the BZ overlap tool's own cut-plane view. "
+            "It follows the lattice, normal and k_par settings here.")
+        self.plane_button.clicked.connect(self.open_plane_preview)
+        form.addRow(self.plane_button)
         self.space_group.valueChanged.connect(self._apply_constraints)
         self.lat_a.valueChanged.connect(self._sync_mirrored_lengths)
         for widget in (self.space_group, self.lat_a, self.lat_b, self.lat_c,
@@ -726,6 +734,9 @@ class KzConversionDialog(QDialog):
             kz_axis[-1] - kz_axis[0], kpar_axis[-1] - kpar_axis[0]))
         self._draw_zone_lines(kz_axis, kpar_axis)
         self._write_report(kz_axis, kpar_axis, plane)
+        preview = getattr(self, "_plane_preview", None)
+        if preview is not None and preview.isVisible():
+            preview.refresh()
 
     def _apply_colormap(self):
         """The contour's own colormap on the preview.
@@ -818,6 +829,98 @@ class KzConversionDialog(QDialog):
         zone = wigner_seitz_cell(b)
         self._zone_cache = (key, zone, b)
         return zone, b
+
+    # -- the measured plane in the 3-D zone ---------------------------------
+    # The BZ overlap tool's cut-plane view (CutPlanePreviewDialog) asks its
+    # owner for the geometry through cut_geometry, cut_description,
+    # high_symmetry, points_in_plane and preview_closed; this window answers
+    # them for the plane a k_z map measures, so the same view shows it.
+    def open_plane_preview(self):
+        """The 3-D view of the zone with the measured k_z plane in it."""
+        from arpes_viewer.ui.viewers.windows import CutPlanePreviewDialog
+        preview = getattr(self, "_plane_preview", None)
+        if preview is not None and preview.isVisible():
+            preview.refresh()
+            preview.raise_()
+            preview.activateWindow()
+            return preview
+        preview = CutPlanePreviewDialog(self)
+        preview.setWindowTitle("k_z plane in the 3D Brillouin zone")
+        self._plane_preview = preview
+        preview.show()
+        preview.raise_()
+        return preview
+
+    def preview_closed(self):
+        self._plane_preview = None
+
+    def _kz_axes(self):
+        """``(along_kz, along_kpar, across)``, Cartesian unit vectors."""
+        from arpes_viewer.tools.crystal.bz3d import kz_frame
+        return kz_frame(self.lattice(), self.surface_hkl(), self.kpar_hkl(),
+                        float(self.kpar_rotation.value()))
+
+    def cut_geometry(self):
+        """``(zone, b, b_conventional, normal, point, u, v)`` of the plane
+        the map measures: it holds the surface normal (k_z) and the slit
+        direction (k_par) and passes through Γ, so its normal is the third
+        axis of the k_z frame."""
+        from arpes_viewer.tools.crystal.bz3d import plane_cut
+        from arpes_viewer.tools.crystal.lattice import (conventional_vectors,
+                                                        reciprocal_vectors)
+        zone, b = self._zone()
+        b_conventional = reciprocal_vectors(conventional_vectors(self.lattice()))
+        _along_kz, _along_kpar, across = self._kz_axes()
+        point = np.zeros(3)
+        u, v = plane_cut(zone.faces, across, point)
+        return zone, b, b_conventional, across, point, u, v
+
+    def cut_description(self) -> str:
+        try:
+            along_kz, along_kpar, _across = self._kz_axes()
+        except Exception as exc:                            # noqa: BLE001
+            return str(exc)
+        h, k, l = self.surface_hkl()
+        text = (f"The measured plane: k_z along ({h} {k} {l}), k_par along "
+                f"{np.round(along_kpar, 3).tolist()} (Cartesian, a along x), "
+                f"through Γ.")
+        preview = getattr(self, "_preview", None)
+        if preview is not None:
+            kz_axis, kpar_axis, _plane = preview
+            period = self.surface_period()
+            text += (f" Measured k_z {kz_axis[0]:.3f} to {kz_axis[-1]:.3f} Å⁻¹ "
+                     f"({kz_axis[0] / period:.2f} to {kz_axis[-1] / period:.2f} "
+                     f"periods of {period:.4f} Å⁻¹), k_par {kpar_axis[0]:.3f} "
+                     f"to {kpar_axis[-1]:.3f} Å⁻¹, at V0 = "
+                     f"{self.inner_potential.value():.1f} eV.")
+        if self.theta_correct.isChecked() and self.theta_position.value():
+            text += (" (The theta offset tilts the measured surface slightly "
+                     "out of this plane; not drawn.)")
+        return text
+
+    def high_symmetry(self):
+        """``(representatives, copies)`` of the named points (cached)."""
+        from arpes_viewer.tools.crystal.highsym import (equivalent_points,
+                                                        high_symmetry_points)
+        params = self.lattice()
+        key = (params.a, params.b, params.c, params.alpha, params.beta,
+               params.gamma, params.space_group)
+        cached = getattr(self, "_highsym_cache", None)
+        if cached is not None and cached[0] == key:
+            return cached[1], cached[2]
+        representatives = high_symmetry_points(params)
+        zone, _b = self._zone()
+        copies = equivalent_points(params, representatives, zone)
+        self._highsym_cache = (key, representatives, copies)
+        return representatives, copies
+
+    def points_in_plane(self):
+        """The named points the measured plane holds: ``[(label, k), ...]``."""
+        from arpes_viewer.tools.crystal.highsym import points_on_plane
+        _representatives, copies = self.high_symmetry()
+        across = self._kz_axes()[2]
+        return [(p.label, p.k) for p in
+                points_on_plane(copies, across, 0.0, tol=1e-4)]
 
     def _write_report(self, kz_axis, kpar_axis, plane):
         period = self.surface_period()

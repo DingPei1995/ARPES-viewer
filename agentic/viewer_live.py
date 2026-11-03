@@ -18,6 +18,9 @@ for _folder in ("out", "viewer_cmd", "viewer_done", "shots", "figures"):
     os.makedirs(os.path.join(HERE, _folder), exist_ok=True)
 CFG = json.load(open(os.path.join(HERE, "config.json"), encoding="utf-8"))
 DATA = CFG["data_dir"]; PATTERNS = CFG.get("patterns", ["*.txt", "*/*_roi1_.txt"])
+if not os.path.isdir(DATA):
+    sys.exit(f"data_dir in {os.path.join(HERE, 'config.json')} is not a folder: {DATA!r}. "
+             "Set it to your data folder.")
 sys.path.insert(0, ROOT)
 if sys.platform == "win32":
     os.environ["QT_QPA_PLATFORM"] = "windows"

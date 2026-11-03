@@ -24,7 +24,10 @@ what the program got in its way).
   -- instead of 256 × 256. V0 may be negative, and **Γ at hν → Set V0**
   gives the V0 that puts Γ at normal emission at a chosen photon energy.
   The preview energy is a slider beside the picture, with the colour map and
-  levels next to it. **Calibrate hν from each fitted E_F** is an option, off
+  levels next to it. **Show the k_z plane in the 3D BZ...** opens the BZ
+  overlap tool's cut-plane view with the plane the map measures, its
+  high-symmetry points and the measured k_z range in zone periods.
+  **Calibrate hν from each fitted E_F** is an option, off
   by default: after the Fermi level has been fitted per photon energy, it
   uses hν − E_kin(E_F) measured at each one instead of the single work
   function (the default stays: E_F flattened, no hν calibration).
@@ -59,6 +62,8 @@ what the program got in its way).
   picture keeps its own shape in them; the page height follows panels moved
   by hand; *…but tick numbers on every panel* keeps inner panels' numbers
   with the axis names on the edges.
+- `agentic/config.json` and `config.example.json` hold a placeholder, not a
+  local data path; the live viewer says so when `data_dir` is not a folder.
 - **For agents**: a modal dialog opened from `viewer_python` or a live-viewer
   command raises `ModalDialogBlocked` instead of freezing it (warnings are
   printed and answered); `FigureWindow.describe()` / `render(path)` and the

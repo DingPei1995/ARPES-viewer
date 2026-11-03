@@ -204,3 +204,31 @@ def test_kz_conversion_calibration_is_offered_after_per_hv_fermi_levels(app, mon
     assert np.shape(phi) == hv.shape
     dialog.close()
     contour.close()
+
+
+def test_the_kz_plane_is_shown_in_the_3d_zone(app, monkeypatch):
+    """The BZ overlap tool's cut-plane view, fed by the kz window: the plane
+    holds the surface normal and the k_par direction, through Γ."""
+    from arpes_viewer.ui.viewers import windows as W
+    from arpes_viewer.ui.panels import kzconv as K
+    from arpes_viewer.tools.runtime import remembered
+    monkeypatch.setattr(remembered, "recall", lambda *a, **k: None)
+    contour = W.ContourWindow(_kz_map("kz_map"), "kz", "gray", False)
+    dialog = K.KzConversionDialog(contour)
+    dialog.space_group.setValue(221)
+    dialog.lat_a.setValue(3.0)
+    preview = dialog.open_plane_preview()
+    assert isinstance(preview, W.CutPlanePreviewDialog) and preview.isVisible()
+    zone, _b, _bc, normal, point, u, v = dialog.cut_geometry()
+    along_kz, along_kpar, _across = dialog._kz_axes()
+    assert abs(normal @ along_kz) < 1e-9 and abs(normal @ along_kpar) < 1e-9
+    assert np.allclose(point, 0.0) and u is not None
+    assert "Γ" in {label for label, _k in dialog.points_in_plane()}
+    assert "measured plane" in preview.note.text()
+    dialog.inner_potential.setValue(15.0)          # the view follows
+    assert "V0 = 15.0" in preview.note.text()
+    assert dialog.open_plane_preview() is preview  # one window, raised
+    preview.close()
+    assert dialog._plane_preview is None
+    dialog.close()
+    contour.close()
