@@ -18,8 +18,7 @@ as a publication figure.
 
 ## What it does
 
-- **Reads** SOLEIL ANTARES and CASSIOPEE (including whole folders and the
-  spin end station), ALS MAESTRO, ALBA LOREA, Diamond I05 and I05-1, MAX IV
+- **Reads** SOLEIL ANTARES and CASSIOPEE, ALS MAESTRO, ALBA LOREA, Diamond I05 and I05-1, MAX IV
   Bloch, Elettra APE, BESSY One Cube / One Square, SOLARIS URANOS, ASTRID2
   SGM4, and its own saved format ([loading data](docs/USER_GUIDE_en.md#4-loading-data)).
 - **Shows** cuts, Fermi-surface maps, photon-energy scans, spatially resolved
