@@ -1081,7 +1081,9 @@ class BandsDialog(QDialog):
             self.cont_label.setText(f"<b>Cannot draw them:</b> {exc}")
             return
         if image is not None:
-            item = pg.ImageItem(image)
+            # image[iu, iv] like the contours (values[ix, iy]); the program
+            # draws images row-major (rows go up), so it goes in transposed
+            item = pg.ImageItem(np.ascontiguousarray(np.asarray(image).T))
             step = axis[1] - axis[0]
             item.setRect(pg.QtCore.QRectF(axis[0] - step / 2, axis[0] - step / 2,
                                           axis[-1] - axis[0] + step,

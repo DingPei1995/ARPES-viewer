@@ -358,3 +358,28 @@ def test_the_goal_shapes_the_steps_and_what_is_saved(app, tmp_path):
     dialog.set_goal("dispersion")
     dialog.spectrum_to_list()
     assert created[1].kind == "cut"
+
+
+def test_the_integrated_contour_image_lies_under_its_contours(app, tmp_path, monkeypatch):
+    """The k⊥-integrated picture is image[iu, iv], like the contours; drawn
+    row-major it has to go in transposed, or it is mirrored across the
+    diagonal under the lines."""
+    import pyqtgraph as pg
+    from arpes_viewer.ui.panels.bands import BandsDialog
+
+    dialog = BandsDialog([])
+    dialog.open_file(_two_band_hr(str(tmp_path)))
+    dialog.set_goal("contours")
+    dialog.stepper.go(1)
+    axis = np.linspace(-1.0, 1.0, 9)
+    image = np.zeros((axis.size, axis.size))
+    image[7, 1] = 1.0                                  # at u = 0.75, v = -0.75
+    monkeypatch.setattr(dialog, "plane_overlays",
+                        lambda energy, **k: ([], axis, image))
+    dialog.draw_contours()
+    items = [i for i in dialog.cont_view.getPlotItem().items
+             if isinstance(i, pg.ImageItem)]
+    drawn = items[0].image
+    row, col = np.unravel_index(int(np.argmax(drawn)), drawn.shape)
+    assert (col, row) == (7, 1)                        # x = u across, y = v up
+    dialog.close()

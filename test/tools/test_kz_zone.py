@@ -248,7 +248,7 @@ def test_the_kz_window_has_the_viewer_colour_controls_and_no_v0_scan(app, monkey
     assert not hasattr(dialog, "scan_v0")
     dialog.flip_cb.setChecked(True)
     dialog.level_bar.gamma_box.setValue(0.5)
-    image = dialog.image.image
+    image = dialog.image.image.T                      # drawn row-major
     assert np.nanmin(image) >= 0.0 and np.nanmax(image) <= 1.0
     lo, hi = dialog.level_bar.levels()
     plane = dialog._preview[2]
@@ -260,5 +260,27 @@ def test_the_kz_window_has_the_viewer_colour_controls_and_no_v0_scan(app, monkey
     along = dialog._kz_axes()[1]
     dialog.kpar_rotation.setValue(0.0)
     assert abs(float(along @ dialog._kz_axes()[1]) - np.cos(np.radians(30))) < 1e-9
+    dialog.close()
+    contour.close()
+
+
+def test_the_kz_preview_puts_k_z_across_and_k_par_up(app, monkeypatch):
+    """A feature at one k_z shows as a vertical stripe at that k_z: the
+    picture agrees with its axes (the image is drawn row-major)."""
+    from arpes_viewer.ui.viewers import windows as W
+    from arpes_viewer.ui.panels import kzconv as K
+    from arpes_viewer.tools.runtime import remembered
+    monkeypatch.setattr(remembered, "recall", lambda *a, **k: None)
+    contour = W.ContourWindow(_kz_map("kz_map"), "kz", "gray", False)
+    dialog = K.KzConversionDialog(contour)
+    dialog.n_kz.setValue(40)
+    dialog.n_kpar.setValue(25)
+    kz_axis, kpar_axis, plane = dialog._preview
+    image = dialog.image.image
+    assert image.shape == (kpar_axis.size, kz_axis.size)   # rows: k//, up
+    rect = dialog.image.mapRectToParent(dialog.image.boundingRect())
+    assert rect.left() == pytest.approx(kz_axis[0])
+    assert rect.width() == pytest.approx(kz_axis[-1] - kz_axis[0])
+    assert rect.top() == pytest.approx(kpar_axis[0])
     dialog.close()
     contour.close()

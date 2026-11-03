@@ -65,6 +65,10 @@ what the program got in its way).
   picture keeps its own shape in them; the page height follows panels moved
   by hand; *…but tick numbers on every panel* keeps inner panels' numbers
   with the axis names on the edges.
+- **Two pictures drawn transposed under their axes**: the kz-conversion
+  preview (k_z and k// swapped against the axis labels and zone lines) and
+  the k⊥-integrated image under the calculated contours (mirrored across the
+  diagonal). Both were handed to the row-major image item untransposed.
 - `agentic/config.json` and `config.example.json` hold a placeholder, not a
   local data path; the live viewer says so when `data_dir` is not a folder.
 - **For agents**: a modal dialog opened from `viewer_python` or a live-viewer

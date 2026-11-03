@@ -746,7 +746,12 @@ class KzConversionDialog(QDialog):
         gamma = self.level_bar.gamma()
         if gamma != 1.0:
             norm = norm ** gamma
-        self.image.setImage(norm, autoLevels=False, levels=(0.0, 1.0))
+        # The plane is (k_z, k//); the program draws images row-major
+        # (pg imageAxisOrder="row-major": rows go up the picture), so it is
+        # handed over transposed -- k_z across, k// up, as the axes and the
+        # zone lines say.
+        self.image.setImage(np.ascontiguousarray(norm.T), autoLevels=False,
+                            levels=(0.0, 1.0))
 
     def _apply_colormap(self, *_):
         """The contour's own colormap on the preview.
