@@ -1011,12 +1011,22 @@ part de la dernière conversion d'un balayage de même taille.
 ![kz → impulsion](images/kz_conversion_dialog.png)
 
 - Le **potentiel interne V0** est l'inconnue : l'aperçu reconvertit une
-  tranche en énergie à chaque modification, en quelques millisecondes.
+  tranche en énergie à chaque modification, en quelques millisecondes. Il
+  peut être négatif ; **Γ at hν → Set V0** donne le V0 qui place Γ en
+  émission normale à l'énergie de photon choisie.
+- Le **θ du manipulateur** est désactivé par défaut ; cochez *θ offset from
+  Γ* seulement pour corriger un écart, saisi par rapport à l'émission
+  normale (pas la lecture absolue du moteur).
 - Avec le **réseau** (groupe d'espace, a, b, c), la **normale à la surface**
-  et la direction dans le plan, les limites de zone sont tracées sur
-  l'aperçu.
-- **Scan V0** convertit pour une série de valeurs de V0 et indique où la
-  période en k_z correspond au réseau — et avec quelle précision cela fixe V0.
+  et **Rotate k// by** (la direction de la fente, en rotation autour de la
+  normale ; tout angle, la fente ne suit pas forcément une direction de
+  haute symétrie), les limites de zone sont tracées sur l'aperçu ;
+  **k_z plane in 3D BZ...** montre ce plan dans la zone en 3D.
+- L'énergie de l'aperçu se choisit avec le **curseur** à côté ; au-dessus,
+  les commandes de couleur des fenêtres de données : carte de couleurs,
+  *Flip*, barre de niveaux (*Clip*, pourcentages, *Gamma*).
+- *Calibrate hν from each fitted E_F* (facultatif, désactivé par défaut)
+  utilise hν − E_kin(E_F) mesuré à chaque énergie de photon.
 - **Measure a k_z period...** : cliquez deux points correspondant à la même
   structure, distants d'une zone ; les plans du réseau réciproque compatibles
   sont listés.

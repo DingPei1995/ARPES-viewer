@@ -232,3 +232,33 @@ def test_the_kz_plane_is_shown_in_the_3d_zone(app, monkeypatch):
     assert dialog._plane_preview is None
     dialog.close()
     contour.close()
+
+
+def test_the_kz_window_has_the_viewer_colour_controls_and_no_v0_scan(app, monkeypatch):
+    """Colour map + Flip and the level bar (levels, gamma) as in the data
+    viewers; no V0-scan tab; k// set by a rotation only."""
+    from PyQt5.QtWidgets import QTabWidget
+    from arpes_viewer.ui.viewers import windows as W
+    from arpes_viewer.ui.panels import kzconv as K
+    from arpes_viewer.tools.runtime import remembered
+    monkeypatch.setattr(remembered, "recall", lambda *a, **k: None)
+    contour = W.ContourWindow(_kz_map("kz_map"), "kz", "gray", False)
+    dialog = K.KzConversionDialog(contour)
+    assert not dialog.findChildren(QTabWidget)
+    assert not hasattr(dialog, "scan_v0")
+    dialog.flip_cb.setChecked(True)
+    dialog.level_bar.gamma_box.setValue(0.5)
+    image = dialog.image.image
+    assert np.nanmin(image) >= 0.0 and np.nanmax(image) <= 1.0
+    lo, hi = dialog.level_bar.levels()
+    plane = dialog._preview[2]
+    inside = np.isfinite(plane) & (plane > lo) & (plane < hi)
+    expected = ((plane[inside] - lo) / (hi - lo)) ** 0.5
+    assert np.allclose(image[inside], expected)
+    assert dialog.kpar_hkl() == (0, 0, 0) and not dialog.kpar_h.isVisible()
+    dialog.kpar_rotation.setValue(30.0)
+    along = dialog._kz_axes()[1]
+    dialog.kpar_rotation.setValue(0.0)
+    assert abs(float(along @ dialog._kz_axes()[1]) - np.cos(np.radians(30))) < 1e-9
+    dialog.close()
+    contour.close()

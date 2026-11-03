@@ -23,8 +23,11 @@ what the program got in its way).
   measurement -- one k∥ point per analyser channel, k_z with the same step
   -- instead of 256 × 256. V0 may be negative, and **Γ at hν → Set V0**
   gives the V0 that puts Γ at normal emission at a chosen photon energy.
-  The preview energy is a slider beside the picture, with the colour map and
-  levels next to it. **Show the k_z plane in the 3D BZ...** opens the BZ
+  The preview energy is a slider beside the picture, under the data
+  viewers' colour controls (colour map, Flip, level bar with gamma). The
+  settings column is compact (related inputs on one line); the V0-scan tab
+  is gone (Γ at hν replaces it); k_par is written k//, and its direction is
+  a rotation about the normal only. **Show the k_z plane in the 3D BZ...** opens the BZ
   overlap tool's cut-plane view with the plane the map measures, its
   high-symmetry points and the measured k_z range in zone periods.
   **Calibrate hν from each fitted E_F** is an option, off

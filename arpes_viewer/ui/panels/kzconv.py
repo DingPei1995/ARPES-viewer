@@ -11,9 +11,11 @@ own period. So the window is built around that choice --
 * a preview of one energy slice, reconverted as the parameters change,
 * the Brillouin-zone boundaries drawn over it, from the space group and
   lattice constants,
-* a scan of V0 against the period the data shows,
-* and a two-point measurement for reading a period straight off the picture
-  and asking which lattice planes could produce it.
+* V0 from where Γ is (the photon energy at which normal emission passes
+  through it),
+* a two-point measurement for reading a period straight off the picture
+  and asking which lattice planes could produce it,
+* and the measured plane in the 3-D zone.
 
 Each preview is one energy slice, a few milliseconds, which is what lets the
 inner potential be a thing you drag rather than a thing you re-run.
@@ -26,7 +28,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                              QDoubleSpinBox, QFormLayout, QGroupBox,
                              QHBoxLayout, QLabel, QPushButton, QSlider,
-                             QSpinBox, QTabWidget, QTextEdit, QVBoxLayout,
+                             QSpinBox, QTextEdit, QVBoxLayout,
                              QWidget)
 
 from arpes_viewer.ui.common.screen import fits_screen
@@ -37,7 +39,9 @@ from arpes_viewer.tools.processing.process import Step, record_step
 from arpes_viewer.ui.common import jobs as nxs_jobs
 from arpes_viewer.tools.output import colormaps
 from arpes_viewer.tools.runtime import remembered
-from arpes_viewer.ui.viewers.widgets import add_button, ButtonRow, MemoryData
+from arpes_viewer.ui.viewers.widgets import (add_button, ButtonRow, LevelBar,
+                                             MemoryData, scroll_strip,
+                                             section_label)
 
 __all__ = ["KzConversionDialog"]
 
@@ -103,8 +107,7 @@ class KzConversionDialog(QDialog):
     #: manipulator theta, which each file records for itself
     _CARRIED = ("inner_potential", "effective_mass", "angle_offset", "n_kz",
                 "n_kpar", "space_group", "lat_a", "lat_b", "lat_c",
-                "lat_alpha", "lat_beta", "lat_gamma", "kpar_h", "kpar_k",
-                "kpar_l", "kpar_rotation")
+                "lat_alpha", "lat_beta", "lat_gamma", "kpar_rotation")
 
     def _shape(self):
         return (self.hv.size, self.angle.size, self.energy.size)
@@ -169,27 +172,39 @@ class KzConversionDialog(QDialog):
         return banner
 
     # -- the settings ------------------------------------------------------
+    @staticmethod
+    def _row(*items):
+        """Several inputs on one line of a form: labels (str) and widgets."""
+        row = QWidget()
+        box = QHBoxLayout(row)
+        box.setContentsMargins(0, 0, 0, 0)
+        box.setSpacing(4)
+        for item in items:
+            if isinstance(item, str):
+                box.addWidget(QLabel(item))
+            else:
+                box.addWidget(item, stretch=1)
+        return row
+
     def _settings_panel(self) -> QWidget:
         holder = QWidget()
-        holder.setMaximumWidth(360)
+        holder.setMaximumWidth(380)
         column = QVBoxLayout(holder)
         column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(4)
 
         physics = QGroupBox("Final state")
         form = QFormLayout(physics)
+        form.setVerticalSpacing(4)
         self.inner_potential = self._spin(12.0, -30.0, 200.0, 0.5, " eV")
         self.inner_potential.setToolTip(
             "V0, the inner potential: how far the final-state band bottom "
             "sits below the vacuum level. Not measured by the experiment -- "
-            "chosen so the k_z pattern repeats with the lattice period.")
-        form.addRow("Inner potential V0", self.inner_potential)
-
+            "chosen so the k_z pattern repeats with the lattice period, or "
+            "from where Γ is (Γ at hν → Set V0).")
         # V0 from where Γ is: a kz map is usually taken so that one photon
         # energy passes through Γ at normal emission, and that is enough to
         # fix V0 once the zone order is chosen.
-        gamma_row = QWidget()
-        gamma_box = QHBoxLayout(gamma_row)
-        gamma_box.setContentsMargins(0, 0, 0, 0)
         self.gamma_hv = self._spin(float(np.median(self.hv)),
                                    float(self.hv.min()), float(self.hv.max()),
                                    0.5, " eV")
@@ -198,28 +213,27 @@ class KzConversionDialog(QDialog):
             "“Set V0” then chooses the inner potential that puts Γ there "
             "(the zone order nearest the present V0; the order is shown).")
         self.gamma_button = QPushButton("Set V0")
+        self.gamma_button.setToolTip(self.gamma_hv.toolTip())
         self.gamma_button.clicked.connect(self.set_v0_from_gamma)
-        gamma_box.addWidget(self.gamma_hv, stretch=1)
-        gamma_box.addWidget(self.gamma_button)
-        form.addRow("Γ at hν", gamma_row)
+        form.addRow("V0", self.inner_potential)
+        form.addRow("Γ at hν", self._row(self.gamma_hv, self.gamma_button))
         self.gamma_note = QLabel("")
         self.gamma_note.setWordWrap(True)
-        form.addRow("", self.gamma_note)
+        self.gamma_note.setVisible(False)
+        form.addRow(self.gamma_note)
 
         self.effective_mass = self._spin(1.0, 0.05, 10.0, 0.05, "")
         self.effective_mass.setToolTip(
             "Final-state effective mass, in units of the free electron mass. "
             "1.0 is the free-electron final state; leave it there unless you "
             "have a reason.")
-        form.addRow("Effective mass m*", self.effective_mass)
-
         self.work_function = self._spin(self._work_function_from_file(),
                                         0.0, 20.0, 0.05, " eV")
         self.work_function.setToolTip(
             "The analyser work function, used to turn a photon energy into a "
             "kinetic energy. Read from the file where the loader recorded "
             "one; change it if you know better.")
-        form.addRow("Work function", self.work_function)
+        form.addRow("m*", self._row(self.effective_mass, "W", self.work_function))
 
         # Optional: hv - E_kin(E_F) measured at each photon energy, after the
         # Fermi level has been flattened per photon energy.
@@ -233,7 +247,7 @@ class KzConversionDialog(QDialog):
                 "Off unless the Fermi level was fitted per photon energy "
                 "(kz map → Align E_F) on a scan whose loader recorded each "
                 "spectrum's kinetic-energy window. Without it the single "
-                "work function above is used for every photon energy.")
+                "work function W is used for every photon energy.")
         else:
             phi = self.measured_phi
             self.calibrate_hv.setToolTip(
@@ -248,7 +262,8 @@ class KzConversionDialog(QDialog):
 
         geometry = QGroupBox("Geometry")
         form = QFormLayout(geometry)
-        self.angle_offset = self._spin(0.0, -90.0, 90.0, 0.1, " deg")
+        form.setVerticalSpacing(4)
+        self.angle_offset = self._spin(0.0, -90.0, 90.0, 0.1, "°")
         self.angle_offset.setToolTip(
             "Where normal emission sits on the analyser slit. Subtracted "
             "from the slit angle before anything else.")
@@ -259,40 +274,39 @@ class KzConversionDialog(QDialog):
         # the polar angle to correct is zero whatever the motor reads --
         # the file records the motor's absolute position, which is not the
         # angle from normal emission and must not be used as one.
-        self.theta_correct = QCheckBox("Correct a manipulator theta offset from Γ")
+        self.theta_correct = QCheckBox("θ offset from Γ")
         self.theta_correct.setChecked(False)
         self.theta_correct.setToolTip(
             "Only if the slit was not through Γ: the manipulator's polar "
             "angle away from normal emission tilts the detector arc out of "
             "the plane holding the slit, which adds a second in-plane "
             "momentum component that has to come out of k_z.")
-        form.addRow(self.theta_correct)
-        self.theta_position = self._spin(0.0, -90.0, 90.0, 0.1, " deg")
+        self.theta_position = self._spin(0.0, -90.0, 90.0, 0.1, "°")
         self.theta_position.setEnabled(False)
         file_theta = self._theta_from_file()
         self.theta_position.setToolTip(
             "Theta relative to normal emission (theta − theta at Γ), not the "
             f"motor's absolute reading ({file_theta:g}° in this file).")
-        form.addRow("Theta from Γ", self.theta_position)
+        form.addRow(self._row(self.theta_correct, self.theta_position))
         self.theta_correct.toggled.connect(self.theta_position.setEnabled)
         self.theta_correct.toggled.connect(self.refresh)
         column.addWidget(geometry)
 
         grid = QGroupBox("Output grid")
         form = QFormLayout(grid)
+        form.setVerticalSpacing(4)
         self.n_kz = QSpinBox(); self.n_kz.setRange(16, 2048); self.n_kz.setValue(256)
         self.n_kpar = QSpinBox(); self.n_kpar.setRange(16, 2048); self.n_kpar.setValue(256)
         for box in (self.n_kz, self.n_kpar):
             box.setKeyboardTracking(False)
-        form.addRow("k_z points", self.n_kz)
-        form.addRow("k_par points", self.n_kpar)
-        self.grid_button = QPushButton("Match the measurement")
+        self.grid_button = QPushButton("Match")
         self.grid_button.setToolTip(
-            "k_par gets one point per analyser angle channel and k_z the "
-            "number that makes its step the same (square pixels) -- the "
-            "default for a new scan.")
+            "Match the measurement: k// gets one point per analyser angle "
+            "channel and k_z the number that makes its step the same "
+            "(square pixels) -- the default for a new scan.")
         self.grid_button.clicked.connect(self.default_grid)
-        form.addRow("", self.grid_button)
+        form.addRow("Points k_z", self._row(self.n_kz, "k//", self.n_kpar,
+                                             self.grid_button))
         # Which energy slice the preview shows: the slider beside the
         # preview drives this box, which keeps the exact value.
         self.preview_energy = self._spin(0.0, float(self.energy.min()),
@@ -319,6 +333,7 @@ class KzConversionDialog(QDialog):
     def _lattice_group(self) -> QGroupBox:
         group = QGroupBox("Lattice (for the zone lines and the period)")
         form = QFormLayout(group)
+        form.setVerticalSpacing(4)
         self.space_group = QSpinBox()
         self.space_group.setRange(1, 230)
         self.space_group.setValue(194)
@@ -327,56 +342,55 @@ class KzConversionDialog(QDialog):
             "decides the k_z period: a body-centred lattice repeats every "
             "4*pi/a along [001], not 2*pi/a.")
         form.addRow("Space group", self.space_group)
-        self.lat_a = self._spin(3.2, 0.1, 100.0, 0.01, " A")
-        self.lat_b = self._spin(3.2, 0.1, 100.0, 0.01, " A")
-        self.lat_c = self._spin(6.0, 0.1, 100.0, 0.01, " A")
-        self.lat_alpha = self._spin(90.0, 1.0, 179.0, 0.5, " deg")
-        self.lat_beta = self._spin(90.0, 1.0, 179.0, 0.5, " deg")
-        self.lat_gamma = self._spin(120.0, 1.0, 179.0, 0.5, " deg")
-        for text, box in (("a", self.lat_a), ("b", self.lat_b),
-                          ("c", self.lat_c), ("alpha", self.lat_alpha),
-                          ("beta", self.lat_beta), ("gamma", self.lat_gamma)):
+        self.lat_a = self._spin(3.2, 0.1, 100.0, 0.01, " Å")
+        self.lat_b = self._spin(3.2, 0.1, 100.0, 0.01, " Å")
+        self.lat_c = self._spin(6.0, 0.1, 100.0, 0.01, " Å")
+        self.lat_alpha = self._spin(90.0, 1.0, 179.0, 0.5, "°")
+        self.lat_beta = self._spin(90.0, 1.0, 179.0, 0.5, "°")
+        self.lat_gamma = self._spin(120.0, 1.0, 179.0, 0.5, "°")
+        for box in (self.lat_a, self.lat_b, self.lat_c, self.lat_alpha,
+                    self.lat_beta, self.lat_gamma):
             box.setToolTip("Greyed out means the space group fixes this one.")
-            form.addRow(text, box)
+        for box in (self.lat_a, self.lat_b, self.lat_c):
+            box.setDecimals(3)
+        for box in (self.lat_alpha, self.lat_beta, self.lat_gamma):
+            box.setDecimals(1)
+        form.addRow("a, b, c", self._row(self.lat_a, self.lat_b, self.lat_c))
+        form.addRow("α, β, γ", self._row(self.lat_alpha, self.lat_beta,
+                                         self.lat_gamma))
         self.normal_index = QComboBox()
         self.normal_index.setToolTip(
             "Which planes the crystal cleaved along. It sets the k_z period "
-            "the zone lines are drawn with, and what the V0 scan matches "
-            "against. Measure it with the two-point tool if unsure.")
-        form.addRow("Surface normal", self.normal_index)
+            "the zone lines are drawn with. Measure it with the two-point "
+            "tool if unsure.")
+        form.addRow("Normal (hkl)", self.normal_index)
 
-        # Which way the slit runs in the surface. The zone a k_z map cuts
-        # is the plane holding the normal *and* this direction, so without
-        # it only the period along the normal is known -- not the shape.
-        kpar_row = QWidget()
-        kpar_box = QHBoxLayout(kpar_row)
-        kpar_box.setContentsMargins(0, 0, 0, 0)
+        # Which way the slit runs in the surface. The zone a k_z map cuts is
+        # the plane holding the normal *and* this direction. It is given as
+        # a turn about the normal from a reference axis -- the first of a*,
+        # b*, c* not along the normal (a* for a (001) surface) -- since the
+        # slit often runs along no named direction. The (hkl) boxes are kept
+        # (at 0 0 0, the reference) but not shown.
         self.kpar_h, self.kpar_k, self.kpar_l = (self._miller(0) for _ in range(3))
-        for box in (self.kpar_h, self.kpar_k, self.kpar_l):
-            kpar_box.addWidget(box)
-        kpar_row.setToolTip(
-            "The reciprocal-lattice direction (h k l) the analyser slit runs "
-            "along; only its part perpendicular to the surface normal is "
-            "used. (0 0 0) picks the first of a*, b*, c* that is not along "
-            "the normal.")
-        form.addRow("k_par along (hkl)", kpar_row)
-        self.kpar_rotation = self._spin(0.0, -180.0, 180.0, 1.0, " deg")
+        self.kpar_rotation = self._spin(0.0, -180.0, 180.0, 1.0, "°")
         self.kpar_rotation.setToolTip(
-            "Turns the k_par direction about the surface normal, for a slit "
-            "that is not along a named direction.")
-        form.addRow("Rotate k_par by", self.kpar_rotation)
+            "The direction k// runs along, as a turn about the surface "
+            "normal from the first of a*, b*, c* that is not along it (a* "
+            "for a (001) surface). Any angle: the slit need not run along a "
+            "high-symmetry direction. Check it with the 3D BZ view.")
+        form.addRow("Rotate k// by", self.kpar_rotation)
 
-        self.zone_lines = QCheckBox("Draw the zone boundaries")
+        self.zone_lines = QCheckBox("Zone lines")
         self.zone_lines.setChecked(True)
-        form.addRow("", self.zone_lines)
-        self.plane_button = QPushButton("Show the k_z plane in the 3D BZ...")
+        self.zone_lines.setToolTip("Draw the zone boundaries on the preview.")
+        self.plane_button = QPushButton("k_z plane in 3D BZ...")
         self.plane_button.setToolTip(
             "A turnable 3-D view of the Brillouin zone with the plane this "
-            "map measures (the surface normal and the k_par direction, "
+            "map measures (the surface normal and the k// direction, "
             "through Γ) in it -- the BZ overlap tool's own cut-plane view. "
-            "It follows the lattice, normal and k_par settings here.")
+            "It follows the lattice, normal and rotation settings here.")
         self.plane_button.clicked.connect(self.open_plane_preview)
-        form.addRow(self.plane_button)
+        form.addRow(self._row(self.zone_lines, self.plane_button))
         self.space_group.valueChanged.connect(self._apply_constraints)
         self.lat_a.valueChanged.connect(self._sync_mirrored_lengths)
         for widget in (self.space_group, self.lat_a, self.lat_b, self.lat_c,
@@ -467,13 +481,39 @@ class KzConversionDialog(QDialog):
 
     # -- the preview -------------------------------------------------------
     def _preview_panel(self) -> QWidget:
-        tabs = QTabWidget()
-
         page = QWidget()
         column = QVBoxLayout(page)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(3)
+
+        # The colour controls of the data viewers: colour map and Flip, then
+        # the level bar (levels, Clip, percentages, gamma) above the image.
+        bar = QHBoxLayout()
+        bar.setSpacing(6)
+        bar.addWidget(section_label("Colormap"))
+        self.colormap_combo = QComboBox()
+        names = list(colormaps.COLORMAP_NAMES)
+        current = str(self.contour.colormap)
+        if current not in names:
+            names.insert(0, current)
+        self.colormap_combo.addItems(names)
+        self.colormap_combo.setCurrentText(current)
+        self.flip_cb = QCheckBox("Flip")
+        self.flip_cb.setChecked(bool(self.contour.flip))
+        bar.addWidget(self.colormap_combo)
+        bar.addWidget(self.flip_cb)
+        bar.addStretch(1)
+        column.addLayout(bar)
+        self.level_bar = LevelBar(self)
+        column.addWidget(scroll_strip(self.level_bar))
+        self.colormap_combo.currentTextChanged.connect(self._apply_colormap)
+        self.flip_cb.toggled.connect(self._apply_colormap)
+        self.level_bar.levelsChanged.connect(lambda *_: self._show_plane())
+        self.level_bar.gammaChanged.connect(lambda *_: self._show_plane())
+
         self.plot = pg.PlotWidget()
-        self.plot.setLabel("bottom", "k_z (A^-1)")
-        self.plot.setLabel("left", "k_par (A^-1)")
+        self.plot.setLabel("bottom", "k_z (Å⁻¹)")
+        self.plot.setLabel("left", "k// (Å⁻¹)")
         self.plot.setAspectLocked(True)
         self.image = pg.ImageItem()
         self.plot.addItem(self.image)
@@ -486,9 +526,8 @@ class KzConversionDialog(QDialog):
         self.plot.addItem(self.pick_item)
         picture = QHBoxLayout()
         picture.addWidget(self.plot, stretch=1)
-        # Beside the picture: the energy of the slice, as a slider one drags
-        # through the cube, and the colour scale -- levels on the histogram,
-        # the colour map from the list (or the histogram's own menu).
+        # Beside the picture: the energy of the slice, a slider one drags
+        # through the cube.
         energy_column = QVBoxLayout()
         self.energy_slider = QSlider(Qt.Vertical)
         self.energy_slider.setRange(0, max(self.energy.size - 1, 0))
@@ -502,27 +541,6 @@ class KzConversionDialog(QDialog):
         self.preview_energy.setMaximumWidth(96)
         energy_column.addWidget(self.preview_energy)
         picture.addLayout(energy_column)
-        colour_column = QVBoxLayout()
-        self.histogram = pg.HistogramLUTWidget()
-        self.histogram.setImageItem(self.image)
-        self.histogram.setMinimumWidth(90)
-        self.histogram.setMaximumWidth(120)
-        colour_column.addWidget(self.histogram, stretch=1)
-        self.colormap_box = QComboBox()
-        names = list(colormaps.COLORMAP_NAMES)
-        current = str(self.contour.colormap)
-        if current not in names:
-            names.insert(0, current)
-        self.colormap_box.addItems(names)
-        self.colormap_box.setCurrentText(current)
-        self.colormap_box.setMaximumWidth(120)
-        self.colormap_box.currentTextChanged.connect(self._apply_colormap)
-        colour_column.addWidget(self.colormap_box)
-        self.auto_levels = QPushButton("Auto levels")
-        self.auto_levels.setMaximumWidth(120)
-        self.auto_levels.clicked.connect(self._auto_levels)
-        colour_column.addWidget(self.auto_levels)
-        picture.addLayout(colour_column)
         column.addLayout(picture, stretch=1)
 
         row = QHBoxLayout()
@@ -534,38 +552,14 @@ class KzConversionDialog(QDialog):
             "lattice plane, which says which way the crystal cleaved.")
         self.pick_button.toggled.connect(self._toggle_picking)
         row.addWidget(self.pick_button)
-        self.scan_button = QPushButton("Scan V0")
-        self.scan_button.setToolTip(
-            "Convert one energy slice at each of a range of inner "
-            "potentials and measure the k_z period each gives. The right V0 "
-            "is where it equals the lattice period.")
-        self.scan_button.clicked.connect(self.scan_v0)
-        row.addWidget(self.scan_button)
         row.addStretch(1)
         column.addLayout(row)
 
         self.report = QTextEdit()
         self.report.setReadOnly(True)
-        self.report.setMaximumHeight(170)
+        self.report.setMaximumHeight(150)
         column.addWidget(self.report)
-        tabs.addTab(page, "Preview")
-
-        curve_page = QWidget()
-        curve_column = QVBoxLayout(curve_page)
-        self.scan_plot = pg.PlotWidget()
-        self.scan_plot.setLabel("bottom", "Inner potential V0 (eV)")
-        self.scan_plot.setLabel("left", "k_z period (A^-1)")
-        self.scan_plot.showGrid(x=True, y=True, alpha=0.3)
-        self.scan_curve = self.scan_plot.plot([], [],
-                                              pen=pg.mkPen("#1f77b4", width=2))
-        self.target_curve = self.scan_plot.plot(
-            [], [], pen=pg.mkPen("#d62728", width=2, style=Qt.DashLine))
-        curve_column.addWidget(self.scan_plot)
-        self.scan_note = QLabel("Press “Scan V0” on the preview tab.")
-        self.scan_note.setWordWrap(True)
-        curve_column.addWidget(self.scan_note)
-        tabs.addTab(curve_page, "V0 scan")
-        return tabs
+        return page
 
     # -- settings in one place ---------------------------------------------
     def settings(self) -> dict:
@@ -612,9 +606,11 @@ class KzConversionDialog(QDialog):
                 effective_mass=settings["effective_mass"],
                 near=float(self.inner_potential.value()))
         except Exception as exc:                            # noqa: BLE001
+            self.gamma_note.setVisible(True)
             self.gamma_note.setText(f"<span style='color:#c00'>{exc}</span>")
             return None
         self.inner_potential.setValue(v0)
+        self.gamma_note.setVisible(True)
         note = (f"Γ of zone order n = {order} at {hv:g} eV "
                 f"(k_z = {order * self.surface_period():.3f} Å⁻¹).")
         if v0 < 0:
@@ -638,15 +634,6 @@ class KzConversionDialog(QDialog):
             self.energy_slider.blockSignals(True)
             self.energy_slider.setValue(index)
             self.energy_slider.blockSignals(False)
-
-    def _auto_levels(self):
-        preview = getattr(self, "_preview", None)
-        if preview is None:
-            return
-        finite = preview[2][np.isfinite(preview[2])]
-        if finite.size:
-            lo, hi = np.percentile(finite, (1.0, 99.5))
-            self.histogram.setLevels(float(lo), float(hi))
 
     def lattice(self) -> LatticeParams:
         return LatticeParams(
@@ -694,7 +681,7 @@ class KzConversionDialog(QDialog):
                     params, max_index=2)[:12]:
                 name = "(" + " ".join(str(int(v)) for v in hkl) + ")"
                 self.normal_index.addItem(
-                    f"{name}   period {length:.4f} A^-1", (hkl, length))
+                    f"{name}   period {length:.4f} Å⁻¹", (hkl, length))
         except Exception as exc:                            # noqa: BLE001
             self.normal_index.addItem(f"lattice not usable: {exc}", None)
         for index in range(self.normal_index.count()):
@@ -722,13 +709,19 @@ class KzConversionDialog(QDialog):
             self.report.setHtml(f"<span style='color:#c00'>{exc}</span>")
             return
         self._preview = (kz_axis, kpar_axis, plane)
-        shown = np.where(np.isfinite(plane), plane, np.nan)
+        finite = plane[np.isfinite(plane)]
+        lo, hi = ((float(finite.min()), float(finite.max())) if finite.size
+                  else (0.0, 1.0))
         first = not getattr(self, "_levels_set", False)
-        self.image.setImage(shown, autoLevels=False)
+        user = None if first else self.level_bar.levels()
+        keep = (user is not None
+                and not self.level_bar.spans_full_range(*user))
+        self.level_bar.set_data_range(lo, hi, keep_levels=keep)
+        self.level_bar.set_histogram(finite)
         if first:
             self._levels_set = True
             self._apply_colormap()
-            self._auto_levels()
+        self._show_plane()
         self.image.setRect(pg.QtCore.QRectF(
             kz_axis[0], kpar_axis[0],
             kz_axis[-1] - kz_axis[0], kpar_axis[-1] - kpar_axis[0]))
@@ -738,7 +731,24 @@ class KzConversionDialog(QDialog):
         if preview is not None and preview.isVisible():
             preview.refresh()
 
-    def _apply_colormap(self):
+    def _show_plane(self):
+        """The preview slice in the colour window, with the gamma applied
+        inside it -- as the data viewers draw an image."""
+        preview = getattr(self, "_preview", None)
+        if preview is None:
+            return
+        plane = preview[2]
+        lo, hi = self.level_bar.levels()
+        if not hi > lo:
+            hi = lo + 1.0
+        with np.errstate(invalid="ignore"):
+            norm = np.clip((plane - lo) / (hi - lo), 0.0, 1.0)
+        gamma = self.level_bar.gamma()
+        if gamma != 1.0:
+            norm = norm ** gamma
+        self.image.setImage(norm, autoLevels=False, levels=(0.0, 1.0))
+
+    def _apply_colormap(self, *_):
         """The contour's own colormap on the preview.
 
         ``ui.viewers.widgets.apply_colormap`` drives a ``pg.ImageView``; this is a
@@ -746,15 +756,13 @@ class KzConversionDialog(QDialog):
         same lookup table either way, so the preview and the window that
         opened it match.
         """
-        name = (self.colormap_box.currentText()
-                if hasattr(self, "colormap_box") else self.contour.colormap)
+        name = (self.colormap_combo.currentText()
+                if hasattr(self, "colormap_combo") else self.contour.colormap)
+        flip = (self.flip_cb.isChecked() if hasattr(self, "flip_cb")
+                else self.contour.flip)
         try:
-            lut = np.asarray(colormaps.get_lut(name, flip=self.contour.flip))
-            # Through the histogram's gradient, so its levels and the colour
-            # table stay one control.
-            positions = np.linspace(0.0, 1.0, len(lut))
-            self.histogram.gradient.setColorMap(
-                pg.ColorMap(positions, lut[:, :3].astype(np.ubyte)))
+            lut = np.asarray(colormaps.get_lut(name, flip=flip))
+            self.image.setLookupTable(lut)
         except Exception:                                   # noqa: BLE001
             pass        # a preview in the default colours is no disaster
 
@@ -881,7 +889,7 @@ class KzConversionDialog(QDialog):
         except Exception as exc:                            # noqa: BLE001
             return str(exc)
         h, k, l = self.surface_hkl()
-        text = (f"The measured plane: k_z along ({h} {k} {l}), k_par along "
+        text = (f"The measured plane: k_z along ({h} {k} {l}), k// along "
                 f"{np.round(along_kpar, 3).tolist()} (Cartesian, a along x), "
                 f"through Γ.")
         preview = getattr(self, "_preview", None)
@@ -890,7 +898,7 @@ class KzConversionDialog(QDialog):
             period = self.surface_period()
             text += (f" Measured k_z {kz_axis[0]:.3f} to {kz_axis[-1]:.3f} Å⁻¹ "
                      f"({kz_axis[0] / period:.2f} to {kz_axis[-1] / period:.2f} "
-                     f"periods of {period:.4f} Å⁻¹), k_par {kpar_axis[0]:.3f} "
+                     f"periods of {period:.4f} Å⁻¹), k// {kpar_axis[0]:.3f} "
                      f"to {kpar_axis[-1]:.3f} Å⁻¹, at V0 = "
                      f"{self.inner_potential.value():.1f} eV.")
         if self.theta_correct.isChecked() and self.theta_position.value():
@@ -926,13 +934,13 @@ class KzConversionDialog(QDialog):
         period = self.surface_period()
         coverage = 100.0 * float(np.isfinite(plane).mean())
         lines = [
-            f"k_z {kz_axis[0]:.3f} to {kz_axis[-1]:.3f} A<sup>-1</sup> "
+            f"k_z {kz_axis[0]:.3f} to {kz_axis[-1]:.3f} Å⁻¹ "
             f"({(kz_axis[-1] - kz_axis[0]) / period:.2f} zones of "
-            f"{period:.4f} A<sup>-1</sup>)",
-            f"k_par {kpar_axis[0]:.3f} to {kpar_axis[-1]:.3f} A<sup>-1</sup>",
+            f"{period:.4f} Å⁻¹)",
+            f"k// {kpar_axis[0]:.3f} to {kpar_axis[-1]:.3f} Å⁻¹",
             f"grid step k_z {(kz_axis[-1] - kz_axis[0]) / max(kz_axis.size - 1, 1):.4f}, "
-            f"k_par {(kpar_axis[-1] - kpar_axis[0]) / max(kpar_axis.size - 1, 1):.4f} "
-            f"A<sup>-1</sup>",
+            f"k// {(kpar_axis[-1] - kpar_axis[0]) / max(kpar_axis.size - 1, 1):.4f} "
+            f"Å⁻¹",
             f"{coverage:.0f}% of the grid is covered by the measurement",
         ]
         if getattr(self, "_zone_error", None):
@@ -992,7 +1000,7 @@ class KzConversionDialog(QDialog):
         if distance <= 0:
             return ("<span style='color:#c00'>Those two points are at the "
                     "same k_z.</span>")
-        lines = [f"<b>Picked k_z separation {distance:.4f} A<sup>-1</sup></b> "
+        lines = [f"<b>Picked k_z separation {distance:.4f} Å⁻¹</b> "
                  f"(real-space repeat {2 * np.pi / distance:.3f} A)"]
         try:
             found = cleavage.candidates(distance, self.lattice(),
@@ -1008,56 +1016,6 @@ class KzConversionDialog(QDialog):
             for candidate in found[:6]:
                 lines.append("&nbsp;&nbsp;" + candidate.describe())
         return "<br>".join(lines)
-
-    # -- scanning V0 -------------------------------------------------------
-    def scan_v0(self):
-        cube = np.asarray(self.contour.full_cube(), dtype=float)
-        period = self.surface_period()
-        spacing = 2.0 * np.pi / period
-        settings = self.settings()
-        settings.pop("inner_potential")
-        binding = float(self.preview_energy.value())
-
-        def work(report):
-            def tick(done, total):
-                report(done / max(1, total),
-                       f"Trying inner potentials ({done + 1} of {total})")
-            return kzconv.scan_inner_potential(
-                self.hv, self.angle, self.energy, cube, spacing=spacing,
-                binding_energy=binding, progress=tick, **settings)
-
-        started = nxs_jobs.run_job(
-            self, "Scanning the inner potential", work,
-            on_done=self._show_scan,
-            on_error=lambda exc: self.scan_note.setText(
-                f"<span style='color:#c00'>{exc}</span>"))
-        if not started:
-            self.scan_note.setText("Another operation is running.")
-
-    def _show_scan(self, result):
-        good = np.isfinite(result.periods)
-        self.scan_curve.setData(result.inner_potentials[good],
-                                result.periods[good])
-        self.target_curve.setData(
-            [result.inner_potentials[0], result.inner_potentials[-1]],
-            [result.target, result.target])
-        if result.best is None:
-            self.scan_note.setText(
-                "The period never matches the lattice over this range of "
-                "inner potentials. Check the surface normal and the lattice "
-                "constants, or widen the range.")
-            return
-        uncertainty = result.uncertainty()
-        self.scan_note.setText(
-            f"<b>The k_z period matches {result.target:.4f} A<sup>-1</sup> at "
-            f"V0 = {result.best:.1f} eV.</b><br>"
-            f"Sensitivity {result.sensitivity:.5f} A<sup>-1</sup> per eV, so "
-            f"measuring the period to 2% pins V0 only to about "
-            f"±{uncertainty:.1f} eV. That is this scan's photon-energy range "
-            f"talking, not the fit: covering more zones would narrow it. "
-            f"Use it to start from, then look at whether the pattern lines "
-            f"up with the zone boundaries.")
-        self.inner_potential.setValue(float(result.best))
 
     # -- converting --------------------------------------------------------
     def convert(self):
@@ -1136,7 +1094,7 @@ class KzConversionDialog(QDialog):
                        self.contour.existing_names())
         result = MemoryData(
             "kz_map_k", (kz_axis, kpar_axis, energy), out,
-            {"x": "k_z (Å⁻¹)", "k": "k_par (Å⁻¹)",
+            {"x": "k_z (Å⁻¹)", "k": "k// (Å⁻¹)",
              "z": scan.labels.get("z", "E - E_F (eV)")},
             source_label=name, parameters=parameters, prefix="kz_to_k",
             source_path=getattr(data, "path", ""), source_info=info,
@@ -1144,10 +1102,10 @@ class KzConversionDialog(QDialog):
         self.datasetsCreated.emit([result])
         coverage = 100.0 * float(np.isfinite(out).mean())
         self.report.setHtml(
-            f"<b>Converted to (k_z, k_par, E) at V0 = "
+            f"<b>Converted to (k_z, k//, E) at V0 = "
             f"{settings['inner_potential']:.1f} eV.</b><br>"
             f"k_z {kz_axis[0]:.3f} to {kz_axis[-1]:.3f} Å⁻¹, "
-            f"k_par {kpar_axis[0]:.3f} to {kpar_axis[-1]:.3f} Å⁻¹, "
+            f"k// {kpar_axis[0]:.3f} to {kpar_axis[-1]:.3f} Å⁻¹, "
             f"{coverage:.0f}% covered.<br>"
             f"Added to the list as “{name}”.")
 

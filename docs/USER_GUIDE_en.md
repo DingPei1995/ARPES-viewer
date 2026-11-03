@@ -909,17 +909,19 @@ starts from the last conversion of a scan of the same size.
 - **Output grid**: by default k∥ gets one point per analyser angle channel
   and k_z the number that makes its step the same (*Match the measurement*
   sets it again); the steps are in the report.
-- The energy of the preview is the **slider** beside it; the colour map and
-  levels (histogram, *Auto levels*) are beside that.
+- The energy of the preview is the **slider** beside it; above it are the
+  data viewers' colour controls: colour map, *Flip*, and the level bar
+  (levels, *Clip*, percentages, *Gamma*).
 - **Calibrate hν from each fitted E_F** (optional, off by default): after the
   Fermi level has been fitted per photon energy (kz map → align E_F), uses
   hν − E_kin(E_F) measured at each photon energy instead of the single work
   function — for a monochromator whose hν is off. The default is the single
   work function, with E_F already flattened.
-- With the **lattice** (space group, a, b, c), the **surface normal** and the
-  in-plane direction, the zone boundaries are drawn over the preview.
-- **Scan V0** converts at a range of V0 values and reports where the k_z
-  period matches the lattice — and how well that pins V0.
+- With the **lattice** (space group, a, b, c), the **surface normal** and
+  **Rotate k// by** (the slit direction as a turn about the normal from a*,
+  or the first reciprocal axis not along the normal — any angle, since the
+  slit need not run along a high-symmetry direction), the zone boundaries
+  are drawn over the preview.
 - **Measure a k_z period...**: click two points that are the same feature one
   zone apart; the matching reciprocal-lattice planes are listed.
 - **Show the k_z plane in the 3D BZ...**: the BZ overlap tool's turnable
