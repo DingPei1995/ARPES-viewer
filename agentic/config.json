@@ -1,0 +1,5 @@
+{
+  "data_dir": "D:/Beamtime Data/Cassiopee_202610/NCG3",
+  "patterns": ["*.txt", "*/*_roi1_.txt"],
+  "screen": 2
+}

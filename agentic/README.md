@@ -247,6 +247,13 @@ complete session, the rules to give the agent and the pitfalls met, is
 - **Small steps first.** One dataset, checked, then the rest.
 - **Keep the script.** With route 2, ask for the script that made a figure,
   so it can be re-run and checked later.
+- **Agree on one figure first.** Panel sizes, text size, axis labels on
+  every panel, colour scale: let the agent make one figure and check it
+  before it makes a family of them.
+- **Do not let the agent read the screen** for processing or figure work;
+  the program's own functions can do it and a screenshot adds nothing.
+- **Same symbol, same frame.** The 3D Brillouin-zone window's k_x, k_y, k_z
+  are crystal-frame axes; the converted data's kx, ky are sample axes.
 - **Before publishing**, check what the agent produced as you would a
   student's analysis; for papers related to AI, see the README's terms of
   use.
@@ -291,7 +298,7 @@ complete session, the rules to give the agent and the pitfalls met, is
 | `launch_viewer.py`, `viewer_live.py` | Route 3: the window driven through `viewer_cmd/` |
 | `agent_runner.pyw` | Route 3: jobs without a window, from `queue/` |
 | `config.example.json` | Route 3: copy to `config.json` and edit |
-| `recipes/` | Route 3: command files from a real session |
+| `recipes/` | Route 3: command files from real sessions (`r05` figure helpers, `r06` constant-energy and kx-cut figures with schematic panels) |
 
 The working folders (`out/`, `shots/`, `viewer_cmd/`, ...) and
 `config.json` stay on your computer: they are not part of the repository.
