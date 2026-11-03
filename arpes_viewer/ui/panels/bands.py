@@ -1732,7 +1732,8 @@ class BandsDialog(QDialog):
                       width=0.6, align=True):
         """The in-plane Brillouin zones (the calculation's lattice, turned
         by the azimuth) over a (k_x, k_y) range, as overlays."""
-        from arpes_viewer.tools.crystal.bz2d import tile_2d, wigner_seitz_cell_2d
+        from arpes_viewer.tools.crystal.bz2d import (tile_2d, unique_edges,
+                                                      wigner_seitz_cell_2d)
         from arpes_viewer.tools.output import figure as F
 
         if isinstance(self.model, B.BandPath):
@@ -1745,15 +1746,11 @@ class BandsDialog(QDialog):
         cell = wigner_seitz_cell_2d(g1, g2)
         # each edge once: neighbouring zones share their edges, and the same
         # dashed line drawn twice, offset by its own dash, comes out solid
-        edges = {}
-        for tile in tile_2d(cell, g1, g2, x_range, y_range, margin=1):
-            for p, q in zip(tile[:-1], tile[1:]):
-                key = tuple(sorted((tuple(np.round(p, 6)), tuple(np.round(q, 6)))))
-                edges.setdefault(key, (p, q))
+        edges = unique_edges(tile_2d(cell, g1, g2, x_range, y_range, margin=1))
         return [F.Overlay(xs=[float(p[0]), float(q[0])], ys=[float(p[1]), float(q[1])],
                           color=colour, width_pt=width, style=style,
                           name="Brillouin zone")
-                for p, q in edges.values()]
+                for p, q in edges]
 
     def contour_overlays(self, kx, ky, energy, colours=("#d62728", "#2ca02c"),
                          width=0.8, style="solid", threshold=0.5, options=None,

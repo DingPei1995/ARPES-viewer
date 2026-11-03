@@ -150,3 +150,57 @@ def test_brillouin_zone_dialog_is_offered_and_draws_on_a_kz_map(app):
     assert info["bz.kpar_h"] == 0
     dialog.close()
     contour.close()
+
+
+def test_kz_conversion_window_theta_grid_gamma_and_calibration(app, monkeypatch):
+    from arpes_viewer.ui.viewers import windows as W
+    from arpes_viewer.ui.panels import kzconv as K
+    from arpes_viewer.tools.runtime import remembered
+    monkeypatch.setattr(remembered, "recall", lambda *a, **k: None)
+    data = _kz_map("kz_map")
+    data.scan.info["cassiopee.sample_theta_deg"] = 37.5
+    contour = W.ContourWindow(data, "kz", "gray", False)
+    dialog = K.KzConversionDialog(contour)
+    # the motor's absolute theta is not used unless asked for, as an offset
+    assert not dialog.theta_correct.isChecked()
+    assert dialog.settings()["theta_position"] == 0.0
+    dialog.theta_correct.setChecked(True)
+    dialog.theta_position.setValue(1.5)
+    assert dialog.settings()["theta_position"] == 1.5
+    # the grid follows the angle channels
+    assert dialog.n_kpar.value() == max(16, dialog.angle.size)
+    # V0 from Γ: k_z at normal emission is then a whole number of periods
+    v0, order = dialog.set_v0_from_gamma()
+    hv = dialog.gamma_hv.value()
+    kz = np.sqrt(K.kzconv.A_CONST * (hv - dialog.work_function.value() + v0))
+    assert kz == pytest.approx(order * dialog.surface_period(), rel=1e-6)
+    # no per-hv Fermi levels: the calibration cannot be switched on
+    assert not dialog.calibrate_hv.isEnabled()
+    assert np.ndim(dialog.settings()["work_function"]) == 0
+    # the slider and the energy box move together
+    dialog.energy_slider.setValue(0)
+    assert dialog.preview_energy.value() == pytest.approx(dialog.energy[0], abs=1e-3)
+    dialog.close()
+    contour.close()
+
+
+def test_kz_conversion_calibration_is_offered_after_per_hv_fermi_levels(app, monkeypatch):
+    from arpes_viewer.ui.viewers import windows as W
+    from arpes_viewer.ui.panels import kzconv as K
+    from arpes_viewer.tools.runtime import remembered
+    monkeypatch.setattr(remembered, "recall", lambda *a, **k: None)
+    data = _kz_map("kz_map")
+    hv = np.asarray(data.angle_cube[0], dtype=float)
+    data.scan.info.update({
+        "kz.fermi_level_eV": np.zeros(hv.size),
+        "cassiopee.member_photon_energy_eV": hv,
+        "cassiopee.member_work_function_eV": np.full(hv.size, 4.2),
+        "cassiopee.member_kinetic_start_eV": hv - 4.6 - 0.5})
+    contour = W.ContourWindow(data, "kz", "gray", False)
+    dialog = K.KzConversionDialog(contour)
+    assert dialog.calibrate_hv.isEnabled() and not dialog.calibrate_hv.isChecked()
+    dialog.calibrate_hv.setChecked(True)
+    phi = dialog.settings()["work_function"]
+    assert np.shape(phi) == hv.shape
+    dialog.close()
+    contour.close()

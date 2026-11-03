@@ -258,6 +258,72 @@ class FermiFit:
                         if abs(pair) > 0.9 else ""))
         return text
 
+    def problems(self) -> list:
+        """Why this fit should not be believed, in words; empty if none.
+
+        See :func:`edge_problems`."""
+        return edge_problems(self)
+
+    @property
+    def found_edge(self) -> bool:
+        """True if the fit found a Fermi edge rather than merely converged."""
+        return not self.problems()
+
+
+def edge_problems(fit, lo: float = None, hi: float = None,
+                  margin: float = None) -> list:
+    """Reasons a converged fit is not a Fermi edge; an empty list if none.
+
+    ``fit_fermi_edge`` reports success on data with no edge in it at all --
+    it is a least-squares fit, and a model with a step in it can describe
+    featureless data by putting the step where it does no harm. That is
+    what a self-normalised map gives (every spectrum divided by its own
+    level, so the step from occupied to empty states is gone), and the
+    number that comes back looks like an answer either way. Three things
+    give it away, none of them a threshold tuned by hand:
+
+    * **E_F is pinned to the end of the window.** On flat data the step
+      slides off the fitted range and stops at its bound; a real edge sits
+      inside the window with data on both sides.
+    * **There is no step worth speaking of.** ``dos0``, the height of the
+      step down, is positive and large next to its own error bar for an
+      edge; featureless data fits about zero, and noise fits one going up.
+    * **E_F is not determined.** An error on E_F larger than a quarter of
+      the window means the window does not fix where the edge is.
+
+    ``lo``/``hi`` default to the fit's own window and ``margin`` to two
+    energy steps of it.
+    """
+    reasons = []
+    w_lo, w_hi = fit.window if fit.window else (None, None)
+    lo = w_lo if lo is None else lo
+    hi = w_hi if hi is None else hi
+    level = float(fit.values.get("ef", np.nan))
+    if not np.isfinite(level):
+        return ["E_F is not a number"]
+    if lo is not None and hi is not None:
+        span = float(hi) - float(lo)
+        if margin is None:
+            margin = 2.0 * span / max(int(fit.n_points) - 1, 1)
+        if not (lo + margin <= level <= hi - margin):
+            reasons.append(f"E_F = {level:.5g} eV is at the end of the fit "
+                           f"window ({lo:.5g}..{hi:.5g} eV): no edge inside it")
+        error = float(fit.errors.get("ef", np.nan))
+        if np.isfinite(error) and span > 0 and error > 0.25 * span:
+            reasons.append(f"E_F is not determined (± {error:.3g} eV over a "
+                           f"{span:.3g} eV window)")
+    step = float(fit.values.get("dos0", 0.0))
+    step_error = float(fit.errors.get("dos0", float("nan")))
+    if step <= 0.0:
+        reasons.append("there is no step down at E_F in the data")
+    elif np.isfinite(step_error) and step_error > 0.0 and step <= 2.0 * step_error:
+        reasons.append(f"the step at E_F ({step:.3g}) is not larger than "
+                       f"twice its error ({step_error:.3g})")
+    if reasons:
+        reasons.append("was the data normalised before the fit? Fit the raw "
+                       "data, put it on E - E_F, then normalise")
+    return reasons
+
 
 def _weights(intensity: np.ndarray, weighting: str) -> np.ndarray:
     if weighting == "uniform":

@@ -329,3 +329,76 @@ def test_the_crystal_window_puts_its_cif_button_above_the_cell(app):
     cell_box = dialog.cell_input.parentWidget()
     assert column.indexOf(dialog.cif_button) < column.indexOf(cell_box)
     dialog.close()
+
+
+def test_the_3d_zone_names_crystal_and_sample_axes_apart(app):
+    """k_a, k_b, k_c for the crystal by default; k_x, k_y, k_z only once the
+    sample frame is chosen, k_z then along the cleavage plane's normal and
+    k_x turned by the maps' azimuth."""
+    from arpes_viewer.ui.panels.bz3d import BrillouinZone3DDialog
+    dialog = BrillouinZone3DDialog()
+    dialog.cell_input.set_cell(221, 3.0)
+    texts = [i[2] for i in dialog.view._zone_items()[0] if i[0] == "text"]
+    assert {"k_a", "k_b", "k_c"} <= set(texts) and "k_x" not in texts
+    dialog.set_frame("sample", (1, 1, 0), azimuth=90.0)
+    names = dialog.view.zone_axis_names
+    assert names == ("k_x", "k_y", "k_z")
+    axes = dialog.view.zone_axis_vectors
+    assert np.allclose(axes[2], np.array([1, 1, 0]) / np.sqrt(2))
+    assert abs(axes[0] @ axes[2]) < 1e-9 and abs(axes[1] @ axes[2]) < 1e-9
+    assert [b.text() for b in dialog.view_buttons] == ["k_x", "k_y", "k_z"]
+    dialog.look_along("k_z")
+    dialog.look_along("oblique")
+    with pytest.raises(ValueError):
+        dialog.look_along("k_a")
+    dialog.set_frame("crystal")
+    assert dialog.view.zone_axis_names == ("k_a", "k_b", "k_c")
+    dialog.close()
+
+
+def test_the_3d_zone_labels_are_sized_for_the_final_panel(app):
+    """8 pt in a 30 mm panel: the same text size whatever the pixels."""
+    from arpes_viewer.ui.panels.bz3d import BrillouinZone3DDialog
+    dialog = BrillouinZone3DDialog()
+    assert dialog.label_px() is None                   # off by default
+    dialog.panel_mm_box.setValue(30.0)
+    dialog.text_pt_box.setValue(8.0)
+    small, large = dialog.label_px(600), dialog.label_px(1200)
+    assert large == pytest.approx(2 * small)
+    assert small == pytest.approx(8 * 25.4 / 72 * 600 / 30.0)
+    assert not dialog.picture(600, 600).isNull()
+    assert dialog.view.font_px_fixed is None           # the screen is untouched
+    dialog.close()
+
+
+def test_a_slice_series_without_the_dialog_has_nominal_titles_and_the_zone(app):
+    """The programmatic entry (no modal dialog), the value asked for in the
+    title, the plane used kept in the panel, the colour scale set at
+    creation, and the map's zone on every constant-energy panel."""
+    import json
+    from arpes_viewer.ui.viewers import windows as W
+    energy = np.arange(-12, 3) * 0.04 + 0.002192
+    kdata = W.KMapData(np.linspace(-1, 1, 21), np.linspace(-1, 1, 25),
+                       energy, np.random.default_rng(0).random((21, 25, 15)),
+                       source_label="km", parameters={})
+    square = [[-0.5, 0.5, 0.5, -0.5, -0.5], [-0.5, -0.5, 0.5, 0.5, -0.5]]
+    shifted = [[0.5, 1.5, 1.5, 0.5, 0.5], [-0.5, -0.5, 0.5, 0.5, -0.5]]
+    kdata.scan.info["bz.overlay"] = json.dumps(
+        {"layers": {"bz_main": {"color": "#39c2ff", "width": 1.4,
+                                "polygons": [square, shifted]}},
+         "labels": [["Γ", 0.0, 0.0]], "label_color": "#ffd166"})
+    contour = W.ContourWindow(kdata, "km", "gray", False)
+    window = contour.slice_figure(values=[0.0, -0.2], half_width=0.05,
+                                  cols=2, colormap="bluehot",
+                                  percentiles=(2.0, 99.5), gamma=0.6,
+                                  show=False)
+    first, second = window.figure.panels
+    assert first.title == "0 eV" and second.title == "−0.2 eV"
+    assert first.data.info["slice.position"] == pytest.approx(0.002192, abs=1e-6)
+    assert first.colormap == "bluehot" and first.gamma == 0.6
+    assert first.levels is not None
+    edges = [o for o in first.overlays if o.name == "Brillouin zone"]
+    assert len(edges) == 7                     # the shared edge drawn once
+    assert [t.text for t in first.texts] == ["Γ"]
+    window.close()
+    contour.close()

@@ -2,7 +2,7 @@
 
 *[English version](USER_GUIDE_en.md) · [中文版](USER_GUIDE_zh.md)*
 
-*Dernière mise à jour : 2 novembre 2026 — pour ARPES viewer v1.3.0*
+*Dernière mise à jour : 3 novembre 2026 — pour ARPES viewer v1.3.1*
 
 La version et sa date figurent dans la barre de titre et en bas de la fenêtre
 principale. Signaler un bogue, poser une question, obtenir la dernière version :
@@ -319,7 +319,7 @@ désormais l'une des façons de **Combine...**.)
   que les agents IA de tout modèle peuvent appeler, voir
   [§33](#33-piloter-le-programme-depuis-un-agent-ia-mcp).
 
-### Où se trouvent les choses maintenant (v1.3.0)
+### Où se trouvent les choses maintenant (v1.3.1)
 
 Pour qui a utilisé une version antérieure : les outils ont quitté le menu
 contextuel et les menus *Functions* des fenêtres pour le panneau d'outils ;
@@ -2096,7 +2096,9 @@ arpes-viewer --agent-bridge
 sélection — `fermi`, `kcut`, `kmap`, `bz3d`, `figure`, `notch3d`,
 `combine`…), `viewer_windows`, `viewer_screenshot` (une image de n'importe
 laquelle de ses fenêtres, pour que l'agent vérifie ce qu'il a fait),
-`viewer_close_window` et `viewer_python` (du Python exécuté dans le
+`viewer_figure` et `viewer_render_figure` (une figure en chiffres — page,
+cadres, titres, niveaux, tailles de texte — et écrite en PNG telle qu'elle
+sera imprimée), `viewer_close_window` et `viewer_python` (du Python exécuté dans le
 programme, avec `A` = son module principal — pour remplir les champs d'une
 fenêtre et cliquer ses boutons). Un résultat sans fenêtre rejoint la liste
 par `save_datasets` vers un `.nxs` puis `viewer_add_files`.

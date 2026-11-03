@@ -710,3 +710,17 @@ def test_the_permutation_option_works_on_an_assembled_series(tmp_path):
     scan = registry.load(paths[0], "series",
                          registry.LoadOptions(permutation=(1, 0, 2)))
     assert scan.value.shape == (5, 4, 4)
+
+
+def test_an_unfinished_map_keeps_its_angle_axis(tmp_path):
+    """The last spectrum of a stopped map has no ``_i`` file: it is left out
+    and named, and the rest is still a theta map, not an index pile."""
+    from arpes_viewer.loader.beamlines.cassiopee import load_series, series_kind
+    paths = make_series(str(tmp_path), count=5,
+                        thetas=[-2.0, -1.0, 0.0, 1.0, 2.0])
+    os.remove(str(tmp_path / "Map80eV_Phi18_5_i.txt"))
+    assert series_kind(paths[0]) == "theta"
+    scan = load_series(paths[0])
+    assert scan.value.shape[0] == 4
+    assert scan.x == pytest.approx([-2.0, -1.0, 0.0, 1.0])
+    assert "Map80eV_Phi18_5_ROI1_.txt" in scan.info["cassiopee.dropped_members"]

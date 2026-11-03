@@ -12,6 +12,59 @@ file is the record of how it got that way.
 
 ---
 
+## 1.3.1 — 2026-11-03
+
+From a day of real data processed by an agent (the session's own review of
+what the program got in its way).
+
+- **kz conversion.** The manipulator theta is off by default and, when
+  ticked, is an offset from Γ, not the motor's absolute reading (which was
+  used as the polar angle before). The output grid starts from the
+  measurement -- one k∥ point per analyser channel, k_z with the same step
+  -- instead of 256 × 256. V0 may be negative, and **Γ at hν → Set V0**
+  gives the V0 that puts Γ at normal emission at a chosen photon energy.
+  The preview energy is a slider beside the picture, with the colour map and
+  levels next to it. **Calibrate hν from each fitted E_F** is an option, off
+  by default: after the Fermi level has been fitted per photon energy, it
+  uses hν − E_kin(E_F) measured at each one instead of the single work
+  function (the default stays: E_F flattened, no hν calibration).
+- **The "Fermi edge still bends" warning** gave 0.37 eV on a flat edge: it
+  was the largest minus the smallest steepest-fall position over single,
+  unsmoothed channels, so one weak slit-end channel or a band crossing E_F
+  set it. Now blocks of channels, smoothed, the weak ones left out, and the
+  range of a robust parabola through them.
+- **A Fermi fit with no edge is refused**, with the reason (E_F at the
+  window's end, no significant step, E_F undetermined, and a hint that the
+  data may have been normalised), in the Fermi window and in the agent's
+  `fermi_edge`, instead of returning E_F = 75.2 ± 4.6 eV.
+- **An unfinished CASSIOPEE map** (one spectrum without its `_i` file) keeps
+  its angle axis; the spectrum is left out and named
+  (`cassiopee.dropped_members`).
+- **Brillouin-zone overlays are drawn edge by edge, each once**, on the
+  contour, in exports and in the kz preview: tiled zones share edges, and a
+  dashed edge drawn twice came out solid. Closing BZ overlap no longer
+  keeps a plane turned without Plot as the "last used" one.
+- **3D BZ: two frames, two sets of names.** The crystal's axes are k_a, k_b,
+  k_c by default; the sample's k_x, k_y, k_z (k_z along a chosen cleavage
+  plane's normal, k_x along the maps' k_x) on request, as the data has
+  them. `look_along` takes "oblique", an axis name or a vector. Labels can
+  be sized for the final panel (pt at a panel width in mm) rather than
+  scaled with the picture.
+- **Slice series**: titles carry the value asked for (−0.2 eV), the plane
+  used kept in each panel's information; colour map, levels (percentiles)
+  and gamma at creation; the map's zone drawn on every constant-energy
+  panel; no "Mean of empty slice" warnings; and `slice_figure(values=...)`
+  / `A.open_slice_series(values=...)` without the modal dialog.
+- **Figure composer**: a panel can take several grid cells (`span`) and a
+  picture keeps its own shape in them; the page height follows panels moved
+  by hand; *…but tick numbers on every panel* keeps inner panels' numbers
+  with the axis names on the edges.
+- **For agents**: a modal dialog opened from `viewer_python` or a live-viewer
+  command raises `ModalDialogBlocked` instead of freezing it (warnings are
+  printed and answered); `FigureWindow.describe()` / `render(path)` and the
+  MCP tools `viewer_figure` / `viewer_render_figure` give a figure in
+  numbers and as the PNG it prints as. Recipe r05 uses these.
+
 ## 1.3.0 — 2026-11-02
 
 Using an AI agent with the program, made approachable for a newcomer.

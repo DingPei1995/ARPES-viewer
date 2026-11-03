@@ -122,17 +122,21 @@ Ask Claude to confirm that (1) `heartbeat.txt` is recent and (2) a screenshot of
 9. Figure labels use round nominal values (0, -0.1, -0.2 eV ...); the data behind each
    label is taken from the nearest recorded position (integration window around it). If
    the actual position differs from the label, record both in the usage/notes file.
-10. Modal dialogs (e.g. Slice series figure) block the command poller: open them with
-   QtCore.QTimer.singleShot(...) that fills and clicks them, never from a plain call.
+10. Modal dialogs would block the command poller; since v1.3.1 they raise
+   ModalDialogBlocked instead. Call the tool's own function (e.g.
+   A.open_slice_series(values=[...]) or contour.slice_figure(values=[...])), or open
+   the dialog with QtCore.QTimer.singleShot(...) that fills and clicks it.
 11. Figures with a schematic panel: build the schematic with the program's own tool (3D BZ
-   window, A.open_brillouin_zone_3d()), without data on it, axes off (its k_x,k_y,k_z are
-   crystal-frame axes, not the data's kx,ky), high-symmetry points at the left equivalents,
-   font enlarged (view.font_px) so the text in the finished panel is as large as the other
-   panels' text (about 8 pt). Do not use one symbol for two different frames.
+   window, A.open_brillouin_zone_3d()), without data on it, high-symmetry points at the
+   left equivalents, labels sized for the final panel (Export: panel width / text pt) so
+   the text in the finished panel is as large as the other panels' text (about 8 pt).
+   Its axes are the crystal's k_a, k_b, k_c, or the data's k_x, k_y, k_z with
+   set_frame("sample", hkl); do not use one symbol for two different frames.
 12. Text drawn inside a picture must be sized from the final panel: pixels per mm of the
    panel x font size in mm. Do not guess; do not iterate by eye.
 13. Draw each Brillouin-zone edge once (neighbouring zones share edges; drawing both made
-   some dashed lines look solid).
+   some dashed lines look solid). The viewer does this itself since v1.3.1
+   (tools.crystal.bz2d.unique_edges).
 14. Before producing a family of figures, make ONE, state the layout (panel sizes, axis
    labels on every panel, text size, colour scale) and let me check it; then do the rest.
 15. Every figure gets a new, unique file name; never overwrite. Save .afig with
@@ -140,7 +144,8 @@ Ask Claude to confirm that (1) `heartbeat.txt` is recent and (2) a screenshot of
 16. Colour scale for blue (inverted) maps: percentile levels 2-99.5 and gamma that puts the
    median at about 0.18 of the scale; adjust only on my feedback.
 17. After arranging a figure, print the panel frames and the figure height and check them in
-   numbers (the figure height is not updated when panels are moved by hand).
+   numbers: FigureWindow.describe() (MCP: viewer_figure); FigureWindow.render(path) writes
+   the PNG as printed (MCP: viewer_render_figure).
 18. Record every weekly-usage percentage I give you in the usage log with the time and step.
 ```
 
@@ -204,18 +209,19 @@ dlg.grab().save(HERE + r"\shots\stepNN_name.png")
 |---|---|---|
 | Gamma deflector angle silently ignored | Option only active with *Advanced: Gamma off this cut* ticked | Always tick it; verify the `kcut.*` metadata of the result |
 | Fermi-edge fit unstable on warm data | Edge broadened, low counts at small scan angles | Use the full slit window, hold the temperature, check against resolution before flattening |
-| Windows with the wrong geometry after a dialog | Modal dialogs block the command poller | Fill the dialog from a timer and accept, or close stray windows before the next command |
+| Windows with the wrong geometry after a dialog | Modal dialogs block the command poller | v1.3.1: the dialog raises ModalDialogBlocked; call the tool's function (slice_figure ...) |
 | A large duplicate of the data was written to disk | Agent tried to "bundle" the data | Forbid copies; list the original files directly (the live viewer does) |
 | Rows removed that you wanted to keep | Ambiguous instruction | Spell out "remove only X"; ask Claude to list the rows before and after |
 | Windows app tiers | File Explorer is click-only; `pythonw` cannot be controlled | Double-click launchers yourself once; everything else runs through the poller |
 | No window available | The batch runner runs offscreen | Use the live viewer for anything visual |
-| Figure text far too small | Picture shrunk into a 30 mm panel; the 3D BZ tool sizes its font from the picture size | Set `view.font_px` before `save_picture`; size text from the panel (rule 12) |
-| Some BZ lines solid, some dashed | Overlay polygons of neighbouring zones share edges, drawn twice | Draw unique edges (r05 `bz_lines`) |
-| y axis missing on inner panels | Composer default `edge_labels_only=True` | Set it False and `x_labels/y_labels` True |
-| Schematic tiny | Picture panel takes the data panels' size | Give the picture panel its own `frame` (r05 `finish`) |
-| Fermi fit gave E_F 75.2 +- 4.6 eV | Fit run on a self-normalised map | Fit the raw map, offset, then normalise |
-| Scan axis was an index, not an angle | Unfinished map: fewer `_i` files than ROI files | Read theta from the `_i` files, drop the last cut, patch the axis |
-| Stored BZ normal changed | A rotate test in the 3D tool wrote back | Re-set the normal and verify the stored `bz.*` properties |
+| Figure text far too small | Picture shrunk into a 30 mm panel; the 3D BZ tool sizes its font from the picture size | v1.3.1: 3D BZ *Export → Labels: panel width / text* (pt in the final panel) |
+| Some BZ lines solid, some dashed | Overlay polygons of neighbouring zones share edges, drawn twice | Fixed in v1.3.1: every overlay is drawn edge by edge, each once |
+| y axis missing on inner panels | Composer default `edge_labels_only=True` | v1.3.1: style `inner_tick_numbers=True` keeps the numbers, names stay on the edges |
+| Schematic tiny | Picture panel takes the data panels' size | v1.3.1: `panel.span = (2, 1)` before *Arrange as grid*; a picture keeps its shape |
+| Fermi fit gave E_F 75.2 +- 4.6 eV | Fit run on a self-normalised map | v1.3.1 refuses such a fit and says why; fit the raw map, offset, then normalise |
+| Scan axis was an index, not an angle | Unfinished map: fewer `_i` files than ROI files | Fixed in v1.3.1: the spectrum without `_i` is left out and named in `cassiopee.dropped_members` |
+| Stored BZ normal changed | Closing BZ overlap after turning the normal kept it as "last used" | Fixed in v1.3.1: only Plot keeps a plane |
+| "Fermi edge still bends by 0.37 eV", not seen in the data | One noisy channel set the max-min | Fixed in v1.3.1: robust estimate (blocks of channels, parabola) |
 | Several rounds of figure fixes | Layout and text size not agreed first | Rule 14: one figure first |
 
 ## 9. Privacy checklist before sharing a report

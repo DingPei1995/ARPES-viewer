@@ -32,7 +32,82 @@ from PyQt5.QtCore import QBuffer, QByteArray, QIODevice, QTimer
 from PyQt5.QtNetwork import QHostAddress, QTcpServer
 from PyQt5.QtWidgets import QApplication
 
-__all__ = ["wanted", "start", "AgentBridge"]
+__all__ = ["wanted", "start", "AgentBridge", "ModalDialogBlocked",
+           "modal_guard"]
+
+
+class ModalDialogBlocked(RuntimeError):
+    """Code run for an agent asked for a modal dialog, which would wait for
+    a click nobody makes and stop everything behind it."""
+
+
+@contextlib.contextmanager
+def modal_guard(log=print):
+    """Inside this, a modal dialog raises :class:`ModalDialogBlocked`
+    instead of waiting; a plain warning or note is printed (``log``) and
+    answered with OK.
+
+    Code an agent runs in the program (the bridge's ``python``, the live
+    viewer's command files) runs between events like a click. A dialog
+    opened modally from it waits for an answer that never comes, and the
+    agent's channel waits with it -- the one way the program used to hang
+    for an agent. The error names the dialog and the way round it: the
+    tool's programmatic entry (``ContourWindow.slice_figure`` ...), or
+    filling and pressing it from ``QTimer.singleShot``.
+    """
+    from PyQt5.QtWidgets import QDialog, QFileDialog, QInputDialog, QMessageBox
+
+    def refuse(what):
+        raise ModalDialogBlocked(
+            f"{what} would open a modal dialog and wait for a click. Use the "
+            f"tool's own function instead (e.g. ContourWindow.slice_figure(...), "
+            f"FigureWindow.render(...), save_file(path, ...)), or open the "
+            f"dialog with QtCore.QTimer.singleShot(...) and fill it there.")
+
+    def blocked_exec(self, *args, **kwargs):
+        title = self.windowTitle() or type(self).__name__
+        self.deleteLater()
+        refuse(f"“{title}”")
+
+    def note(kind):
+        def answer(parent, title, text, *args, **kwargs):
+            log(f"[{kind}] {title}: {text}")
+            return QMessageBox.Ok
+        return staticmethod(answer)
+
+    def refuse_static(name):
+        def answer(*args, **kwargs):
+            refuse(name)
+        return staticmethod(answer)
+
+    patched = [(QDialog, "exec_"), (QDialog, "exec"), (QMessageBox, "exec_"),
+               (QMessageBox, "exec"), (QMessageBox, "warning"),
+               (QMessageBox, "information"), (QMessageBox, "critical"),
+               (QMessageBox, "question"), (QFileDialog, "getOpenFileName"),
+               (QFileDialog, "getOpenFileNames"), (QFileDialog, "getSaveFileName"),
+               (QFileDialog, "getExistingDirectory"), (QInputDialog, "getText"),
+               (QInputDialog, "getDouble"), (QInputDialog, "getInt"),
+               (QInputDialog, "getItem")]
+    saved = [(owner, name, owner.__dict__.get(name)) for owner, name in patched]
+    try:
+        QDialog.exec_ = QDialog.exec = blocked_exec
+        QMessageBox.exec_ = QMessageBox.exec = blocked_exec
+        QMessageBox.warning = note("warning")
+        QMessageBox.information = note("note")
+        QMessageBox.critical = note("error")
+        QMessageBox.question = refuse_static("A question box")
+        for owner, name in patched[8:]:
+            setattr(owner, name, refuse_static(f"{owner.__name__}.{name}"))
+        yield
+    finally:
+        for owner, name, original in saved:
+            if original is None:
+                try:
+                    delattr(owner, name)
+                except AttributeError:
+                    pass
+            else:
+                setattr(owner, name, original)
 
 ENV = "ARPES_VIEWER_AGENT_BRIDGE"
 FLAG = "--agent-bridge"
@@ -203,6 +278,32 @@ class AgentBridge(QTcpServer):
                 "height": image.height(),
                 "png": base64.b64encode(bytes(data)).decode("ascii")}
 
+    def _figure_window(self, window: str = ""):
+        from arpes_viewer.ui.panels.figure import FigureWindow
+        figures = [w for w in QApplication.topLevelWidgets()
+                   if isinstance(w, FigureWindow) and w.isVisible()]
+        if window:
+            figures = [w for w in figures
+                       if window.lower() in w.windowTitle().lower()]
+        if not figures:
+            raise ValueError("no figure window open" + (
+                f" titled like {window!r}" if window else ""))
+        return figures[-1]
+
+    def op_figure(self, window: str = ""):
+        """A figure window in numbers: page, frames, titles, levels, text
+        sizes (FigureWindow.describe)."""
+        return self._figure_window(window).describe()
+
+    def op_render_figure(self, path: str, window: str = "", dpi: int = 0):
+        """Write a figure window as a PNG, as it will be printed, and say
+        what is in it (FigureWindow.render); the PNG comes back too."""
+        figure = self._figure_window(window)
+        result = figure.render(os.path.expanduser(path), dpi=int(dpi) or None)
+        with open(result["png"], "rb") as handle:
+            result["png_data"] = base64.b64encode(handle.read()).decode("ascii")
+        return result
+
     def op_close_window(self, window: str):
         widget = self._window(window)
         if widget is self.app.win:
@@ -220,7 +321,8 @@ class AgentBridge(QTcpServer):
         scope = {"A": self.app, "QtCore": QtCore, "QtWidgets": QtWidgets, "np": np}
         with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
             try:
-                exec(compile(code, "<agent>", "exec"), scope)
+                with modal_guard():
+                    exec(compile(code, "<agent>", "exec"), scope)
             except Exception:                               # noqa: BLE001
                 traceback.print_exc()
         QApplication.processEvents()

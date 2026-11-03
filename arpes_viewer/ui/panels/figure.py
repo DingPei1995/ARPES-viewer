@@ -529,7 +529,10 @@ class FigurePainter:
 
         metrics = QFontMetricsF(self._font(tick_pt, scale))
         outward = tick if style.tick_direction == "out" else 0.0
-        if figure.shows_x_labels(index):
+        inner_numbers = bool(getattr(style, "inner_tick_numbers", False)) \
+            and panel.data.is_plot() and panel.role != "inset"
+        x_title = figure.shows_x_labels(index)
+        if x_title or inner_numbers:
             baseline = box.bottom() + outward + gap + metrics.ascent()
             names = dict(named)
             for value in x_ticks:
@@ -537,6 +540,7 @@ class FigurePainter:
                 self._draw_markup(painter, px(value), baseline,
                                   x_fmt % value if text is None else text,
                                   tick_pt, scale, style.axis_color, anchor="center")
+        if x_title:
             label_width = self._markup_width(painter, panel.label_x(), label_pt, scale)
             self._draw_markup(painter,
                               self.label_centre(box.center().x(), label_width,
@@ -544,7 +548,8 @@ class FigurePainter:
                               baseline + 1.25 * metrics.height(),
                               panel.label_x(), label_pt, scale, style.axis_color,
                               anchor="center")
-        if figure.shows_y_labels(index):
+        y_title = figure.shows_y_labels(index)
+        if y_title or inner_numbers:
             widest = 0.0
             for value in y_ticks:
                 text = y_fmt % value
@@ -552,6 +557,7 @@ class FigurePainter:
                 self._draw_markup(painter, box.left() - outward - gap,
                                   py(value) + metrics.ascent() / 2 - metrics.descent() / 2,
                                   text, tick_pt, scale, style.axis_color, anchor="right")
+        if y_title:
             self._draw_markup(
                 painter, box.left() - outward - gap - widest - 0.45 * metrics.height(),
                 box.center().y(), panel.label_y(), label_pt, scale,
@@ -2187,10 +2193,15 @@ class FigureToolsDialog(QDialog):
         self.edge_labels.setToolTip(
             "The usual look for a grid of panels: the y axis is labelled on "
             "the left column and the x axis on the bottom row.")
+        self.inner_numbers = QCheckBox("…but tick numbers on every panel")
+        self.inner_numbers.setToolTip(
+            "With the labels on the outer edges only: inner panels keep "
+            "their tick numbers, only the axis names stay on the edges.")
         self.equal_aspect = QCheckBox("Keep the data's aspect (1:1)")
         for box, name in ((self.shared_levels, "shared_levels"),
                           (self.shared_ranges, "shared_ranges"),
                           (self.edge_labels, "edge_labels_only"),
+                          (self.inner_numbers, "inner_tick_numbers"),
                           (self.equal_aspect, "equal_aspect")):
             box.toggled.connect(lambda v, n=name: self._set_style(n, bool(v)))
             form.addRow("", box)
@@ -2224,6 +2235,15 @@ class FigureToolsDialog(QDialog):
         self.role_combo.addItems(["panel (lettered)", "inset (no letter)"])
         self.role_combo.currentIndexChanged.connect(self._set_role)
         form.addRow("Kind", self.role_combo)
+        self.span_rows = whole(1, 1, 12, "Grid rows this panel takes when "
+                               "the page is arranged as a grid.")
+        self.span_cols = whole(1, 1, 12, "Grid columns this panel takes when "
+                               "the page is arranged as a grid (a schematic "
+                               "beside a row of data panels).")
+        for box in (self.span_rows, self.span_cols):
+            box.valueChanged.connect(self._set_span)
+        form.addRow("Grid cells (rows / cols)",
+                    self._pair(self.span_rows, self.span_cols))
         self.xlab_box = QCheckBox("x numbers and label")
         self.ylab_box = QCheckBox("y numbers and label")
         self.xlab_box.toggled.connect(lambda v: self._set_shown("x_labels", v))
@@ -2278,6 +2298,14 @@ class FigureToolsDialog(QDialog):
             return
         self.figure.freeze()
         self.apply(lambda p: setattr(p, name, bool(value)))
+
+    def _set_span(self, *_):
+        """How many grid cells the panel takes; the next *Arrange as grid*
+        uses it."""
+        if self._syncing:
+            return
+        span = (int(self.span_rows.value()), int(self.span_cols.value()))
+        self.apply(lambda p: setattr(p, "span", span))
 
     def _set_frame(self, *_):
         if self._syncing:
@@ -2393,6 +2421,7 @@ class FigureToolsDialog(QDialog):
         self.shared_levels.setChecked(style.shared_levels)
         self.shared_ranges.setChecked(style.shared_ranges)
         self.edge_labels.setChecked(style.edge_labels_only)
+        self.inner_numbers.setChecked(getattr(style, "inner_tick_numbers", False))
         self.equal_aspect.setChecked(style.equal_aspect)
         self.aspect_box.setValue(style.panel_aspect)
         self.font_size.setValue(style.font_pt)
@@ -3084,6 +3113,9 @@ class FigureToolsDialog(QDialog):
             for box, value in zip((self.pos_x, self.pos_y, self.pos_w, self.pos_h), frame):
                 box.setValue(float(value))
         self.role_combo.setCurrentIndex(1 if panel.role == "inset" else 0)
+        span = tuple(getattr(panel, "span", None) or (1, 1))
+        self.span_rows.setValue(int(span[0]))
+        self.span_cols.setValue(int(span[1]))
         index = self.figure.panels.index(panel)
         self.xlab_box.setChecked(self.figure.shows_x_labels(index))
         self.ylab_box.setChecked(self.figure.shows_y_labels(index))
@@ -3186,7 +3218,8 @@ class SliceSeriesDialog(QDialog):
     rather than a hard-coded list of four units.
     """
 
-    def __init__(self, parent, axes, labels, kind="map"):
+    def __init__(self, parent, axes, labels, kind="map", colormap="gray",
+                 flip=False, zone=None):
         super().__init__(parent)
         self.setWindowTitle("Slice series figure")
         self.axes = axes            # (x, y, z) arrays
@@ -3241,9 +3274,45 @@ class SliceSeriesDialog(QDialog):
         self.title_box = QCheckBox("Title each panel with its position")
         self.title_box.setChecked(True)
         form.addRow("", self.title_box)
+        self.nominal_box = QCheckBox("Title with the value asked for "
+                                     "(e.g. −0.2 eV), not the plane's own")
+        self.nominal_box.setChecked(True)
+        self.nominal_box.setToolTip(
+            "The panel is still made from the nearest recorded plane (and "
+            "the window around it); that plane's own value is kept in the "
+            "panel's information.")
+        form.addRow("", self.nominal_box)
         self.shared_box = QCheckBox("Same colour scale everywhere")
         self.shared_box.setChecked(True)
         form.addRow("", self.shared_box)
+
+        # the colour scale at creation, rather than panel by panel afterwards
+        self.colormap_box = QComboBox()
+        from arpes_viewer.tools.output.colormaps import COLORMAP_NAMES
+        self.colormap_box.addItems(list(COLORMAP_NAMES))
+        self.colormap_box.setCurrentText(str(colormap))
+        form.addRow("Colour map", self.colormap_box)
+        self.flip_box = QCheckBox("Inverted")
+        self.flip_box.setChecked(bool(flip))
+        form.addRow("", self.flip_box)
+        self.low_box = spin(0.0, 0.0, 100.0, 2, 0.5,
+                            "Lower end of the colour scale, as a percentile "
+                            "of each panel's values (0 = its minimum).")
+        self.high_box = spin(100.0, 0.0, 100.0, 2, 0.5,
+                             "Upper end, as a percentile (100 = maximum).")
+        form.addRow("Levels (percentile)",
+                    FigureToolsDialog._pair(self.low_box, self.high_box))
+        self.gamma_box = spin(1.0, 0.05, 10.0, 2, 0.05,
+                              "Gamma of the colour scale (1 = linear).")
+        form.addRow("Gamma", self.gamma_box)
+        self.zone_box = QCheckBox("Draw the Brillouin zone, as on the map")
+        self.zone_box.setChecked(zone is not None)
+        self.zone_box.setEnabled(zone is not None)
+        self.zone_box.setToolTip(
+            "The zone drawn on the map (BZ overlap) on every constant-energy "
+            "panel, each edge once." if zone is not None else
+            "No zone is drawn on this map: draw one with BZ overlap first.")
+        form.addRow("", self.zone_box)
         layout.addLayout(form)
 
         self.note = QLabel("")
@@ -3311,44 +3380,103 @@ class SliceSeriesDialog(QDialog):
                 "half_width": self.width_box.value(),
                 "cols": int(self.cols_box.value()),
                 "titles": self.title_box.isChecked(),
-                "shared": self.shared_box.isChecked()}
+                "nominal_titles": self.nominal_box.isChecked(),
+                "shared": self.shared_box.isChecked(),
+                "colormap": self.colormap_box.currentText(),
+                "flip": self.flip_box.isChecked(),
+                "percentiles": (self.low_box.value(), self.high_box.value()),
+                "gamma": self.gamma_box.value(),
+                "zone": self.zone_box.isChecked()}
 
 
 def slice_panels(cube, axes, labels, *, axis: int, values, half_width: float = 0.0,
-                 titles: bool = True, colormap="gray", flip=False):
+                 titles: bool = True, colormap="gray", flip=False,
+                 nominal_titles: bool = True, percentiles=(0.0, 100.0),
+                 gamma: float = 1.0, zone=None, zone_style="solid"):
     """Cut a cube into panels along one axis.
 
     ``cube`` is ``(x, y, z)``; slicing along one axis leaves the other two
     as the panel's picture, in the order they appear -- so a constant-energy
     slice of a map comes out as the two angles, and a slice along an angle
     comes out as the other angle against energy.
+
+    Each panel is made from the plane nearest the value asked for (and the
+    planes within ``half_width`` of it). Its title is the value asked for
+    (``nominal_titles``: "−0.2 eV", not "−0.002192 eV" for the plane at
+    E_F); the plane's own value and the window are kept in the panel's
+    ``data.info`` (``slice.*``). ``percentiles`` and ``gamma`` set each
+    panel's colour scale; ``zone``, a Brillouin-zone overlay as the map
+    keeps it (``bz_overlay_state``), is drawn on constant-energy panels
+    (slicing the third axis), each edge once.
     """
+    import warnings as _warnings
+    from arpes_viewer.tools.crystal.bz2d import unique_edges
+
     cube = np.asarray(cube, dtype=float)
     axes = [np.asarray(a, dtype=float) for a in axes]
     slicing = axes[axis]
     others = [i for i in range(3) if i != axis]
     unit = nf.unit_of(labels[axis])
+    low, high = (float(v) for v in (percentiles or (0.0, 100.0)))
     panels = []
     for value in values:
         centre = int(np.argmin(np.abs(slicing - value)))
         if half_width > 0:
-            inside = np.abs(slicing - slicing[centre]) <= half_width
+            inside = np.abs(slicing - float(value)) <= half_width
             indices = np.flatnonzero(inside)
             if indices.size == 0:
                 indices = np.array([centre])
         else:
             indices = np.array([centre])
         block = np.take(cube, indices, axis=axis)
-        frame = np.nanmean(block, axis=axis)
+        with _warnings.catch_warnings():
+            # a pixel with no data in any plane of the window (beyond the
+            # cone's edge) is a hole, not something to warn about
+            _warnings.simplefilter("ignore", RuntimeWarning)
+            frame = np.nanmean(block, axis=axis)
+        shown = float(value) if nominal_titles else float(slicing[centre])
+        name = labels[axis].split('(')[0].strip()
         panel = panel_from_arrays(
             frame, axes[others[0]], axes[others[1]],
             labels[others[0]], labels[others[1]],
-            name=f"{labels[axis].split('(')[0].strip()} = {slicing[centre]:.4g}",
-            colormap=colormap, flip=flip)
+            name=f"{name} = {shown:.4g}", colormap=colormap, flip=flip)
+        panel.data.info.update({
+            "slice.axis": labels[axis],
+            "slice.nominal": float(value),
+            "slice.position": float(slicing[centre]),
+            "slice.window": (f"{float(slicing[indices].min()):.6g}.."
+                             f"{float(slicing[indices].max()):.6g}"),
+            "slice.planes": int(indices.size)})
         if titles:
-            panel.title = f"{slicing[centre]:.4g} {unit}".strip()
+            panel.title = f"{_tidy(shown)} {unit}".strip()
+        finite = frame[np.isfinite(frame)]
+        if finite.size and (low > 0.0 or high < 100.0):
+            lo, hi = np.percentile(finite, (low, high))
+            if hi > lo:
+                panel.levels = (float(lo), float(hi))
+        panel.gamma = float(gamma)
+        if zone and axis == 2:
+            for layer in (zone.get("layers") or {}).values():
+                for (x0, y0), (x1, y1) in unique_edges(layer.get("polygons", [])):
+                    panel.overlays.append(nf.Overlay(
+                        xs=[float(x0), float(x1)], ys=[float(y0), float(y1)],
+                        color=layer.get("color", "#39c2ff"),
+                        width_pt=0.6, style=zone_style, name="Brillouin zone"))
+            for text, x, y in zone.get("labels") or []:
+                panel.texts.append(nf.TextNote(
+                    x=float(x), y=float(y), text=str(text),
+                    color=zone.get("label_color", "#ffd166")))
         panels.append(panel)
     return panels
+
+
+def _tidy(value: float) -> str:
+    """A position as a title writes it: "−0.2", "0", "0.15" -- never
+    "-0.30000000000000004" from an even spacing, nor "-0" for zero."""
+    text = f"{float(value):.4g}"
+    if text in ("-0", "-0.0"):
+        text = "0"
+    return text.replace("-", "−")
 
 
 # --------------------------------------------------------------------------
@@ -4154,6 +4282,60 @@ class FigureWindow(QMainWindow):
         page.style.margin_top_mm = page.style.margin_bottom_mm = 0.0
         page.style.width_mm, page.style.height_mm = w, h
         return _qimage_array(FigurePainter(page).to_image())
+
+    def describe(self) -> dict:
+        """The figure in numbers: the page, and each panel's frame (mm from
+        the top left), title, axis names, colour scale and text sizes --
+        what has to be checked before a family of figures is made, without
+        looking at a picture of it."""
+        figure = self.figure
+        width, height, rects = figure.layout()
+        style = figure.style
+        panels = []
+        for rect in rects:
+            panel = figure.panels[rect["index"]]
+            index = rect["index"]
+            panels.append({
+                "index": index, "letter": panel.label, "role": panel.role,
+                "kind": panel.data.kind, "name": panel.data.name,
+                "frame_mm": [round(rect[k], 2) for k in ("x", "y", "w", "h")],
+                "span": list(getattr(panel, "span", (1, 1))),
+                "title": panel.title, "x_label": panel.label_x(),
+                "y_label": panel.label_y(),
+                "x_names_shown": bool(figure.shows_x_labels(index)),
+                "y_names_shown": bool(figure.shows_y_labels(index)),
+                "colormap": panel.colormap, "flip": bool(panel.flip),
+                "levels": [float(v) for v in figure.panel_levels(panel)],
+                "gamma": float(panel.gamma),
+                "font_pt": float(panel.font_pt or style.font_pt),
+                "overlays": len(panel.overlays), "texts": len(panel.texts)})
+        return {"title": self.windowTitle(),
+                "page_mm": [round(width, 2), round(height, 2)],
+                "font_pt": style.font_pt,
+                "tick_pt": style.tick_pt or style.font_pt,
+                "label_pt": style.label_pt or style.font_pt,
+                "dpi": style.dpi, "laid_out_by_hand": figure.free,
+                "edge_labels_only": style.edge_labels_only,
+                "inner_tick_numbers": getattr(style, "inner_tick_numbers", False),
+                "panels": panels}
+
+    def render(self, path: str, dpi: int = None) -> dict:
+        """Write the figure as a PNG at ``dpi`` (the figure's own if None)
+        and return :meth:`describe` with the file: the figure as it will be
+        printed, not a screenshot of the window."""
+        kept = self.figure.style.dpi
+        if dpi:
+            self.figure.style.dpi = int(dpi)
+        try:
+            if not path.lower().endswith(".png"):
+                path += ".png"
+            written = self.write(path, "png")
+        finally:
+            self.figure.style.dpi = kept
+        out = self.describe()
+        out["png"] = written[0] if written else path
+        out["dpi"] = int(dpi or kept)
+        return out
 
     def write(self, path: str, fmt: str):
         """Write the figure. Returns every file written."""

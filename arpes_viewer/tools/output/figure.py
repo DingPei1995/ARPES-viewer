@@ -371,6 +371,10 @@ class Panel:
     #: named ticks along x instead of numbers: ``[(value, text), ...]`` --
     #: the high-symmetry points of a band-structure path (Γ, M, K, ...)
     x_tick_labels: list = field(default_factory=list)
+    #: how many grid cells the panel takes when the page is arranged as a
+    #: grid, ``(rows, cols)``: a schematic or a 3-D picture beside a row of
+    #: data panels can be given two of them rather than being shrunk into one
+    span: tuple = (1, 1)
     uid: str = field(default_factory=lambda: uuid.uuid4().hex[:10])
 
     # -- what the painter asks for ---------------------------------------
@@ -461,6 +465,9 @@ class FigureStyle:
     shared_levels: bool = False
     shared_ranges: bool = False
     edge_labels_only: bool = True
+    #: with edge_labels_only: the tick numbers still on every panel, only
+    #: the axis names left to the outer edges
+    inner_tick_numbers: bool = False
     equal_aspect: bool = False
     panel_aspect: float = 0.0      # 0 -> from the data/ranges
 
@@ -557,22 +564,93 @@ class Figure:
         present height.
         """
         mains = self.reading_order()
-        rows = max(int(rows), int(math.ceil(len(mains) / max(int(cols), 1))), 1)
+        cols = max(int(cols), 1)
+        cells = self.span_cells(mains, cols)
+        needed = max([r + h for r, _c, h, _w in cells] + [1])
+        rows = max(int(rows), needed, 1)
         kept = self.style.height_mm
         if not fill_height:
             self.style.height_mm = 0.0
         try:
-            frames, height = self.grid_frames(rows, cols, len(mains))
+            frames, height = self.grid_frames(rows, cols, rows * cols)
         finally:
             self.style.height_mm = kept
         self.style.height_mm = float(height)
-        for panel, frame in zip(mains, frames):
+        for panel, (row, col, n_rows, n_cols) in zip(mains, cells):
+            first = frames[row * cols + col]
+            last = frames[(row + n_rows - 1) * cols + (col + n_cols - 1)]
+            frame = (first[0], first[1], last[0] + last[2] - first[0],
+                     last[1] + last[3] - first[1])
+            frame = self._own_shape(panel, frame)
             old = panel.frame
             panel.frame = frame
             if old is not None:
                 self._carry_insets(panel, old, frame)
-        self.rows, self.cols = rows, int(cols)
+        self.rows, self.cols = rows, cols
         self.auto_edge_labels()
+        return self
+
+    @staticmethod
+    def span_cells(panels, cols: int):
+        """``(row, col, rows, cols)`` of each panel on a grid ``cols`` wide,
+        in order, each taking its ``span`` of cells: the first free place
+        it fits, row by row, as text flows round a figure."""
+        taken = set()
+        out = []
+        for panel in panels:
+            n_rows, n_cols = (max(int(v), 1) for v in (getattr(panel, "span", None)
+                                                       or (1, 1)))
+            n_cols = min(n_cols, cols)
+            row = 0
+            while True:
+                placed = None
+                for col in range(cols - n_cols + 1):
+                    block = {(row + i, col + j) for i in range(n_rows)
+                             for j in range(n_cols)}
+                    if not block & taken:
+                        placed = (row, col)
+                        break
+                if placed:
+                    break
+                row += 1
+            row, col = placed
+            taken |= {(row + i, col + j) for i in range(n_rows) for j in range(n_cols)}
+            out.append((row, col, n_rows, n_cols))
+        return out
+
+    @staticmethod
+    def _own_shape(panel, frame):
+        """A picture keeps its own shape inside the cells it takes (top
+        left), rather than being letter-boxed into the data panels' shape."""
+        data = getattr(panel, "data", None)
+        if data is None or data.kind != "picture":
+            return frame
+        array = np.asarray(data.array)
+        if array.ndim < 2 or not array.shape[0] or not array.shape[1]:
+            return frame
+        x, y, w, h = frame
+        aspect = array.shape[0] / array.shape[1]
+        if w * aspect <= h:
+            return (x, y, w, w * aspect)
+        return (x, y, h / aspect, h)
+
+    def fit_height(self):
+        """On a page laid out by hand, make the page as tall as its panels
+        need -- the lowest panel, its tick numbers and axis name, and the
+        bottom margin. Called whenever a panel is moved or resized by hand,
+        so the page follows its panels both ways."""
+        if not self.free:
+            return self
+        bottom = 0.0
+        for panel in self.panels:
+            if panel.frame is None:
+                continue
+            x, y, w, h = panel.frame
+            furniture = (self.margins_mm((w, h))[1]
+                         if panel.role != "inset" and panel.x_labels else 0.0)
+            bottom = max(bottom, y + h + furniture)
+        if bottom > 0:
+            self.style.height_mm = float(bottom + self.style.margin_bottom_mm)
         return self
 
     def _carry_insets(self, panel, old, new):
@@ -614,11 +692,13 @@ class Figure:
         return None
 
     def move_panel(self, panel, frame):
-        """Give ``panel`` a new frame; its insets follow."""
+        """Give ``panel`` a new frame; its insets follow, and the page's
+        height follows its panels (:meth:`fit_height`)."""
         old = panel.frame
         panel.frame = tuple(float(v) for v in frame)
         if old is not None and panel.role != "inset":
             self._carry_insets(panel, old, panel.frame)
+        self.fit_height()
 
     def reading_order(self):
         """The panels (not insets) top to bottom, then left to right: rows
@@ -886,7 +966,8 @@ class Figure:
         target = self.tick_targets(*(panel_size or (40.0, 30.0)))[1]
         widest = 0.0
         for index, panel in enumerate(self.panels):
-            if not self.shows_y_labels(index) or not panel.data.is_plot():
+            if not panel.data.is_plot() or not (
+                    self.shows_y_labels(index) or self.style.inner_tick_numbers):
                 continue
             (_x, _x1), (y0, y1) = self.panel_ranges(panel)
             values, step = tick_values(y0, y1, target)

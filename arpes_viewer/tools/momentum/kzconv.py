@@ -64,7 +64,8 @@ import numpy as np
 
 __all__ = ["A_CONST", "forward", "inverse", "kz_bounds", "to_kz_cube",
            "photon_arc", "scan_inner_potential", "PeriodScan",
-           "edge_flatness"]
+           "edge_flatness", "calibrated_photon_axis", "measured_work_functions",
+           "default_grid", "inner_potential_for_gamma"]
 
 #: ``2 m_e e / hbar^2`` with k in A^-1 and energies in eV, so that
 #: ``k = sqrt(A_CONST * E) * sin(theta)``. ``sqrt(A_CONST) = 0.512315``, the
@@ -162,6 +163,132 @@ def kz_bounds(photon_energy, angle, energy, *, inner_potential: float,
 # --------------------------------------------------------------------------
 # Converting
 # --------------------------------------------------------------------------
+def _fractional_index(axis, wanted):
+    """Where ``wanted`` falls on ``axis``, in (fractional) index units.
+
+    A regular axis by a division; an irregular one -- the photon energies
+    after a per-hv calibration, which moves each by its own amount -- by
+    interpolation, NaN outside it. ``axis`` must be monotonic."""
+    axis = np.asarray(axis, dtype=float)
+    steps = np.diff(axis)
+    if np.allclose(steps, steps[0], rtol=1e-6, atol=1e-9):
+        return (wanted - axis[0]) / steps[0]
+    index = np.arange(axis.size, dtype=float)
+    if steps[0] < 0:
+        axis, index = axis[::-1], index[::-1]
+    return np.interp(wanted, axis, index, left=np.nan, right=np.nan)
+
+
+def calibrated_photon_axis(photon_energy, work_function):
+    """``(axis, work_function)`` to hand the conversion.
+
+    A single work function is the usual case and passes through unchanged.
+    One per photon energy -- the calibration, ``hv - E_kin(E_F)`` measured
+    at each -- is folded into the photon-energy axis instead: the conversion
+    only ever needs ``hv - W``, the kinetic energy of the Fermi level, so
+    with ``axis = hv - W(hv)`` and a work function of zero every formula
+    stays as it is. The folded axis has to stay monotonic, which a
+    calibration that moves neighbouring photon energies past each other
+    would break; that is refused.
+    """
+    photon_energy = np.asarray(photon_energy, dtype=float)
+    if np.ndim(work_function) == 0:
+        return photon_energy, float(work_function)
+    phi = np.asarray(work_function, dtype=float)
+    if phi.shape != photon_energy.shape:
+        raise ValueError(f"{phi.size} work functions for "
+                         f"{photon_energy.size} photon energies")
+    if not np.isfinite(phi).all():
+        raise ValueError("the calibration has photon energies without a "
+                         "fitted Fermi level")
+    axis = photon_energy - phi
+    steps = np.diff(axis)
+    if not (np.all(steps > 0) or np.all(steps < 0)):
+        raise ValueError("the calibrated photon energies are not in order: "
+                         "the per-hv Fermi levels move by more than the hv "
+                         "step. Check the Fermi fits.")
+    return axis, 0.0
+
+
+def measured_work_functions(info) -> "np.ndarray | None":
+    """``hv - E_kin(E_F)`` at each photon energy of a kz map, or None.
+
+    Needs the Fermi level fitted per photon energy (the kz map's "align"
+    step, ``kz.fermi_level_eV``) and each member's own kinetic-energy axis
+    (recorded by the CASSIOPEE loader). The fitted level is on the cube's
+    first energy axis, which was member one's kinetic axis referred by its
+    own photon energy and tabulated work function; undoing that reference
+    gives each member's measured kinetic energy of E_F.
+
+    This is the number a photon-energy calibration needs: when the
+    monochromator's hv is off, or the analyser's work function differs from
+    the table, ``hv - E_kin(E_F)`` is not the tabulated work function and
+    differs from one photon energy to the next.
+    """
+    info = info or {}
+    try:
+        ef = np.asarray(info["kz.fermi_level_eV"], dtype=float)
+        hv = np.asarray(info["cassiopee.member_photon_energy_eV"], dtype=float)
+        phi = np.asarray(info["cassiopee.member_work_function_eV"], dtype=float)
+        start = np.asarray(info["cassiopee.member_kinetic_start_eV"], dtype=float)
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not (ef.shape == hv.shape == phi.shape == start.shape) or hv.size < 2:
+        return None
+    first_binding = start[0] - hv[0] + phi[0]
+    kinetic_of_ef = start + (ef - first_binding)
+    return hv - kinetic_of_ef
+
+
+def default_grid(photon_energy, angle, energy, *, inner_potential: float,
+                 work_function, effective_mass: float = 1.0,
+                 angle_offset: float = 0.0, theta_position: float = 0.0,
+                 limit: int = 2048):
+    """``(n_kz, n_kpar)`` that keep the measurement's own detail.
+
+    ``k_par`` gets as many points as the analyser has angle channels -- the
+    finest thing measured -- and ``k_z`` the number that makes its step the
+    same, so a pixel is square in momentum and nothing measured along the
+    slit is averaged away. Each is held between 16 and ``limit``.
+    """
+    axis, phi = calibrated_photon_axis(photon_energy, work_function)
+    (kz_lo, kz_hi), (par_lo, par_hi) = kz_bounds(
+        axis, angle, energy, inner_potential=inner_potential,
+        work_function=phi, effective_mass=effective_mass,
+        angle_offset=np.radians(angle_offset),
+        theta_position=np.radians(theta_position))
+    n_kpar = int(np.clip(np.asarray(angle).size, 16, limit))
+    step = (par_hi - par_lo) / max(n_kpar - 1, 1)
+    n_kz = int(np.clip(round((kz_hi - kz_lo) / step) + 1 if step > 0 else 16,
+                       16, limit))
+    return n_kz, n_kpar
+
+
+def inner_potential_for_gamma(photon_energy: float, period: float, *,
+                              work_function: float, effective_mass: float = 1.0,
+                              binding_energy: float = 0.0, order: int = None,
+                              near: float = 12.0):
+    """The inner potential that puts Γ at normal emission at ``photon_energy``.
+
+    At normal emission ``k_par = 0`` and ``k_z^2 = A m* (E_kin + V0)``; Γ
+    points sit at ``k_z = n * period``. So ``V0 = (n period)^2 / (A m*) -
+    E_kin``. Which ``n`` is not known from one photon energy; given
+    ``order`` it is that one, otherwise the ``n`` whose V0 is nearest
+    ``near`` (eV). Returns ``(V0, n)``; V0 may come out negative, which is
+    unusual for a free-electron final state and worth a second look.
+    """
+    kinetic = float(photon_energy) - float(work_function) + float(binding_energy)
+    scale = A_CONST * float(effective_mass)
+    if order is None:
+        k = np.sqrt(max(scale * (kinetic + near), 0.0))
+        order = max(1, int(round(k / float(period))))
+        candidates = [n for n in (order - 1, order, order + 1) if n >= 1]
+        order = min(candidates, key=lambda n: abs(
+            (n * period) ** 2 / scale - kinetic - near))
+    v0 = (int(order) * float(period)) ** 2 / scale - kinetic
+    return float(v0), int(order)
+
+
 def _sample_plane(cube_slice, photon_energy, alpha_axis, hv_wanted,
                   alpha_wanted):
     """Bilinear sample of one ``(hv, angle)`` plane at the asked positions.
@@ -173,7 +300,7 @@ def _sample_plane(cube_slice, photon_energy, alpha_axis, hv_wanted,
     from scipy.ndimage import map_coordinates
 
     n_hv, n_alpha = cube_slice.shape
-    hv_index = (hv_wanted - photon_energy[0]) / (photon_energy[1] - photon_energy[0])
+    hv_index = _fractional_index(photon_energy, hv_wanted)
     alpha_index = (alpha_wanted - alpha_axis[0]) / (alpha_axis[1] - alpha_axis[0])
 
     outside = (~np.isfinite(hv_index) | ~np.isfinite(alpha_index)
@@ -188,7 +315,7 @@ def _sample_plane(cube_slice, photon_energy, alpha_axis, hv_wanted,
 
 
 def to_kz_cube(photon_energy, angle, energy, cube, *, inner_potential: float,
-               work_function: float, effective_mass: float = 1.0,
+               work_function, effective_mass: float = 1.0,
                angle_offset: float = 0.0, theta_position: float = 0.0,
                n_kz: int = 256, n_kpar: int = 256, kz_range=None,
                kpar_range=None, progress=None):
@@ -198,7 +325,8 @@ def to_kz_cube(photon_energy, angle, energy, cube, *, inner_potential: float,
     energy (zero at the Fermi level, which is what makes ``work_function`` a
     single number rather than one per spectrum). ``cube`` is
     ``(hv, angle, E)``. ``angle_offset`` and ``theta_position`` are in
-    degrees.
+    degrees. ``work_function`` is one number, or one per photon energy for
+    a calibrated scan (:func:`calibrated_photon_axis`).
 
     ``k_z`` comes first in the output because it is the axis the measurement
     is *about*, and the viewers put the first axis across the image.
@@ -220,6 +348,8 @@ def to_kz_cube(photon_energy, angle, energy, cube, *, inner_potential: float,
         raise ValueError("the conversion needs at least two photon energies "
                          "and two angles to interpolate between")
 
+    photon_energy, work_function = calibrated_photon_axis(photon_energy,
+                                                          work_function)
     offset = np.radians(angle_offset)
     theta_p = np.radians(theta_position)
     alpha_axis = np.radians(angle) - offset
@@ -402,8 +532,8 @@ def scan_inner_potential(photon_energy, angle, energy, cube, *, spacing: float,
 # Is the Fermi surface flat enough to convert?
 # --------------------------------------------------------------------------
 def edge_flatness(cube, angle, energy, *, binding_energy: float = 0.0,
-                  window: float = 0.35):
-    """How far the Fermi edge wanders across the analyser angle, in eV.
+                  window: float = 0.35, groups: int = 24):
+    """How far the Fermi edge bends across the analyser angle, in eV.
 
     A curved edge is an artefact of the analyser, not of the sample, and the
     conversion cannot know the difference: it reads the energy axis
@@ -412,15 +542,29 @@ def edge_flatness(cube, angle, energy, *, binding_energy: float = 0.0,
     surface correction, and this is the cheap check that says whether it is
     still needed.
 
-    Measured by the steepest fall of the angle-resolved EDC rather than by
-    fitting an edge per channel, which would be minutes rather than
-    milliseconds. It is a screening number, not a calibration.
+    A screening number, not a calibration, and it has to be one the eye
+    agrees with. The steepest fall of each single channel does not do: the
+    weak channels at the ends of the slit, and a band crossing E_F inside
+    the window, each throw one channel tens of meV away, and the largest
+    minus the smallest of all channels is then set by the worst one. So:
 
-    Returns ``(spread_eV, positions, angles)``.
+    * the channels are summed in ``groups`` blocks of neighbours, and each
+      block's EDC is smoothed over about 15 meV, before its steepest fall
+      is taken;
+    * blocks whose step down at E_F is under a third of the median step
+      (the slit ends, a dead stretch of detector) are left out;
+    * a parabola is fitted through the remaining edge positions, with the
+      points more than three robust deviations off it dropped once, and the
+      spread reported is the parabola's range over the angles measured --
+      the analyser's bend is smooth, which a stray block is not.
+
+    Returns ``(spread_eV, positions, angles)``: the edge position of each
+    block kept, and the block's mean angle.
     """
     cube = np.asarray(cube, dtype=float)
     angle = np.asarray(angle, dtype=float)
     energy = np.asarray(energy, dtype=float)
+    empty = (0.0, np.zeros(0), np.zeros(0))
 
     near = np.abs(energy - binding_energy) <= window
     if near.sum() < 8:
@@ -430,8 +574,53 @@ def edge_flatness(cube, angle, energy, *, binding_energy: float = 0.0,
         warnings.simplefilter("ignore", RuntimeWarning)
         frame = np.nanmean(cube[:, :, near], axis=0)        # (angle, E)
     usable = np.isfinite(frame).all(axis=1)
-    if usable.sum() < 2 or band.size < 3:
-        return 0.0, np.zeros(0), np.zeros(0)
-    gradient = np.gradient(frame[usable], band, axis=1)
-    positions = band[np.argmin(gradient, axis=1)]
-    return (float(positions.max() - positions.min()), positions, angle[usable])
+    if usable.sum() < 2 or band.size < 5:
+        return empty
+    frame, angles_used = frame[usable], angle[usable]
+
+    blocks = np.array_split(np.arange(angles_used.size),
+                            min(int(groups), angles_used.size))
+    step = float(np.mean(np.abs(np.diff(band))))
+    width = max(1, int(round(0.015 / step / 2.355)))          # sigma, samples
+    kernel = np.exp(-0.5 * (np.arange(-3 * width, 3 * width + 1) / width) ** 2)
+    kernel /= kernel.sum()
+    order = np.argsort(band)
+    band = band[order]
+
+    positions, centres, heights = [], [], []
+    for block in blocks:
+        edc = frame[block].sum(axis=0)[order]
+        padded = np.pad(edc, kernel.size // 2, mode="edge")
+        smooth = np.convolve(padded, kernel, mode="valid")
+        slope = np.gradient(smooth, band)
+        trim = min(kernel.size // 2 + 1, band.size // 4)
+        if trim:
+            slope[:trim] = slope[-trim:] = 0.0
+        at = int(np.argmin(slope))
+        positions.append(float(band[at]))
+        centres.append(float(np.mean(angles_used[block])))
+        quarter = max(2, band.size // 8)
+        heights.append(float(np.mean(smooth[:quarter]) - np.mean(smooth[-quarter:])))
+    positions, centres, heights = map(np.asarray, (positions, centres, heights))
+
+    median = float(np.median(heights))
+    keep = heights >= (median / 3.0 if median > 0 else -np.inf)
+    positions, centres = positions[keep], centres[keep]
+    if positions.size < 2:
+        return empty
+    if positions.size < 4:
+        return float(np.ptp(positions)), positions, centres
+
+    def parabola(x, y):
+        return np.polyval(np.polyfit(x, y, 2), x)
+
+    fitted = parabola(centres, positions)
+    residual = positions - fitted
+    scale = 1.4826 * float(np.median(np.abs(residual - np.median(residual))))
+    good = np.abs(residual) <= max(3.0 * scale, 2.0 * step)
+    if good.sum() >= 4 and not good.all():
+        fitted = parabola(centres[good], positions[good])
+        positions, centres = positions[good], centres[good]
+    grid = np.linspace(centres.min(), centres.max(), 101)
+    curve = np.polyval(np.polyfit(centres, positions, 2), grid)
+    return float(np.ptp(curve)), positions, centres

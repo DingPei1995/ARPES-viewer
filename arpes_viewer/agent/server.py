@@ -43,8 +43,11 @@ takes the nearest plane.
 viewer_* tools drive the program on screen when it was started with
 `arpes-viewer --agent-bridge`: viewer_status, viewer_rows, viewer_add_files,
 viewer_select, viewer_run_tool (any tool-panel button, e.g. "fermi", "kmap",
-"bz3d", "figure"), viewer_screenshot, viewer_python. Check results with a
-screenshot. save_datasets(..., ".nxs") then viewer_add_files puts a headless
+"bz3d", "figure"), viewer_screenshot, viewer_figure, viewer_render_figure,
+viewer_python. Check a figure with viewer_figure (numbers) and
+viewer_render_figure (the PNG as printed) rather than a screenshot. In
+viewer_python a modal dialog raises ModalDialogBlocked instead of waiting:
+call the tool's function (e.g. a ContourWindow's slice_figure(values=...)). save_datasets(..., ".nxs") then viewer_add_files puts a headless
 result in the on-screen list."""
 
 _RANGES = {"type": "object",
@@ -85,6 +88,12 @@ def build_server(workspace: Workspace = None) -> Server:
         shot = bridge.request("screenshot", window=window, path=save_png)
         png = base64.b64decode(shot.pop("png"))
         return [shot, Image(png, f"Window: {shot['title']}")]
+
+    def viewer_render_figure(path, window="", dpi=0):
+        result = bridge.request("render_figure", path=path, window=window,
+                                dpi=int(dpi))
+        png = base64.b64decode(result.pop("png_data"))
+        return [result, Image(png, f"Figure: {result['title']}")]
 
     tools = [
         # -- files and datasets ------------------------------------------------
@@ -267,6 +276,19 @@ def build_server(workspace: Workspace = None) -> Server:
              viewer_screenshot,
              {"window": _str("Part of the window's title."),
               "save_png": _str("Also save it here.")}, read_only=True),
+        Tool("viewer_figure", "A figure window in numbers, without a "
+             "picture: page size, each panel's frame (mm), title, axis names, "
+             "colour scale and text sizes. Check a layout with this.",
+             lambda window="": bridge.request("figure", window=window),
+             {"window": _str("Part of the figure window's title (default: "
+                             "the last one opened).")}, read_only=True),
+        Tool("viewer_render_figure", "Write a figure window as a PNG, as it "
+             "will be printed (not a screenshot), and return it with its "
+             "numbers (viewer_figure).",
+             viewer_render_figure,
+             {"path": _str("PNG file to write (a new name each time)."),
+              "window": _str("Part of the figure window's title."),
+              "dpi": _int("Resolution; 0 = the figure's own.")}, ("path",)),
         Tool("viewer_close_window", "Close one of the program's windows (by "
              "part of its title).",
              lambda window: bridge.request("close_window", window=window),

@@ -276,3 +276,34 @@ def tile_2d(polygon: np.ndarray, g1: np.ndarray, g2: np.ndarray,
                 continue
             tiles.append(shifted)
     return tiles
+
+
+def unique_edges(polygons, decimals: int = 6):
+    """Each edge of a set of polygons once, as ``[((x0, y0), (x1, y1)), ...]``.
+
+    ``polygons`` are ``(n, 2)`` arrays or ``(xs, ys)`` pairs, closed or
+    open; ``NaN`` in a run breaks it. Neighbouring zones of a tiled overlay
+    share their edges, and a dashed line drawn twice, the second copy
+    offset by its own dash, comes out solid -- so a tiled zone has to be
+    drawn edge by edge, each once. Edges are matched with their end points
+    rounded to ``decimals`` and either direction.
+    """
+    edges = {}
+    for polygon in polygons:
+        if isinstance(polygon, (tuple, list)) and len(polygon) == 2 \
+                and np.ndim(polygon[0]) == 1:
+            points = np.column_stack([np.asarray(polygon[0], dtype=float),
+                                      np.asarray(polygon[1], dtype=float)])
+        else:
+            points = np.asarray(polygon, dtype=float).reshape(-1, 2)
+        if len(points) > 2 and not np.allclose(points[0], points[-1]) \
+                and np.isfinite(points).all():
+            points = np.vstack([points, points[:1]])
+        for p, q in zip(points[:-1], points[1:]):
+            if not (np.isfinite(p).all() and np.isfinite(q).all()):
+                continue
+            a, b = tuple(np.round(p, decimals)), tuple(np.round(q, decimals))
+            if a == b:
+                continue
+            edges.setdefault(tuple(sorted((a, b))), (tuple(p), tuple(q)))
+    return list(edges.values())

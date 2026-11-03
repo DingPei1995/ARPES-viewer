@@ -2,7 +2,7 @@
 
 *[English version / 英文版](USER_GUIDE_en.md) · [Version française / 法文版](USER_GUIDE_fr.md)*
 
-*最后更新：2026 年 11 月 2 日——对应 ARPES viewer v1.3.0*
+*最后更新：2026 年 11 月 3 日——对应 ARPES viewer v1.3.1*
 
 程序的版本号和更新日期显示在主窗口标题栏和主窗口最下方。报告 bug、提问或获取最新版本：
 <https://github.com/DingPei1995/ARPES-viewer>（报告 bug 时请注明版本号）。
@@ -250,7 +250,7 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 - **MCP 接口**：程序可作为 MCP 服务器（`arpes-viewer-mcp`）供任何模型的 AI 智能体调用，
   见[第 33 节](#33-让-ai-智能体调用本程序mcp)。
 
-### 功能现在的位置（v1.3.0）
+### 功能现在的位置（v1.3.1）
 
 如果你用过早期版本：工具已从右键菜单和查看窗口的 *Functions* 菜单移到了工具面板，
 每个工具只有一个入口，且始终可见。
@@ -772,7 +772,18 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
 
 ![kz → 动量](images/kz_conversion_dialog.png)
 
-- **内势 V0** 是未知量：修改它时预览会在毫秒内重新转换一个能量切片。
+- **内势 V0** 是未知量：修改它时预览会在毫秒内重新转换一个能量切片。V0 可以取负值
+  （最低 −30 eV，报告中会提示）。**Γ at hν → Set V0**：给出在指定光子能量处法向发射
+  正好经过 Γ 的 V0（采用最接近当前 V0 的布里渊区级次，并显示该级次）。
+- **Manipulator theta** 默认不启用：kz map 通常在狭缝经过 Γ 时测量。只有需要修正
+  偏离 Γ 的角度时才勾选 *Correct a manipulator theta offset from Γ*，并输入**相对于
+  法向发射**的角度；文件里记录的马达绝对读数只在提示中显示，不参与计算。
+- **输出网格**：默认 k∥ 的点数等于分析器角度通道数，k_z 的点数使其步长与 k∥ 相同
+  （*Match the measurement* 可重新设置）；步长写在报告中。
+- 预览的能量由预览右侧的**滑条**选择；色图与色阶（直方图、*Auto levels*）在滑条旁。
+- **Calibrate hν from each fitted E_F**（可选，默认关闭）：在按光子能量逐张拟合费米能级
+  （kz map → 对齐 E_F）之后，用每个光子能量处实测的 hν − E_kin(E_F) 代替单一功函数，
+  用于单色器 hν 有偏差的情形。默认使用单一功函数，E_F 已拉平。
 - 给定**晶格**（空间群、a、b、c）、**表面法线**和面内方向后，预览上会画出布里渊
   区边界。
 - **Scan V0** 在一系列 V0 下转换，报告 k_z 周期与晶格匹配时的 V0，以及 V0 能被
@@ -780,6 +791,8 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
 - **Measure a k_z period...**：点击相隔一个布里渊区的同一特征上的两点，程序列出
   与之匹配的倒格子晶面。
 - 黄色横幅提示费米边仍随分析器角度弯曲——应先在 slit cut 上做 Straighten bands (FS correction)。
+  弯曲量由相邻通道分组后的费米边位置拟合抛物线得到，并剔除狭缝两端的弱通道，因此单个
+  噪声通道或穿过 E_F 的能带不会决定这个数。
 - **Convert the whole cube** 生成 `kz map (k)`。
 
 ![转换后的 kz map](images/kz_map_in_k.png)
@@ -972,6 +985,14 @@ cuts)...**（先选的为 A；窗口中可交换）。只有恰好选中两张 c
 间距或指定位置，可积分，共用一个色阶，只在外侧边缘标注坐标。（注意与 **3D slices**
 区分，后者是在三维视图中画三个平面。）
 
+- 面板标题使用所要求的名义值（−0.2 eV），而不是实际平面的值（−0.2022 eV）；实际使用的
+  平面和积分窗口记录在面板信息中。
+- 色图、反转、色阶（百分位）和 gamma 在对话框中一次设好，作用于所有面板。
+- **Draw the Brillouin zone, as on the map**：把 BZ overlap 画在 map 上的布里渊区画到每个
+  等能面面板上，每条边只画一次。
+- 脚本或智能体可直接调用 `contour.slice_figure(values=[0, -0.1, -0.2], half_width=0.02)`
+  （或对选中行调用 `A.open_slice_series(values=...)`），不弹出对话框。
+
 | 设置 | 结果 |
 |---|---|
 | ![切片序列图设置](images/slice_figure_dialog.png) | ![切片序列图](images/slice_figure.png) |
@@ -1142,13 +1163,19 @@ E-k 谱**。拖动红色靶标即可查看另一点的谱。在面板上右键�
 - **平面上的实测 map**：**任意**平面都可以贴上 k-map 的等能面——在该平面的 *map* 列表中选择，
   并给出能量（E − E_F）。列表包括打开窗口时选中的 k-map 以及主列表中的所有 k-map（之后新加的
   点 **↻ Maps from the list** 更新）；只在被选中时才读取数据。map 的 kx、ky 沿平面自身的面内
-  轴放置——对垂直于 k_z 的平面就是 k_x、k_y——按 *Maps' azimuth* 旋转、在 *Integrate* 范围内
+  轴放置——对垂直于 k_c 的平面就是 k_a、k_b——按 *Maps' azimuth* 旋转、在 *Integrate* 范围内
   平均，并裁剪到布里渊区。
 - **路径**：**Add path** 可添加任意多条，各自穿过标注的点（`Γ-M-K-Γ`、`A-L-H-A`；`|` 表示跳断），
   颜色和线宽各自设置。
-- **显示**：高对称点标注、k_x/k_y/k_z 坐标轴，以及 *Label on the left*（这些点标注在最左侧的
+- **显示**：高对称点标注、坐标轴，以及 *Label on the left*（这些点标注在最左侧的
   等价点上，避开路径和坐标轴）。
-- **导出**：任意尺寸的 **Save picture...**，或 **To figure composer...**。
+- **坐标轴**：默认是晶体自身的 **k_a、k_b、k_c**（晶胞的笛卡尔轴：k_a 沿 a，k_c 垂直于
+  a–b 面）；也可切换为**与数据一致的样品坐标 k_x、k_y、k_z**：k_z 沿 *Cleavage plane (hkl)*
+  的法线，k_x 沿 map 的 k_x（按 *Maps' azimuth* 旋转）。同一个符号不会指两个方向。
+  *View along* 按钮随所选坐标系变化。
+- **导出**：任意尺寸的 **Save picture...**，或 **To figure composer...**。*Labels: panel
+  width / text* 按图片在最终图中的宽度设定标注字号（例如 30 mm 面板中 8 pt），与像素尺寸
+  无关；关闭时字号随图片缩放，与屏幕上一致。
 
 ## 26. 紧束缚拟合
 
@@ -1340,7 +1367,9 @@ E_F）。
 - **排版。** 单击面板选中它；拖动面板移动位置，拖动其控制点调整大小（在角点按住
   Shift 保持比例）。面板会吸附到其他面板的边缘和 0.5 mm 网格（**Snap**）；方向键
   微调 0.5 mm（Shift：5 mm）。*Arrange as grid*（右侧 Panels 页）按行 × 列重新
-  排列。**Re-letter** 按阅读顺序重新标注 (a)、(b)……
+  排列；一个面板可以占多个格子（选中面板的 *Grid cells (rows / cols)*，例如一排数据面板
+  旁的示意图），图片在其中保持自身比例。手动移动面板时，页面高度随面板变化。
+  **Re-letter** 按阅读顺序重新标注 (a)、(b)……
 - **填入内容。** 双击空面板，或用左侧 **Load from list...** / **Load picture...**：
   从主列表载入数据集，或从文件载入图片（PNG、JPEG、TIFF……——示意图或别处做的图；
   保持原比例，没有坐标轴）。
@@ -1352,7 +1381,9 @@ E_F）。
   并在右侧上方设置颜色、线宽、线型、填充和文字。双击文字可编辑；Del 删除选中项；
   右键有更多选项（置于顶层、删除……）。
 - **坐标轴与字体。** 画板旁的 figure tools 作用于选中的面板（或全部面板）：范围、
-  刻度、标签、哪些边显示数字、该面板自己的字号、色图、色标、参考线。
+  刻度、标签、哪些边显示数字、该面板自己的字号、色图、色标、参考线。勾选
+  *Tick labels on outer edges only* 时，再勾选 *…but tick numbers on every panel* 可让内侧面板
+  保留刻度数字，只把坐标轴名称留在外侧边缘。
 - **Undo / Redo**（Ctrl+Z / Ctrl+Y）可撤销任何改动。**PDF**、**PNG**、**SVG**
   导出，**Copy** 复制到剪贴板；空面板不会写入文件。注意作图器的 **Figure tools**
   不是查看窗口的 **Plot tools**（后者在实时图上画辅助线）。
@@ -1613,7 +1644,9 @@ arpes-viewer --agent-bridge
 状态栏会显示 *Agent bridge on 127.0.0.1:…*。之后 `viewer_*` 工具即可操作该窗口：`viewer_status`、
 `viewer_rows`、`viewer_add_files`、`viewer_select`、`viewer_run_tool`（对所选行按下任意工具面板
 按钮——`fermi`、`kcut`、`kmap`、`bz3d`、`figure`、`notch3d`、`combine` 等）、`viewer_windows`、
-`viewer_screenshot`（任意窗口的截图，便于智能体检查结果）、`viewer_close_window` 和
+`viewer_screenshot`（任意窗口的截图，便于智能体检查结果）、`viewer_figure` 与
+`viewer_render_figure`（以数字给出作图窗口的页面、面板位置、标题、色阶和字号，并按打印效果写出
+PNG）、`viewer_close_window` 和
 `viewer_python`（在程序内运行 Python，`A` 为程序主模块——用于设置对话框字段、按下按钮）。
 无界面得到的结果可以用 `save_datasets` 存为 `.nxs`，再用 `viewer_add_files` 加入列表。
 

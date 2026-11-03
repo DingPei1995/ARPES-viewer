@@ -162,3 +162,20 @@ def test_irreducible_cell_lies_inside_the_zone_it_came_from():
         if outward @ (zone[i] - zone[:-1].mean(axis=0)) < 0:
             outward = -outward
         assert np.all((wedge - zone[i]) @ outward <= 1e-9)
+
+
+def test_a_tiled_zone_has_each_edge_once():
+    """Two neighbouring hexagons share one edge: 11 edges, not 12."""
+    from arpes_viewer.tools.crystal.bz2d import (reciprocal_vectors_2d,
+                                                 tile_2d, unique_edges,
+                                                 wigner_seitz_cell_2d)
+    a1 = np.array([1.0, 0.0])
+    a2 = np.array([-0.5, np.sqrt(3) / 2])
+    g1, g2 = reciprocal_vectors_2d(a1, a2)
+    cell = wigner_seitz_cell_2d(g1, g2)
+    pair = [cell, cell + g1]
+    assert len(unique_edges(pair)) == 11
+    as_lists = [(list(p[:, 0]), list(p[:, 1])) for p in pair]
+    assert len(unique_edges(as_lists)) == 11
+    tiles = tile_2d(cell, g1, g2, (-3, 3), (-3, 3))
+    assert len(unique_edges(tiles)) < 6 * len(tiles)

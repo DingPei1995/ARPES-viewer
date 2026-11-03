@@ -2,7 +2,7 @@
 
 *[中文版 / Chinese version](USER_GUIDE_zh.md) · [Version française](USER_GUIDE_fr.md)*
 
-*Last updated: 2 November 2026 — for ARPES viewer v1.3.0*
+*Last updated: 3 November 2026 — for ARPES viewer v1.3.1*
 
 The version and its date are in the main window's title bar and at the bottom of
 the main window. Bug reports, questions and the latest version:
@@ -260,7 +260,7 @@ see them all. Hidden rows are deselected, so nothing out of sight is acted
 on. Right-click the list → **Sort by name** (`Cut_9` before `Cut_10`) or
 **Sort by data type** (cuts, maps, k-maps… each group by name).
 
-### Where things are now (v1.3.0)
+### Where things are now (v1.3.1)
 
 If you used an earlier version: the tools moved out of the right-click menu
 and the viewers' *Functions* menus into the tool panel, so each has one way
@@ -898,7 +898,24 @@ starts from the last conversion of a scan of the same size.
 ![Convert to momentum (kz, k∥)](images/kz_conversion_dialog.png)
 
 - **Inner potential V0** is the unknown: the preview reconverts one energy
-  slice as you change it, in milliseconds.
+  slice as you change it, in milliseconds. It may be negative (down to
+  −30 eV; the report then says so). **Γ at hν → Set V0** gives the V0 that
+  puts Γ at normal emission at the photon energy you name (the zone order
+  nearest the present V0 is shown).
+- **Manipulator theta** is off by default: a kz map is taken with the slit
+  through Γ. Tick *Correct a manipulator theta offset from Γ* only to
+  correct an offset, and type it **relative to normal emission** — the
+  motor's absolute reading in the file is shown in the tooltip, not used.
+- **Output grid**: by default k∥ gets one point per analyser angle channel
+  and k_z the number that makes its step the same (*Match the measurement*
+  sets it again); the steps are in the report.
+- The energy of the preview is the **slider** beside it; the colour map and
+  levels (histogram, *Auto levels*) are beside that.
+- **Calibrate hν from each fitted E_F** (optional, off by default): after the
+  Fermi level has been fitted per photon energy (kz map → align E_F), uses
+  hν − E_kin(E_F) measured at each photon energy instead of the single work
+  function — for a monochromator whose hν is off. The default is the single
+  work function, with E_F already flattened.
 - With the **lattice** (space group, a, b, c), the **surface normal** and the
   in-plane direction, the zone boundaries are drawn over the preview.
 - **Scan V0** converts at a range of V0 values and reports where the k_z
@@ -907,6 +924,9 @@ starts from the last conversion of a scan of the same size.
   zone apart; the matching reciprocal-lattice planes are listed.
 - The yellow banner warns when the Fermi edge still bends across the analyser
   angle — correct it first (Straighten bands (FS correction) on the slit cut).
+  The bend is a parabola fitted through the edge of blocks of neighbouring
+  channels, the weak channels at the slit ends left out, so one noisy
+  channel or a band crossing E_F does not set it.
 - **Convert the whole cube** lists a `kz map (k)`.
 
 ![The converted kz map](images/kz_map_in_k.png)
@@ -1140,6 +1160,17 @@ angles or momenta — evenly spaced or at chosen values, with integration,
 one shared colour scale, and labels on the outer edges only. (Not to be
 confused with **3D slices**, which draws three planes in a 3-D view.)
 
+- Panels are titled with the value asked for (−0.2 eV), not the recorded
+  plane's own (−0.2022 eV); the plane used and the window are kept in each
+  panel's information.
+- The colour map, its inversion, the levels (as percentiles) and the gamma
+  are set in the dialog, for every panel at once.
+- **Draw the Brillouin zone, as on the map** puts the zone drawn with BZ
+  overlap on every constant-energy panel, each edge once.
+- From a script or an agent, `contour.slice_figure(values=[0, -0.1, -0.2],
+  half_width=0.02)` (or `A.open_slice_series(values=...)` on the selected
+  row) makes the figure without the dialog.
+
 | Settings | Result |
 |---|---|
 | ![Slice series settings](images/slice_figure_dialog.png) | ![Slice series figure](images/slice_figure.png) |
@@ -1349,16 +1380,25 @@ of the crystal-structure window.
   energy (E − E_F). The list offers the k-maps selected when the window
   was opened and every k-map in the main list (**↻ Maps from the list**
   brings in ones added since); a map is read only when it is chosen. The
-  map's kx, ky lie along the plane's own in-plane axes — k_x, k_y for a
-  plane normal to k_z — turned by *Maps' azimuth*, averaged over
+  map's kx, ky lie along the plane's own in-plane axes — k_a, k_b for a
+  plane normal to k_c — turned by *Maps' azimuth*, averaged over
   *Integrate*, and cut to the zone.
 - **Paths**: **Add path** as often as you like, each through the labelled
   points (`Γ-M-K-Γ`, `A-L-H-A`; `|` for a jump) in a colour and width of its
   own.
-- **Display**: labels of the high-symmetry points, the k_x, k_y, k_z axes,
-  and *Label on the left* (those points labelled at their leftmost
-  equivalent, clear of the paths and axes).
+- **Display**: labels of the high-symmetry points, the axes, and *Label on
+  the left* (those points labelled at their leftmost equivalent, clear of
+  the paths and axes).
+- **Axes**: the crystal's own, **k_a, k_b, k_c** (Cartesian axes of the
+  cell: k_a along a, k_c normal to the a–b plane), by default; or **the
+  sample's, as the data has them — k_x, k_y, k_z**: k_z along the normal of
+  the *Cleavage plane (hkl)*, k_x along the maps' k_x (turned by *Maps'
+  azimuth*). One symbol never names two directions. The *View along*
+  buttons follow the frame shown.
 - **Export**: **Save picture...** at any size, or **To figure composer...**.
+  *Labels: panel width / text* sizes the labels for the width the picture
+  will have in the figure (8 pt in a 30 mm panel), whatever its size in
+  pixels; off, they scale with the picture as on screen.
 
 ## 26. Tight-binding fit
 
@@ -1610,8 +1650,11 @@ button).
   drag its handles to resize it (Shift on a corner keeps its shape). Panels
   snap to each other's edges and to a 0.5 mm grid (**Snap**); the arrow keys
   nudge by 0.5 mm (Shift: 5 mm). *Arrange as grid* (figure tools, Panels
-  tab) puts them back on rows × columns. **Re-letter** names them (a), (b)…
-  in reading order.
+  tab) puts them back on rows × columns; a panel can take several cells
+  (*Grid cells (rows / cols)* of the selected panel — a schematic beside a
+  row of data panels), and a picture keeps its own shape in them. The page
+  height follows the panels when they are moved by hand. **Re-letter**
+  names them (a), (b)… in reading order.
 - **Fill a panel.** Double-click an empty panel, or use **Load from
   list...** / **Load picture...** on the left: a dataset from the main list,
   or a picture from a file (PNG, JPEG, TIFF… — a sketch or a figure made
@@ -1627,7 +1670,10 @@ button).
   selection; right-click for more (bring to front, delete…).
 - **Axes and fonts.** The figure tools beside the page act on the selected
   panel (or all of them): ranges, ticks, labels, which edges carry numbers,
-  the panel's own font size, colour map, colour bar, reference lines.
+  the panel's own font size, colour map, colour bar, reference lines. With
+  *Tick labels on outer edges only*, *…but tick numbers on every panel*
+  keeps the numbers on the inner panels and leaves only the axis names to
+  the edges.
 - **Undo / Redo** (Ctrl+Z / Ctrl+Y) cover every change. **PDF**, **PNG**,
   **SVG** export, **Copy** puts it on the clipboard; empty panels are never
   written. The composer's **Figure tools** are not a viewer's **Plot
@@ -1942,7 +1988,9 @@ arpes-viewer --agent-bridge
 tool-panel button for the selection — `fermi`, `kcut`, `kmap`, `bz3d`,
 `figure`, `notch3d`, `combine`…), `viewer_windows`, `viewer_screenshot`
 (a picture of any of its windows, so the agent can check what it did),
-`viewer_close_window` and `viewer_python` (Python run inside the program,
+`viewer_figure` and `viewer_render_figure` (a figure window in numbers —
+page, frames, titles, levels, text sizes — and written as the PNG it will
+print as), `viewer_close_window` and `viewer_python` (Python run inside the program,
 with `A` = the program's main module — for setting a dialog's fields and
 pressing its buttons). A headless result reaches the list with
 `save_datasets` to a `.nxs` and `viewer_add_files`.

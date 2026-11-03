@@ -1435,12 +1435,16 @@ def open_brillouin_zone():
     return window.open_brillouin_zone(bound=True)
 
 
-def open_slice_series():
+def open_slice_series(**settings):
     """A page of 2-D slices through the selected map -- constant-energy
     contours at a series of energies, or cuts at a series of angles -- as one
     figure (the contour's own dialog, see ui.panels.figure.SliceSeriesDialog).
     Not the 3-D slices: this is flat panels laid out for a paper. The figure
-    is a window of its own; a contour opened only to make it is closed."""
+    is a window of its own; a contour opened only to make it is closed.
+
+    With ``settings`` (``values=[0, -0.1, ...]`` and the other arguments of
+    ``ContourWindow.slice_figure``) no dialog is shown: what a script or an
+    agent calls, since the dialog is modal."""
     from arpes_viewer.ui.viewers.windows import keep_alive
 
     key = selected_key()
@@ -1452,7 +1456,8 @@ def open_slice_series():
     made_for_it = not contour.isVisible()
     window = None
     try:
-        window = contour.open_slice_figure()
+        window = (contour.slice_figure(**settings) if settings
+                  else contour.open_slice_figure())
     finally:
         if made_for_it and not contour.cut_windows:
             # The contour closes the figures it made when it closes; this

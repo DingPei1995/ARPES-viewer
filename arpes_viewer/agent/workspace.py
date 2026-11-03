@@ -332,6 +332,9 @@ class Workspace:
         fit = fit_fermi_edge(energy, values, temperature=float(temperature),
                              fixed=() if fit_temperature else ("temperature",),
                              window=window)
+        problems = fit.problems()
+        if problems:
+            raise ValueError("no Fermi edge found: " + "; ".join(problems))
         return {"success": bool(fit.success), "message": fit.message,
                 "values": {k: float(v) for k, v in fit.values.items()},
                 "errors": {k: float(v) for k, v in fit.errors.items()},

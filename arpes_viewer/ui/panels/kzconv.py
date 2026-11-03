@@ -25,8 +25,9 @@ import pyqtgraph as pg
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                              QDoubleSpinBox, QFormLayout, QGroupBox,
-                             QHBoxLayout, QLabel, QPushButton, QSpinBox,
-                             QTabWidget, QTextEdit, QVBoxLayout, QWidget)
+                             QHBoxLayout, QLabel, QPushButton, QSlider,
+                             QSpinBox, QTabWidget, QTextEdit, QVBoxLayout,
+                             QWidget)
 
 from arpes_viewer.ui.common.screen import fits_screen
 from arpes_viewer.tools.crystal import cleavage
@@ -90,6 +91,8 @@ class KzConversionDialog(QDialog):
         self.restored = remembered.recall(self.REMEMBERED, self._shape())
         if self.restored:
             self.restore(self.restored)
+        else:
+            self.default_grid()
         self.refresh()
 
     # -- remembered between scans of one size ------------------------------
@@ -174,12 +177,34 @@ class KzConversionDialog(QDialog):
 
         physics = QGroupBox("Final state")
         form = QFormLayout(physics)
-        self.inner_potential = self._spin(12.0, 0.0, 200.0, 0.5, " eV")
+        self.inner_potential = self._spin(12.0, -30.0, 200.0, 0.5, " eV")
         self.inner_potential.setToolTip(
             "V0, the inner potential: how far the final-state band bottom "
             "sits below the vacuum level. Not measured by the experiment -- "
             "chosen so the k_z pattern repeats with the lattice period.")
         form.addRow("Inner potential V0", self.inner_potential)
+
+        # V0 from where Γ is: a kz map is usually taken so that one photon
+        # energy passes through Γ at normal emission, and that is enough to
+        # fix V0 once the zone order is chosen.
+        gamma_row = QWidget()
+        gamma_box = QHBoxLayout(gamma_row)
+        gamma_box.setContentsMargins(0, 0, 0, 0)
+        self.gamma_hv = self._spin(float(np.median(self.hv)),
+                                   float(self.hv.min()), float(self.hv.max()),
+                                   0.5, " eV")
+        self.gamma_hv.setToolTip(
+            "The photon energy at which normal emission passes through Γ. "
+            "“Set V0” then chooses the inner potential that puts Γ there "
+            "(the zone order nearest the present V0; the order is shown).")
+        self.gamma_button = QPushButton("Set V0")
+        self.gamma_button.clicked.connect(self.set_v0_from_gamma)
+        gamma_box.addWidget(self.gamma_hv, stretch=1)
+        gamma_box.addWidget(self.gamma_button)
+        form.addRow("Γ at hν", gamma_row)
+        self.gamma_note = QLabel("")
+        self.gamma_note.setWordWrap(True)
+        form.addRow("", self.gamma_note)
 
         self.effective_mass = self._spin(1.0, 0.05, 10.0, 0.05, "")
         self.effective_mass.setToolTip(
@@ -195,6 +220,30 @@ class KzConversionDialog(QDialog):
             "kinetic energy. Read from the file where the loader recorded "
             "one; change it if you know better.")
         form.addRow("Work function", self.work_function)
+
+        # Optional: hv - E_kin(E_F) measured at each photon energy, after the
+        # Fermi level has been flattened per photon energy.
+        self.measured_phi = kzconv.measured_work_functions(
+            self.contour.data.scan.info)
+        self.calibrate_hv = QCheckBox("Calibrate hν from each fitted E_F")
+        self.calibrate_hv.setChecked(False)
+        if self.measured_phi is None:
+            self.calibrate_hv.setEnabled(False)
+            self.calibrate_hv.setToolTip(
+                "Off unless the Fermi level was fitted per photon energy "
+                "(kz map → Align E_F) on a scan whose loader recorded each "
+                "spectrum's kinetic-energy window. Without it the single "
+                "work function above is used for every photon energy.")
+        else:
+            phi = self.measured_phi
+            self.calibrate_hv.setToolTip(
+                "Use hν − E_kin(E_F) measured at each photon energy "
+                f"({phi.min():.3f} to {phi.max():.3f} eV here) instead of "
+                "the single work function. Corrects a monochromator whose "
+                "hν is off, or an analyser work function unlike the table. "
+                "Optional: the default is the single work function, with the "
+                "Fermi level already flattened.")
+        form.addRow(self.calibrate_hv)
         column.addWidget(physics)
 
         geometry = QGroupBox("Geometry")
@@ -205,29 +254,55 @@ class KzConversionDialog(QDialog):
             "from the slit angle before anything else.")
         form.addRow("Normal emission at", self.angle_offset)
 
-        self.theta_position = self._spin(self._theta_from_file(),
-                                         -90.0, 90.0, 0.1, " deg")
+        # The manipulator theta, relative to normal emission. Off by
+        # default: a kz map is normally taken with the slit through Γ, so
+        # the polar angle to correct is zero whatever the motor reads --
+        # the file records the motor's absolute position, which is not the
+        # angle from normal emission and must not be used as one.
+        self.theta_correct = QCheckBox("Correct a manipulator theta offset from Γ")
+        self.theta_correct.setChecked(False)
+        self.theta_correct.setToolTip(
+            "Only if the slit was not through Γ: the manipulator's polar "
+            "angle away from normal emission tilts the detector arc out of "
+            "the plane holding the slit, which adds a second in-plane "
+            "momentum component that has to come out of k_z.")
+        form.addRow(self.theta_correct)
+        self.theta_position = self._spin(0.0, -90.0, 90.0, 0.1, " deg")
+        self.theta_position.setEnabled(False)
+        file_theta = self._theta_from_file()
         self.theta_position.setToolTip(
-            "The manipulator's polar angle. It tilts the detector arc out "
-            "of the plane holding the slit, which adds a second in-plane "
-            "momentum component -- and that one has to come out of k_z too.")
-        form.addRow("Manipulator theta", self.theta_position)
+            "Theta relative to normal emission (theta − theta at Γ), not the "
+            f"motor's absolute reading ({file_theta:g}° in this file).")
+        form.addRow("Theta from Γ", self.theta_position)
+        self.theta_correct.toggled.connect(self.theta_position.setEnabled)
+        self.theta_correct.toggled.connect(self.refresh)
         column.addWidget(geometry)
 
         grid = QGroupBox("Output grid")
         form = QFormLayout(grid)
         self.n_kz = QSpinBox(); self.n_kz.setRange(16, 2048); self.n_kz.setValue(256)
         self.n_kpar = QSpinBox(); self.n_kpar.setRange(16, 2048); self.n_kpar.setValue(256)
+        for box in (self.n_kz, self.n_kpar):
+            box.setKeyboardTracking(False)
         form.addRow("k_z points", self.n_kz)
         form.addRow("k_par points", self.n_kpar)
+        self.grid_button = QPushButton("Match the measurement")
+        self.grid_button.setToolTip(
+            "k_par gets one point per analyser angle channel and k_z the "
+            "number that makes its step the same (square pixels) -- the "
+            "default for a new scan.")
+        self.grid_button.clicked.connect(self.default_grid)
+        form.addRow("", self.grid_button)
+        # Which energy slice the preview shows: the slider beside the
+        # preview drives this box, which keeps the exact value.
         self.preview_energy = self._spin(0.0, float(self.energy.min()),
                                           float(self.energy.max()), 0.01, " eV")
         self.preview_energy.setValue(float(np.clip(0.0, self.energy.min(),
                                                    self.energy.max())))
         self.preview_energy.setToolTip(
-            "Which energy slice the preview shows. The Fermi level is "
-            "usually where the k_z periodicity is clearest.")
-        form.addRow("Preview at E", self.preview_energy)
+            "Which energy slice the preview shows (also the slider beside "
+            "the preview). The Fermi level is usually where the k_z "
+            "periodicity is clearest.")
         column.addWidget(grid)
 
         column.addWidget(self._lattice_group())
@@ -235,8 +310,10 @@ class KzConversionDialog(QDialog):
 
         for box in (self.inner_potential, self.effective_mass,
                     self.work_function, self.angle_offset,
-                    self.theta_position, self.preview_energy):
+                    self.theta_position, self.preview_energy, self.n_kz,
+                    self.n_kpar):
             box.valueChanged.connect(self.refresh)
+        self.calibrate_hv.toggled.connect(self.refresh)
         return holder
 
     def _lattice_group(self) -> QGroupBox:
@@ -399,7 +476,46 @@ class KzConversionDialog(QDialog):
             pen=pg.mkPen("#ff7f0e", width=2), symbol="o", symbolSize=9,
             symbolBrush="#ff7f0e")
         self.plot.addItem(self.pick_item)
-        column.addWidget(self.plot, stretch=1)
+        picture = QHBoxLayout()
+        picture.addWidget(self.plot, stretch=1)
+        # Beside the picture: the energy of the slice, as a slider one drags
+        # through the cube, and the colour scale -- levels on the histogram,
+        # the colour map from the list (or the histogram's own menu).
+        energy_column = QVBoxLayout()
+        self.energy_slider = QSlider(Qt.Vertical)
+        self.energy_slider.setRange(0, max(self.energy.size - 1, 0))
+        self.energy_slider.setValue(self._energy_index(self.preview_energy.value()))
+        self.energy_slider.setToolTip("Energy of the slice shown. Drag "
+                                      "through the cube.")
+        self.energy_slider.valueChanged.connect(self._slider_moved)
+        self.preview_energy.valueChanged.connect(self._energy_typed)
+        energy_column.addWidget(QLabel("E"), alignment=Qt.AlignHCenter)
+        energy_column.addWidget(self.energy_slider, stretch=1)
+        self.preview_energy.setMaximumWidth(96)
+        energy_column.addWidget(self.preview_energy)
+        picture.addLayout(energy_column)
+        colour_column = QVBoxLayout()
+        self.histogram = pg.HistogramLUTWidget()
+        self.histogram.setImageItem(self.image)
+        self.histogram.setMinimumWidth(90)
+        self.histogram.setMaximumWidth(120)
+        colour_column.addWidget(self.histogram, stretch=1)
+        self.colormap_box = QComboBox()
+        names = list(colormaps.COLORMAP_NAMES)
+        current = str(self.contour.colormap)
+        if current not in names:
+            names.insert(0, current)
+        self.colormap_box.addItems(names)
+        self.colormap_box.setCurrentText(current)
+        self.colormap_box.setMaximumWidth(120)
+        self.colormap_box.currentTextChanged.connect(self._apply_colormap)
+        colour_column.addWidget(self.colormap_box)
+        self.auto_levels = QPushButton("Auto levels")
+        self.auto_levels.setMaximumWidth(120)
+        self.auto_levels.clicked.connect(self._auto_levels)
+        colour_column.addWidget(self.auto_levels)
+        picture.addLayout(colour_column)
+        column.addLayout(picture, stretch=1)
 
         row = QHBoxLayout()
         self.pick_button = QPushButton("Measure a k_z period...")
@@ -445,12 +561,84 @@ class KzConversionDialog(QDialog):
 
     # -- settings in one place ---------------------------------------------
     def settings(self) -> dict:
+        """The conversion's parameters. ``work_function`` is one number, or
+        one per photon energy when the hv calibration is on; the theta is
+        the offset from normal emission, zero unless that is ticked."""
+        calibrated = (self.calibrate_hv.isChecked()
+                      and self.measured_phi is not None)
         return dict(
             inner_potential=float(self.inner_potential.value()),
-            work_function=float(self.work_function.value()),
+            work_function=(np.asarray(self.measured_phi, dtype=float)
+                           if calibrated else float(self.work_function.value())),
             effective_mass=float(self.effective_mass.value()),
             angle_offset=float(self.angle_offset.value()),
-            theta_position=float(self.theta_position.value()))
+            theta_position=(float(self.theta_position.value())
+                            if self.theta_correct.isChecked() else 0.0))
+
+    # -- the grid, Γ, the slider ------------------------------------------
+    def default_grid(self):
+        """Points that keep the measurement's own detail (see
+        :func:`tools.momentum.kzconv.default_grid`)."""
+        try:
+            n_kz, n_kpar = kzconv.default_grid(self.hv, self.angle,
+                                               self.energy, **self.settings())
+        except Exception:                                   # noqa: BLE001
+            return None
+        for box, value in ((self.n_kz, n_kz), (self.n_kpar, n_kpar)):
+            box.blockSignals(True)
+            box.setValue(int(value))
+            box.blockSignals(False)
+        self.refresh()
+        return n_kz, n_kpar
+
+    def set_v0_from_gamma(self):
+        """The V0 that puts Γ at normal emission at the chosen hν."""
+        settings = self.settings()
+        phi = settings["work_function"]
+        hv = float(self.gamma_hv.value())
+        if np.ndim(phi):
+            phi = float(np.interp(hv, self.hv, phi))
+        try:
+            v0, order = kzconv.inner_potential_for_gamma(
+                hv, self.surface_period(), work_function=phi,
+                effective_mass=settings["effective_mass"],
+                near=float(self.inner_potential.value()))
+        except Exception as exc:                            # noqa: BLE001
+            self.gamma_note.setText(f"<span style='color:#c00'>{exc}</span>")
+            return None
+        self.inner_potential.setValue(v0)
+        note = (f"Γ of zone order n = {order} at {hv:g} eV "
+                f"(k_z = {order * self.surface_period():.3f} Å⁻¹).")
+        if v0 < 0:
+            note += (" <span style='color:#a60'>V0 is negative: unusual for "
+                     "a free-electron final state -- check hν, the work "
+                     "function and the surface normal.</span>")
+        self.gamma_note.setText(note)
+        return v0, order
+
+    def _energy_index(self, value) -> int:
+        return int(np.argmin(np.abs(self.energy - float(value))))
+
+    def _slider_moved(self, index):
+        value = float(self.energy[int(index)])
+        if abs(self.preview_energy.value() - value) > 1e-9:
+            self.preview_energy.setValue(value)
+
+    def _energy_typed(self, value):
+        index = self._energy_index(value)
+        if self.energy_slider.value() != index:
+            self.energy_slider.blockSignals(True)
+            self.energy_slider.setValue(index)
+            self.energy_slider.blockSignals(False)
+
+    def _auto_levels(self):
+        preview = getattr(self, "_preview", None)
+        if preview is None:
+            return
+        finite = preview[2][np.isfinite(preview[2])]
+        if finite.size:
+            lo, hi = np.percentile(finite, (1.0, 99.5))
+            self.histogram.setLevels(float(lo), float(hi))
 
     def lattice(self) -> LatticeParams:
         return LatticeParams(
@@ -527,11 +715,15 @@ class KzConversionDialog(QDialog):
             return
         self._preview = (kz_axis, kpar_axis, plane)
         shown = np.where(np.isfinite(plane), plane, np.nan)
-        self.image.setImage(shown, autoLevels=True)
+        first = not getattr(self, "_levels_set", False)
+        self.image.setImage(shown, autoLevels=False)
+        if first:
+            self._levels_set = True
+            self._apply_colormap()
+            self._auto_levels()
         self.image.setRect(pg.QtCore.QRectF(
             kz_axis[0], kpar_axis[0],
             kz_axis[-1] - kz_axis[0], kpar_axis[-1] - kpar_axis[0]))
-        self._apply_colormap()
         self._draw_zone_lines(kz_axis, kpar_axis)
         self._write_report(kz_axis, kpar_axis, plane)
 
@@ -543,10 +735,15 @@ class KzConversionDialog(QDialog):
         same lookup table either way, so the preview and the window that
         opened it match.
         """
+        name = (self.colormap_box.currentText()
+                if hasattr(self, "colormap_box") else self.contour.colormap)
         try:
-            lut = colormaps.get_lut(self.contour.colormap,
-                                    flip=self.contour.flip)
-            self.image.setLookupTable(np.asarray(lut))
+            lut = np.asarray(colormaps.get_lut(name, flip=self.contour.flip))
+            # Through the histogram's gradient, so its levels and the colour
+            # table stay one control.
+            positions = np.linspace(0.0, 1.0, len(lut))
+            self.histogram.gradient.setColorMap(
+                pg.ColorMap(positions, lut[:, :3].astype(np.ubyte)))
         except Exception:                                   # noqa: BLE001
             pass        # a preview in the default colours is no disaster
 
@@ -586,10 +783,13 @@ class KzConversionDialog(QDialog):
             self._zone_error = str(exc)
             self.zone_item.setData([], [])
             return
+        # Each edge once: neighbouring zones share their edges, and a
+        # dashed line drawn twice comes out solid.
+        from arpes_viewer.tools.crystal.bz2d import unique_edges
         xs, ys = [], []
-        for px, py in polygons:
-            xs += list(px) + [np.nan]
-            ys += list(py) + [np.nan]
+        for (x0, y0), (x1, y1) in unique_edges(polygons):
+            xs += [x0, x1, np.nan]
+            ys += [y0, y1, np.nan]
         self.zone_item.setData(np.array(xs), np.array(ys), connect="finite")
 
     def zone_polygons(self, kz_axis, kpar_axis):
@@ -627,6 +827,9 @@ class KzConversionDialog(QDialog):
             f"({(kz_axis[-1] - kz_axis[0]) / period:.2f} zones of "
             f"{period:.4f} A<sup>-1</sup>)",
             f"k_par {kpar_axis[0]:.3f} to {kpar_axis[-1]:.3f} A<sup>-1</sup>",
+            f"grid step k_z {(kz_axis[-1] - kz_axis[0]) / max(kz_axis.size - 1, 1):.4f}, "
+            f"k_par {(kpar_axis[-1] - kpar_axis[0]) / max(kpar_axis.size - 1, 1):.4f} "
+            f"A<sup>-1</sup>",
             f"{coverage:.0f}% of the grid is covered by the measurement",
         ]
         if getattr(self, "_zone_error", None):
@@ -634,6 +837,15 @@ class KzConversionDialog(QDialog):
                          f"{self._zone_error}</span>")
         for complaint in getattr(self, "_lattice_complaints", ()):
             lines.append(f"<span style='color:#a60'>{complaint}</span>")
+        if self.calibrate_hv.isChecked() and self.measured_phi is not None:
+            phi = self.measured_phi
+            lines.append(
+                f"hν calibrated: hν − E<sub>kin</sub>(E<sub>F</sub>) = "
+                f"{phi.min():.3f} to {phi.max():.3f} eV over the scan "
+                f"(single work function {self.work_function.value():.3f} eV "
+                f"not used)")
+        if self.inner_potential.value() < 0:
+            lines.append("<span style='color:#a60'>V0 is negative.</span>")
         if self._pick_points:
             lines.append(self._pick_summary())
         self.report.setHtml("<br>".join(lines))
@@ -773,6 +985,12 @@ class KzConversionDialog(QDialog):
         scan = data.scan
         settings = self.settings()
         parameters = dict(settings)
+        phi = np.asarray(settings["work_function"], dtype=float)
+        parameters["work_function"] = float(np.mean(phi))
+        parameters["hv_calibrated"] = bool(phi.ndim)
+        if phi.ndim:
+            parameters["work_function_per_hv"] = " ".join(f"{v:.4f}" for v in phi)
+        parameters["theta_corrected"] = bool(self.theta_correct.isChecked())
         parameters.update({
             "n_kz": int(self.n_kz.value()),
             "n_kpar": int(self.n_kpar.value()),

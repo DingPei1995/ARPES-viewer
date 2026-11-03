@@ -573,6 +573,27 @@ def series_members(path: str):
     return sorted(found)
 
 
+def paired_members(path: str):
+    """The members of the series that have their ``_i`` file, and the names
+    of those left out for not having one.
+
+    A map stopped before it finished -- or one still being measured -- has
+    a last spectrum whose parameter file was never written. Without that one
+    file the stepped angle cannot be read for the whole series, and the map
+    used to fall back to an index axis. The spectra that do have their
+    parameters are the measurement; the one without is left out, and named,
+    so nobody wonders where it went. With fewer than two paired members
+    nothing is left out: the series is then a pile of spectra either way.
+    """
+    members = series_members(path)
+    paired = [m for m in members if parameter_path(m[1])]
+    if 2 <= len(paired) < len(members):
+        dropped = [os.path.basename(m[1]) for m in members
+                   if not parameter_path(m[1])]
+        return paired, dropped
+    return members, []
+
+
 #: What the browser calls a folder, by what was stepped across it.
 KIND_FOR_SERIES = {"theta": "Map", "hv": "kz map", "index": "Map"}
 
@@ -598,7 +619,7 @@ def series_kind(path: str) -> str:
     also what an unstepped folder is -- both mean "nothing here says this is
     more than a pile of spectra".
     """
-    members = series_members(path)
+    members, _dropped = paired_members(path)
     if len(members) < 2:
         return "index"
     thetas, photon_energies = [], []
@@ -714,7 +735,7 @@ def load_series(path: str, median_filter: bool = False, progress=None,
     ``progress`` is an optional ``callable(done, total, label)``; reading a
     hundred 6 MB text files is slow enough to be worth reporting.
     """
-    members = series_members(path)
+    members, dropped = paired_members(path)
     if not members:
         raise ValueError(
             f"{os.path.basename(path)} is not part of a numbered "
@@ -772,6 +793,11 @@ def load_series(path: str, median_filter: bool = False, progress=None,
     scan.info["axis0.role"] = role
     scan.info["cassiopee.series"] = series
     scan.info["cassiopee.members"] = len(members)
+    if dropped:
+        scan.info["cassiopee.dropped_members"] = ", ".join(dropped)
+        scan.info["cassiopee.dropped_reason"] = (
+            "no _i parameter file beside it (the scan was stopped or is "
+            "still running)")
 
     # What the motors actually read back, beside the even axis that replaced
     # them (see _even_steps). Keeping both means the straightening can be
@@ -1124,7 +1150,8 @@ class CassiopeeLoader(Loader):
                 "path": members[0][1],
                 "kind": KIND_FOR_SERIES.get(stepped, "Map"),
                 "name": _with_beam(base, _series_beam(members)),
-                "title": SERIES_TITLES.get(stepped, "").format(n=len(members)),
+                "title": SERIES_TITLES.get(stepped, "").format(
+                    n=len(paired_members(path)[0])),
                 "start_time": None,
             }]
 

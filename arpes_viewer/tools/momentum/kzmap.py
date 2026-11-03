@@ -115,46 +115,14 @@ def region_edc(cube, index_region):
 def _is_an_edge(fit, lo: float, hi: float, margin: float) -> bool:
     """Did this fit actually find a Fermi edge, or merely converge?
 
-    ``fit_fermi_edge`` reports success on data with no edge in it at all --
-    it is a least-squares fit, and a model with a step in it can always be
-    made to describe featureless data by putting the step somewhere it does
-    no harm. Two things give that away, and neither needs a threshold that
-    has to be tuned:
-
-    * **The level is pinned to the end of the window.** On flat data the
-      step slides off the edge of the fitted range and stops there, so E_F
-      comes back as exactly the window bound. A real edge sits inside the
-      window with data on both sides of it -- that is what a window is for.
-    * **There is no step worth speaking of.** ``dos0`` is the height of the
-      step down from occupied to unoccupied states. A Fermi edge has a
-      positive one that is large next to its own uncertainty; featureless
-      data fits a step of essentially zero, and pure noise is as happy to
-      fit one going *up*. Comparing the step to the error bar the fit
-      itself returns on it needs no threshold chosen by hand and no
-      assumption about how bright the spectrum is -- which matters here,
-      since the flux across a photon-energy scan varies by a large factor.
-
-    That second test is why a dead spectrum is still caught when its fit was
-    seeded from a good neighbour: seeded, it converges obediently at the
-    neighbour's level, and only the missing step gives it away.
-
-    Worth catching rather than leaving to the eye: the returned number looks
-    like an answer either way, and shifting a spectrum by a wrong one moves
-    it out of the stack, which shows up as a dim band in the final map
-    rather than as anything that says "this fit failed".
+    The test is :func:`arpes_viewer.tools.spectra.fermi.edge_problems`
+    (E_F pinned to the window, no significant step down, E_F undetermined).
+    Worth catching rather than leaving to the eye: shifting a spectrum by a
+    wrong level moves it out of the stack, which shows up as a dim band in
+    the final map rather than as anything that says "this fit failed".
     """
-    level = float(fit.values.get("ef", np.nan))
-    if not np.isfinite(level):
-        return False
-    if not (lo + margin <= level <= hi - margin):
-        return False
-    step = float(fit.values.get("dos0", 0.0))
-    if step <= 0.0:
-        return False
-    error = float(fit.errors.get("dos0", float("nan")))
-    if np.isfinite(error) and error > 0.0:
-        return step > 2.0 * error
-    return True
+    from arpes_viewer.tools.spectra.fermi import edge_problems
+    return not edge_problems(fit, lo, hi, margin)
 
 
 #: Public name for the check, for anything else that fits one edge and

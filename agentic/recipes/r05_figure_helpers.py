@@ -59,30 +59,17 @@ def grab_bz3d(row, name_prefix, out_png, az=-60.0, el=22.0, size=(1000, 900), no
     return desc
 
 def slice_figure(row, axis_prefix, start, stop, n, integ, cols):
-    """Open Slice series on `row`, fill it (timer: the dialog is modal) and make the figure; return the new FigureWindow."""
+    """The Slice series figure of `row`, without its (modal) dialog: A.open_slice_series(values=...)
+    (viewer 1.3.1). Titles carry the nominal values; the map's BZ is drawn on constant-energy panels,
+    each edge once. Returns the new FigureWindow and a summary."""
     select(row)
-    before = list(app.topLevelWidgets())
-    info = {}
-    def fill():
-        d = app.activeModalWidget()
-        cb = d.findChildren(QtWidgets.QComboBox)[0]
-        info["axes"] = [cb.itemText(k) for k in range(cb.count())]
-        for k in range(cb.count()):
-            if cb.itemText(k).startswith(axis_prefix): cb.setCurrentIndex(k)
-        QtWidgets.QApplication.processEvents()
-        sb = d.findChildren(QtWidgets.QSpinBox); dsb = d.findChildren(QtWidgets.QDoubleSpinBox)
-        sb[0].setValue(n); sb[1].setValue(cols)
-        dsb[0].setValue(start); dsb[1].setValue(stop); dsb[2].setValue(integ)
-        for c in d.findChildren(QtWidgets.QCheckBox):
-            if c.text().startswith("Same colour"): c.setChecked(False)
-            if c.text().startswith("Title each"): c.setChecked(True)
-        info["summary"] = [l.text() for l in d.findChildren(QtWidgets.QLabel) if "panel(s)" in l.text()]
-        [b for b in d.findChildren(QtWidgets.QPushButton) if b.text() == "Make the figure"][0].click()
-    QtCore.QTimer.singleShot(1500, fill)
-    A.open_slice_series()
-    pump(6)
-    new = [w for w in app.topLevelWidgets() if type(w).__name__ == "FigureWindow" and all(w is not b for b in before)]
-    return new[-1], info
+    # the cube's axes: 0 the first (kx / deflector), 1 the second (ky / slit), 2 energy
+    axis = 2 if axis_prefix.startswith("along E") else (0 if "kx" in axis_prefix else 1)
+    values = list(np.linspace(start, stop, n))
+    fw = A.open_slice_series(values=values, axis=axis, half_width=integ, cols=cols,
+                             nominal_titles=True, zone=(axis == 2), zone_style="dashed")
+    pump(4)
+    return fw, {"summary": [f"{n} panel(s), +-{integ} around each"], "axes": []}
 
 def style_levels(p, pct=(2.0, 99.5), target=0.18):
     a = np.asarray(p.data.array, float); fin = a[np.isfinite(a)]
@@ -96,31 +83,22 @@ def polygons(ov):
     return ov["layers"]["bz_main"]["polygons"]
 
 def bz_lines(ov, color, width, style, closed=True, name="BZ"):
-    """BZ outline as UNIQUE edges: neighbouring zones share edges and drawing both made some edges look solid, others dashed."""
-    seen = set(); out = []
-    for px, py in polygons(ov):
-        pts = list(zip(px, py)); n = len(pts)
-        for k in range(n if closed else n - 1):
-            a, b = pts[k], pts[(k + 1) % n]
-            key = tuple(sorted([(round(a[0], 4), round(a[1], 4)), (round(b[0], 4), round(b[1], 4))]))
-            if key in seen or key[0] == key[1]: continue
-            seen.add(key)
-            out.append(nf.Overlay(xs=[a[0], b[0]], ys=[a[1], b[1]], color=color, width_pt=width, style=style, closed=False, name=name))
-    return out
+    """BZ outline as UNIQUE edges (the program's tools.crystal.bz2d.unique_edges, viewer 1.3.1)."""
+    from arpes_viewer.tools.crystal.bz2d import unique_edges
+    return [nf.Overlay(xs=[a[0], b[0]], ys=[a[1], b[1]], color=color, width_pt=width, style=style,
+                       closed=False, name=name) for a, b in unique_edges(polygons(ov))]
 
 def finish(fw, width_mm=180.0, rows_=3, cols_=4, big=True):
     fw.figure.match_size([1, 0], 'both')
     st = fw.figure.style
     st.width_mm = width_mm; st.gap_x_mm = 3.0; st.gap_y_mm = 4.0; st.font_pt = 8.0
-    st.edge_labels_only = False
-    fw.figure.arrange_grid(rows_, cols_)
+    st.edge_labels_only = True; st.inner_tick_numbers = True   # numbers on every panel, axis names on the edges
     ps = fw.figure.panels
-    for q in ps: q.x_labels = True; q.y_labels = True
     if big and len(ps) > 4:
-        # original 3 x 4 layout kept; only the schematic (portrait) gets the free vertical space below it
-        x, y, w, h = ps[0].frame
-        ps[0].frame = (x, y, w, h + 14.0)
+        ps[0].span = (2, 1)          # the schematic takes two grid rows, in its own shape
+    fw.figure.arrange_grid(rows_, cols_)
     fw.refresh()
+    print(fw.describe())             # frames and page height in numbers (rule 17)
 
 def crop_png(path, m=14, thr=14):
     """Crop a saved picture to its content (own helper; the program's picture has wide margins)."""
@@ -133,7 +111,7 @@ def crop_png(path, m=14, thr=14):
     return (int(x1 - x0 + 1), int(y1 - y0 + 1))
 
 LEFT_LABELS = 'G, K, M, A, H, L'
-FONT_PX = 48.0   # program default 14: the labels are tiny once the picture is shrunk into a 30 mm panel
+PANEL_MM, TEXT_PT = 30.0, 8.0   # the schematic's width in the figure and its label size (viewer 1.3.1 sizes the labels for it)
 
 def bz3d_tool_picture(hkl, height, out_png, map_name=None, energy=0.0, view=None):
     """The program's own '3D BZ...' window: one plane (hkl) at `height` (units of G(hkl); 0 = through Gamma), optionally carrying a k-map."""
@@ -147,11 +125,11 @@ def bz3d_tool_picture(hkl, height, out_png, map_name=None, energy=0.0, view=None
         d.update_maps(); pump(3)
         i = [k for k in range(r.map_combo.count()) if r.map_combo.itemText(k) == map_name][0]
         r.map_combo.setCurrentIndex(i); r.energy_box.setValue(energy)
-    d.view.font_px = FONT_PX
-    d.axes_box.setChecked(False)   # the tool's k_x,k_y,k_z are crystal-frame axes, not the data's k_x,k_y: do not draw them
+    d.panel_mm_box.setValue(PANEL_MM); d.text_pt_box.setValue(TEXT_PT)
+    d.axes_box.setChecked(False)   # crystal axes are k_a,k_b,k_c (or d.set_frame("sample", hkl) for the data's k_x,k_y,k_z)
     d.left_edit.setText(LEFT_LABELS)
     d.refresh()
-    if view is not None: d.look_along(view)
+    if view is not None: d.look_along(view)   # "oblique", "k_a"..., an index 0-2 or a vector
     pump(8)
     print('left labels:', getattr(d.view, 'zone_left_labels', None))
     d.save_picture(out_png); pump(3)

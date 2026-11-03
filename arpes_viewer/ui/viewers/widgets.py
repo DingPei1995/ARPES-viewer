@@ -1764,13 +1764,12 @@ class _InteractiveImageBase(pg.ImageView):
             "polygons": [[[float(f"{v:.6g}") for v in np.asarray(px, dtype=float)],
                           [float(f"{v:.6g}") for v in np.asarray(py, dtype=float)]]
                          for px, py in polygons]}
+        # Drawn edge by edge, each once: tiled zones share their edges.
+        from arpes_viewer.tools.crystal.bz2d import unique_edges
         xs, ys = [], []
-        for px, py in polygons:
-            if xs:
-                xs.append(np.nan)
-                ys.append(np.nan)
-            xs.extend(np.asarray(px, dtype=float))
-            ys.extend(np.asarray(py, dtype=float))
+        for (x0, y0), (x1, y1) in unique_edges(polygons):
+            xs.extend((x0, x1, np.nan))
+            ys.extend((y0, y1, np.nan))
         item = self._bz_layers.get(name)
         if item is None:
             item = pg.PlotDataItem(pen=pg.mkPen(color, width=width), connect="finite")
@@ -2776,9 +2775,10 @@ class ExportDialog(QDialog):
         """The zone as ``axes_eps``'s ``paths`` and ``points``."""
         state = self._zone() or {}
         paths = []
+        from arpes_viewer.tools.crystal.bz2d import unique_edges
         for layer in (state.get("layers") or {}).values():
-            for xs, ys in layer["polygons"]:
-                paths.append((list(xs), list(ys), layer.get("color", "#39c2ff"),
+            for (x0, y0), (x1, y1) in unique_edges(layer["polygons"]):
+                paths.append(([x0, x1], [y0, y1], layer.get("color", "#39c2ff"),
                               0.8 * float(layer.get("width", 1.4))))
         return paths, [tuple(label) for label in state.get("labels") or []]
 
@@ -3002,17 +3002,9 @@ def draw_zone(rgba, state, *, x_range, y_range, invert_x=False,
         pen = QPen(QColor(layer.get("color", "#39c2ff")))
         pen.setWidthF(float(layer.get("width", 1.4)) * scale)
         painter.setPen(pen)
-        for xs, ys in layer["polygons"]:
-            run = []
-            for x, y in zip(xs, ys):
-                if np.isfinite(x) and np.isfinite(y):
-                    run.append(QPointF(*point(x, y)))
-                    continue
-                for a, b in zip(run, run[1:]):
-                    painter.drawLine(a, b)
-                run = []
-            for a, b in zip(run, run[1:]):
-                painter.drawLine(a, b)
+        from arpes_viewer.tools.crystal.bz2d import unique_edges
+        for (x0, y0), (x1, y1) in unique_edges(layer["polygons"]):
+            painter.drawLine(QPointF(*point(x0, y0)), QPointF(*point(x1, y1)))
     color = QColor(state.get("label_color", "#ffd166"))
     font = QFont("Helvetica")
     font.setPixelSize(max(6, int(round(11 * scale))))

@@ -129,7 +129,8 @@ arpes-viewer --agent-bridge
 
 the agent can also drive the window: `viewer_status`, `viewer_rows`,
 `viewer_add_files`, `viewer_select`, `viewer_run_tool` (any button of the
-tool panel), `viewer_screenshot`, `viewer_close_window`, and
+tool panel), `viewer_screenshot`, `viewer_figure` / `viewer_render_figure`
+(a figure in numbers, and as the PNG it prints as), `viewer_close_window`, and
 `viewer_python` (runs Python inside the program, so only connect an agent
 you trust). The bridge listens on your own computer only, and only to the
 agent that can read its random key file.

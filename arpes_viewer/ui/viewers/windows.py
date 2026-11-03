@@ -2316,6 +2316,10 @@ class BrillouinZoneDialog(QDialog):
     #: scalars (see loader.native.save_dataset), so settings are flattened
     #: rather than kept as one nested dict.
     _PREFIX = "bz."
+    #: The settings that choose the plane rather than the crystal: kept by
+    #: Plot only, never by closing the dialog.
+    _PLANE_KEYS = ("h", "k", "l", "kpar_h", "kpar_k", "kpar_l", "offset",
+                   "azimuth_deg")
 
     def __init__(self, contour: "ContourWindow"):
         super().__init__(contour)
@@ -3542,9 +3546,20 @@ class BrillouinZoneDialog(QDialog):
         }
 
     def closeEvent(self, event):
-        # Remembered on close too, not only on Plot: typing the crystal in
-        # and closing again is setting it up for the next map.
-        self._remember(self._current_settings())
+        # The crystal is remembered on close too, not only on Plot: typing it
+        # in and closing again is setting it up for the next map. The plane
+        # (normal, in-plane direction, height, azimuth) is not: turning it to
+        # look at the zone from another side, then closing, must not change
+        # what the next Plot -- or the next dataset -- uses. Only Plot keeps
+        # a plane.
+        settings = self._current_settings()
+        last = self._last_used()
+        for key in self._PLANE_KEYS:
+            if key in last:
+                settings[key] = last[key]
+            else:
+                settings.pop(key, None)
+        self._remember(settings)
         # Same rule as the other picking dialogs: picking must not outlive
         # the dialog. The drawn zone itself is untouched -- it is meant to
         # stay on the contour after this closes.
@@ -3826,16 +3841,39 @@ class ContourWindow(ViewerWindow):
         return (self.angle_defl, self.angle_slit, self.E), labels
 
     def open_slice_figure(self):
-        """Cut the cube along one axis
-        at a series of positions and lay the results out as a figure."""
-        from arpes_viewer.ui.panels.figure import (SliceSeriesDialog, FigureWindow,
-                                      slice_panels)
+        """Ask for the slices (the dialog), then make the figure
+        (:meth:`slice_figure`)."""
+        from arpes_viewer.ui.panels.figure import SliceSeriesDialog
 
         axes, labels = self.slice_axes()
-        dialog = SliceSeriesDialog(self, axes, labels, kind=self.data.kind)
+        dialog = SliceSeriesDialog(self, axes, labels, kind=self.data.kind,
+                                   colormap=self.colormap, flip=self.flip,
+                                   zone=self.saved_zone())
         if dialog.exec_() != QDialog.Accepted:
             return None
-        settings = dialog.settings()
+        return self.slice_figure(**dialog.settings())
+
+    def slice_figure(self, *, values, axis: int = 2, half_width: float = 0.0,
+                     cols: int = 3, titles: bool = True,
+                     nominal_titles: bool = True, shared: bool = True,
+                     colormap: str = None, flip: bool = None,
+                     percentiles=(0.0, 100.0), gamma: float = 1.0,
+                     zone: bool = True, zone_style: str = "solid",
+                     show: bool = True):
+        """The slice-series figure without the dialog: what scripts and
+        agents call, since the dialog is modal and would block them.
+
+        ``values`` are the positions along ``axis`` (0, 1, 2: the cube's
+        first, second, third axis; 2 is energy for a map); each panel sums
+        the planes within ``half_width`` of its value and is titled with the
+        value asked for (``nominal_titles``). ``colormap``/``flip`` default
+        to the window's; ``percentiles`` and ``gamma`` set each panel's
+        colour scale; ``zone`` draws the map's saved Brillouin zone on
+        constant-energy panels. Returns the FigureWindow, or None.
+        """
+        from arpes_viewer.ui.panels.figure import FigureWindow, slice_panels
+
+        axes, labels = self.slice_axes()
         try:
             cube = jobs.busy_work(self, "Reading the map", self.full_cube)
         except Exception as exc:
@@ -3844,10 +3882,14 @@ class ContourWindow(ViewerWindow):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             panels = slice_panels(
-                cube, axes, labels, axis=settings["axis"],
-                values=settings["values"], half_width=settings["half_width"],
-                titles=settings["titles"], colormap=self.colormap,
-                flip=self.flip)
+                cube, axes, labels, axis=int(axis), values=list(values),
+                half_width=float(half_width), titles=titles,
+                nominal_titles=nominal_titles,
+                colormap=colormap or self.colormap,
+                flip=self.flip if flip is None else bool(flip),
+                percentiles=percentiles, gamma=gamma,
+                zone=self.saved_zone() if zone else None,
+                zone_style=zone_style)
         except Exception as exc:
             QMessageBox.warning(self, "Slice figure", f"Could not slice it:\n{exc}")
             return None
@@ -3858,17 +3900,18 @@ class ContourWindow(ViewerWindow):
 
         window = FigureWindow(panels, f"Slice series — {self.filename}",
                               parent=None, dataset_source=self._figure_source())
-        window.figure.fit_grid(settings["cols"])
+        window.figure.fit_grid(int(cols))
         window.figure.letter_panels()
-        window.figure.style.shared_levels = settings["shared"]
+        window.figure.style.shared_levels = bool(shared)
         # Both axes of a constant-energy slice are angles or momenta, so an
         # equal scale is the honest default there and nowhere else.
-        window.figure.style.equal_aspect = settings["axis"] == 2
+        window.figure.style.equal_aspect = int(axis) == 2
         window.refresh()
         window.closed.connect(lambda w: self.figure_windows.remove(w)
                               if w in self.figure_windows else None)
         self.figure_windows.append(window)
-        window.show()
+        if show:
+            window.show()
         self.statusBar().showMessage(
             f"{len(panels)} slices laid out as a figure")
         return window
@@ -6087,6 +6130,18 @@ class FermiFitDialog(_PickerDialog):
                 window=self.window_range())
         except Exception as exc:
             QMessageBox.warning(self, "Fermi level fitting", f"The fit failed:\n{exc}")
+            return None
+        problems = result.problems()
+        if problems:
+            # Refused rather than shown: the number looks like an answer,
+            # and an energy axis shifted by it is wrong everywhere.
+            self.fit_result = None
+            self.offset_button.setEnabled(False)
+            self.summary.setText("No Fermi edge found:\n- " + "\n- ".join(problems))
+            QMessageBox.warning(
+                self, "Fermi level fitting",
+                "The fit converged but did not find a Fermi edge:\n\n- "
+                + "\n- ".join(problems))
             return None
         self.fit_result = result
         self._show_values(result.values, result.errors)

@@ -101,7 +101,17 @@ class CrystalView(QWidget):
         #: labels drawn at their leftmost symmetry-equivalent point (as the
         #: picture is turned), to keep them clear of the path and the axes
         self.zone_left_labels = set()
+        #: the axes drawn with the zone: their names and Cartesian
+        #: directions. The crystal frame (k_a, k_b, k_c along the Cartesian
+        #: axes of the cell: k_a along a, k_c along c x a's normal) unless
+        #: set to the sample frame of a measurement (zone_frame_for_surface)
+        self.zone_axis_names = ("k_a", "k_b", "k_c")
+        self.zone_axis_vectors = np.eye(3)
         self.font_px = 14.0
+        #: when set, the label size in pixels whatever the picture's size
+        #: (an export sized for its final panel); else font_px scaled by the
+        #: picture's smaller side over 600
+        self.font_px_fixed = None
         #: a key of the elements' colours, and the cell's lengths on its edges
         self.show_legend = False
         self.show_lengths = False
@@ -259,7 +269,7 @@ class CrystalView(QWidget):
                 rect = [(x_range[0], y_range[0]), (x_range[1], y_range[0]),
                         (x_range[1], y_range[1]), (x_range[0], y_range[1])]
                 # the map's kx, ky laid along the plane's own in-plane axes
-                # (k_x, k_y for a plane normal to k_z), so a map can lie on
+                # (k_a, k_b for a plane normal to k_c), so a map can lie on
                 # a plane of any (hkl)
                 u, w = plane_basis(normal)
                 corners3 = np.array([(c * x - s_ * y) * u + (s_ * x + c * y) * w
@@ -306,15 +316,15 @@ class CrystalView(QWidget):
                               False, 3 * lift))
                 items.append(("text", k, label, "#111111", 0.7))
         reach = 1.35 * float(np.max(np.abs(zone.vertices)))
+        axes = np.asarray(self.zone_axis_vectors, dtype=float)
         if self.zone_axes:
-            for axis, name in ((0, "k_x"), (1, "k_y"), (2, "k_z")):
-                end = np.zeros(3)
-                end[axis] = reach
+            for vector, name in zip(axes, self.zone_axis_names):
+                end = reach * vector / (np.linalg.norm(vector) or 1.0)
                 items.append(("arrow", np.zeros(3), end, "#555555", 1.2))
                 items.append(("text", end * 1.08, name, "#333333", 0.3))
         frame = np.asarray(zone.vertices, dtype=float)
         if self.zone_axes:
-            frame = np.vstack([frame, 1.4 * np.eye(3) * reach])
+            frame = np.vstack([frame, 1.4 * axes * reach])
         return items, frame
 
     def _leftmost_equivalent(self, k):
@@ -394,7 +404,10 @@ class CrystalView(QWidget):
                 painter.setBrush(QBrush(fill))
                 painter.drawPolygon(QPolygonF([screen(a), screen(b), screen(c)]))
         font = painter.font()
-        font.setPixelSize(max(8, int(round(self.font_px * min(width, height) / 600))))
+        if self.font_px_fixed:
+            font.setPixelSize(max(6, int(round(self.font_px_fixed))))
+        else:
+            font.setPixelSize(max(8, int(round(self.font_px * min(width, height) / 600))))
         font.setItalic(False)
         painter.setFont(font)
         for item in texts:
@@ -609,10 +622,26 @@ class CrystalView(QWidget):
         self.update()
 
 
+def sample_frame(normal, azimuth_deg: float = 0.0):
+    """The measurement's (k_x, k_y, k_z) as Cartesian unit vectors of the
+    crystal frame: k_z along the surface ``normal``; k_x the plane's first
+    in-plane axis (:func:`plane_basis`) turned by ``azimuth_deg`` about the
+    normal -- the same turn the maps' azimuth gives a map lying on that
+    plane, so a map's k_x and this k_x are one direction; k_y completes a
+    right-handed set. Rows of a 3 x 3 array."""
+    n = np.asarray(normal, dtype=float)
+    n = n / (np.linalg.norm(n) or 1.0)
+    u, w = plane_basis(n)
+    turn = np.deg2rad(float(azimuth_deg))
+    kx = np.cos(turn) * u + np.sin(turn) * w
+    return np.array([kx, np.cross(n, kx), n])
+
+
 def plane_basis(normal):
-    """Two unit vectors spanning the plane normal to ``normal``: k_x and
-    k_y for a plane normal to k_z; otherwise the first lies level (normal
-    to k_z) and the second completes a right-handed set with the normal."""
+    """Two unit vectors spanning the plane normal to ``normal``: the
+    crystal frame's k_a and k_b for a plane normal to k_c; otherwise the
+    first lies level (normal to k_c) and the second completes a
+    right-handed set with the normal."""
     n = np.asarray(normal, dtype=float)
     n = n / (np.linalg.norm(n) or 1.0)
     if abs(abs(n[2]) - 1.0) < 1e-6:

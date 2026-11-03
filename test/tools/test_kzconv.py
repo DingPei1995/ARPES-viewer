@@ -278,7 +278,26 @@ def test_a_bent_edge_is_measured():
                                       bkg0=2.0, bkg1=0.0)
     spread, positions, angles = kzconv.edge_flatness(cube, angle, energy)
     assert spread == pytest.approx(0.15, abs=0.03)
-    assert positions.size == angles.size == angle.size
+    assert positions.size == angles.size >= 20
+
+
+def test_one_stray_channel_does_not_set_the_bend():
+    """A flat edge with a band crossing E_F in a few channels, and weak,
+    noisy channels at the slit ends: the screening number stays small."""
+    from arpes_viewer.tools.spectra.fermi import fermi_edge_model
+    rng = np.random.default_rng(1)
+    angle = np.linspace(-15, 15, 120)
+    energy = np.linspace(-0.4, 0.2, 200)
+    edge = fermi_edge_model(energy, ef=0.0, temperature=25.0, resolution=0.02,
+                            dos0=100.0, dos1=0.0, bkg0=2.0, bkg1=0.0)
+    frame = np.broadcast_to(edge, (angle.size, energy.size)).copy()
+    frame[55:60] += 300.0 * np.exp(-0.5 * ((energy + 0.25) / 0.02) ** 2)
+    frame[:6] *= 0.05
+    frame[-6:] *= 0.05
+    frame += rng.normal(0.0, 3.0, frame.shape)
+    cube = np.broadcast_to(frame, (3,) + frame.shape).copy()
+    spread, _positions, _angles = kzconv.edge_flatness(cube, angle, energy)
+    assert spread < 0.03
 
 
 def test_the_flatness_check_ignores_the_correction_padding():
@@ -292,4 +311,91 @@ def test_the_flatness_check_ignores_the_correction_padding():
     cube[:, :5, :] = np.nan                  # channels the shift emptied
     spread, _positions, angles = kzconv.edge_flatness(cube, angle, energy)
     assert np.isfinite(spread)
-    assert angles.size == angle.size - 5
+    assert angles.size > 0 and angles.min() > angle[4]
+
+
+# --------------------------------------------------------------------------
+# Grid, Γ and the photon-energy calibration
+# --------------------------------------------------------------------------
+def _hv_scan():
+    hv = np.linspace(60.0, 100.0, 21)
+    angle = np.linspace(-12.0, 12.0, 300)
+    energy = np.linspace(-0.3, 0.05, 8)
+    rng = np.random.default_rng(3)
+    cube = rng.random((hv.size, angle.size, energy.size))
+    return hv, angle, energy, cube
+
+
+def test_a_constant_calibration_is_the_single_work_function():
+    hv, angle, energy, cube = _hv_scan()
+    one = kzconv.to_kz_cube(hv, angle, energy, cube, inner_potential=12.0,
+                            work_function=4.3, n_kz=40, n_kpar=50)
+    each = kzconv.to_kz_cube(hv, angle, energy, cube, inner_potential=12.0,
+                             work_function=np.full(hv.size, 4.3),
+                             n_kz=40, n_kpar=50)
+    assert np.allclose(one[0], each[0]) and np.allclose(one[1], each[1])
+    assert np.allclose(one[3], each[3], equal_nan=True)
+
+
+def test_a_calibrated_scan_samples_each_photon_energy_where_it_belongs():
+    """A slice that is bright only at one photon energy lands at the k_z of
+    that photon energy's own E_kin(E_F), not of its nominal hv."""
+    hv, angle, energy, _cube = _hv_scan()
+    cube = np.zeros((hv.size, angle.size, energy.size))
+    cube[10] = 1.0
+    phi = 4.3 + np.linspace(0.0, 0.6, hv.size)
+    kz_axis, kpar_axis, _e, out = kzconv.to_kz_cube(
+        hv, angle, energy, cube, inner_potential=12.0, work_function=phi,
+        n_kz=400, n_kpar=31)
+    centre = kpar_axis.size // 2
+    profile = np.nan_to_num(out[:, centre, -2])
+    kz_peak = kz_axis[int(np.argmax(profile))]
+    expected = np.sqrt(kzconv.A_CONST * (hv[10] - phi[10] + energy[-2] + 12.0))
+    assert kz_peak == pytest.approx(expected, abs=2 * (kz_axis[1] - kz_axis[0]))
+
+
+def test_an_out_of_order_calibration_is_refused():
+    hv = np.array([60.0, 61.0, 62.0])
+    with pytest.raises(ValueError):
+        kzconv.calibrated_photon_axis(hv, np.array([4.0, 5.5, 4.0]))
+
+
+def test_the_default_grid_keeps_the_angle_channels_and_square_pixels():
+    hv, angle, energy, _cube = _hv_scan()
+    n_kz, n_kpar = kzconv.default_grid(hv, angle, energy, inner_potential=12.0,
+                                       work_function=4.3)
+    assert n_kpar == angle.size
+    (kz_lo, kz_hi), (p_lo, p_hi) = kzconv.kz_bounds(
+        hv, angle, energy, inner_potential=12.0, work_function=4.3)
+    assert (kz_hi - kz_lo) / (n_kz - 1) == pytest.approx(
+        (p_hi - p_lo) / (n_kpar - 1), rel=0.05)
+
+
+def test_v0_for_gamma_puts_gamma_at_that_photon_energy():
+    period = 2 * np.pi / 6.0
+    v0, n = kzconv.inner_potential_for_gamma(80.0, period, work_function=4.3)
+    kz = np.sqrt(kzconv.A_CONST * (80.0 - 4.3 + v0))
+    assert kz == pytest.approx(n * period)
+    # the order chosen is the one whose V0 is nearest 12 eV
+    others = [kzconv.inner_potential_for_gamma(80.0, period, work_function=4.3,
+                                               order=m)[0] for m in (n - 1, n + 1)]
+    assert all(abs(v0 - 12.0) <= abs(v - 12.0) for v in others)
+    v_next, _ = kzconv.inner_potential_for_gamma(80.0, period,
+                                                 work_function=4.3, order=n + 1)
+    assert v_next > v0
+
+
+def test_measured_work_functions_undo_the_loader_reference():
+    hv = np.array([60.0, 70.0, 80.0])
+    table = np.array([4.2, 4.2, 4.2])
+    true = np.array([4.65, 4.65, 4.99])
+    start = hv - true - 0.5        # each window starts 0.5 eV below its E_F
+    first_binding = start[0] - hv[0] + table[0]
+    # where the stacked cube (member one's axis) shows each E_F
+    ef = first_binding + 0.5
+    info = {"kz.fermi_level_eV": np.full(3, ef),
+            "cassiopee.member_photon_energy_eV": hv,
+            "cassiopee.member_work_function_eV": table,
+            "cassiopee.member_kinetic_start_eV": start}
+    assert kzconv.measured_work_functions(info) == pytest.approx(true)
+    assert kzconv.measured_work_functions({}) is None

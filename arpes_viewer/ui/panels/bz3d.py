@@ -16,7 +16,11 @@ and a space group, not atoms, so it is a window of its own:
   any of them can carry a measured constant-energy map of a k-map -- one
   selected when the window was opened, or any k-map in the list, read when
   it is chosen. The map's kx, ky lie along the plane's own in-plane axes
-  (k_x, k_y for a plane normal to k_z), turned by the maps' azimuth.
+  (k_a, k_b for a plane normal to k_c), turned by the maps' azimuth.
+- **Axes** -- the crystal's (k_a, k_b, k_c: Cartesian axes of the cell)
+  by default, or the sample's as the data has them (k_x, k_y, k_z: k_z
+  along the cleavage plane's normal, k_x along the maps' k_x). One symbol
+  never names two directions.
 - **Paths** -- as many as wanted, each through the labelled points in its
   own colour (Γ-M-K-Γ, A-L-H-A...).
 - **Export** -- a picture at any size, or straight into the figure
@@ -219,11 +223,15 @@ class BrillouinZone3DDialog(QDialog):
         right.addWidget(self.view, 1)
         views = QHBoxLayout()
         views.addWidget(QLabel("<i>drag to turn, wheel to zoom</i>  View along:"))
-        for text, direction in (("k_x", (1, 0, 0)), ("k_y", (0, 1, 0)),
-                                ("k_z", (0, 0, 1)), ("oblique", None)):
-            button = QPushButton(text)
-            button.clicked.connect(lambda _=False, d=direction: self.look_along(d))
+        self.view_buttons = []
+        for index in range(3):
+            button = QPushButton(self.view.zone_axis_names[index])
+            button.clicked.connect(lambda _=False, i=index: self.look_along(i))
             views.addWidget(button)
+            self.view_buttons.append(button)
+        oblique = QPushButton("oblique")
+        oblique.clicked.connect(lambda: self.look_along("oblique"))
+        views.addWidget(oblique)
         views.addStretch(1)
         right.addLayout(views)
         layout.addLayout(right, 3)
@@ -322,8 +330,10 @@ class BrillouinZone3DDialog(QDialog):
         self.map_azimuth = QDoubleSpinBox()
         self.map_azimuth.setRange(-360.0, 360.0)
         self.map_azimuth.setSuffix(" °")
-        self.map_azimuth.setToolTip("How the maps' k_x lies against the "
-                                    "zone's k_x (the sample azimuth).")
+        self.map_azimuth.setToolTip(
+            "How the maps' k_x lies against the plane's first in-plane axis "
+            "(k_a for a plane normal to k_c): the sample azimuth. It also "
+            "turns the sample axes' k_x.")
         self.map_window = QDoubleSpinBox()
         self.map_window.setRange(0.0, 2.0)
         self.map_window.setDecimals(3)
@@ -331,8 +341,8 @@ class BrillouinZone3DDialog(QDialog):
         self.map_window.setSuffix(" eV")
         self.map_window.setToolTip("The energy window the maps are "
                                    "averaged over.")
-        for box in (self.map_azimuth, self.map_window):
-            box.valueChanged.connect(self.refresh)
+        self.map_window.valueChanged.connect(self.refresh)
+        self.map_azimuth.valueChanged.connect(self._frame_changed)
         maps.addRow("Maps' azimuth", self.map_azimuth)
         maps.addRow("Integrate", self.map_window)
         column.addLayout(maps)
@@ -444,11 +454,40 @@ class BrillouinZone3DDialog(QDialog):
         form = QFormLayout(group)
         self.labels_box = QCheckBox("Label the high-symmetry points")
         self.labels_box.setChecked(True)
-        self.axes_box = QCheckBox("Draw the k_x, k_y, k_z axes")
+        self.axes_box = QCheckBox("Draw the axes")
         self.axes_box.setChecked(True)
         for box in (self.labels_box, self.axes_box):
             box.toggled.connect(self.refresh)
             form.addRow(box)
+        # Two frames, two sets of names: the crystal's own axes (k_a, k_b,
+        # k_c), or the measurement's (k_x, k_y, k_z) -- k_z along the
+        # cleavage plane's normal and k_x as the maps' k_x. One symbol never
+        # names two directions.
+        self.frame_combo = QComboBox()
+        self.frame_combo.addItem("Crystal: k_a, k_b, k_c", "crystal")
+        self.frame_combo.addItem("Sample, as the data: k_x, k_y, k_z", "sample")
+        self.frame_combo.setToolTip(
+            "Crystal: Cartesian axes of the cell (k_a along a, k_c normal to "
+            "the a-b plane). Sample: k_z along the cleavage plane's normal "
+            "(hkl below), k_x along the maps' k_x (turned by the maps' "
+            "azimuth) -- the kx, ky of the converted data.")
+        self.frame_combo.currentIndexChanged.connect(self._frame_changed)
+        form.addRow("Axes", self.frame_combo)
+        surface = QHBoxLayout()
+        self.surface_boxes = []
+        for value in (0, 0, 1):
+            box = QSpinBox()
+            box.setRange(-9, 9)
+            box.setValue(value)
+            box.valueChanged.connect(self._frame_changed)
+            surface.addWidget(box)
+            self.surface_boxes.append(box)
+        self.surface_row = QWidget()
+        self.surface_row.setLayout(surface)
+        self.surface_row.setToolTip("The cleavage plane (hkl): the sample's "
+                                    "k_z is along its normal.")
+        form.addRow("Cleavage plane (hkl)", self.surface_row)
+        self.surface_row.setEnabled(False)
         self.left_edit = QLineEdit("")
         self.left_edit.setPlaceholderText("e.g. L, M")
         self.left_edit.setToolTip(
@@ -560,12 +599,72 @@ class BrillouinZone3DDialog(QDialog):
             self.zone_label.setText(f"No zone: {exc}")
         self.view.update()
 
+    # ==================================================================
+    # The axes' frame
+    # ==================================================================
+    def frame(self) -> str:
+        return self.frame_combo.currentData()
+
+    def surface_hkl(self):
+        return tuple(int(box.value()) for box in self.surface_boxes)
+
+    def set_frame(self, frame: str, surface_hkl=None, azimuth=None):
+        """Show the crystal's axes (``"crystal"``) or the sample's
+        (``"sample"``: k_z along the normal of ``surface_hkl``, k_x along
+        the maps' k_x turned by ``azimuth``)."""
+        if surface_hkl is not None:
+            for box, value in zip(self.surface_boxes, surface_hkl):
+                box.blockSignals(True)
+                box.setValue(int(value))
+                box.blockSignals(False)
+        if azimuth is not None:
+            self.map_azimuth.blockSignals(True)
+            self.map_azimuth.setValue(float(azimuth))
+            self.map_azimuth.blockSignals(False)
+        self.frame_combo.setCurrentIndex(0 if frame == "crystal" else 1)
+        self._frame_changed()
+
+    def _frame_changed(self, *_):
+        from arpes_viewer.ui.panels.crystal import sample_frame
+        sample = self.frame() == "sample"
+        self.surface_row.setEnabled(sample)
+        if sample:
+            try:
+                from arpes_viewer.tools.crystal.lattice import reciprocal_vectors
+                g = np.asarray(self.surface_hkl(), dtype=float) @ \
+                    reciprocal_vectors(self.structure().vectors())
+                if not np.linalg.norm(g):
+                    raise ValueError("(0 0 0) is not a plane")
+                self.view.zone_axis_vectors = sample_frame(
+                    g, self.map_azimuth.value())
+                self.view.zone_axis_names = ("k_x", "k_y", "k_z")
+            except Exception:                              # noqa: BLE001
+                sample = False
+        if not sample:
+            self.view.zone_axis_vectors = np.eye(3)
+            self.view.zone_axis_names = ("k_a", "k_b", "k_c")
+        for button, name in zip(self.view_buttons, self.view.zone_axis_names):
+            button.setText(name)
+        self.refresh()
+
     def look_along(self, direction):
-        if direction is None:
+        """Turn the view: ``"oblique"`` (or None), an axis index 0-2 or an
+        axis name of the frame shown ("k_x", "k_a" ...), or a Cartesian
+        vector."""
+        if direction is None or (isinstance(direction, str)
+                                 and direction.lower() == "oblique"):
             self.view.camera.azimuth, self.view.camera.elevation = -35.0, 28.0
             self.view.update()
-        else:
-            self.view.view_along(direction)
+            return
+        if isinstance(direction, str):
+            names = list(self.view.zone_axis_names)
+            if direction not in names:
+                raise ValueError(f"look_along: {direction!r} is not one of "
+                                 f"{names + ['oblique']}")
+            direction = names.index(direction)
+        if isinstance(direction, (int, np.integer)):
+            direction = np.asarray(self.view.zone_axis_vectors)[int(direction)]
+        self.view.view_along(direction)
 
     # ==================================================================
     # Export
@@ -582,6 +681,27 @@ class BrillouinZone3DDialog(QDialog):
             box.setSingleStep(100)
             size.addWidget(box)
         form.addRow("Size (px)", size)
+        text = QHBoxLayout()
+        self.panel_mm_box = QDoubleSpinBox()
+        self.panel_mm_box.setRange(0.0, 500.0)
+        self.panel_mm_box.setDecimals(1)
+        self.panel_mm_box.setSuffix(" mm")
+        self.panel_mm_box.setSpecialValueText("off")
+        self.panel_mm_box.setToolTip(
+            "The width the picture will have in the figure. With it set, "
+            "the labels are sized so that they come out at the text size "
+            "beside it there, whatever the picture's size in pixels. Off: "
+            "the labels scale with the picture, as on screen.")
+        self.text_pt_box = QDoubleSpinBox()
+        self.text_pt_box.setRange(3.0, 72.0)
+        self.text_pt_box.setDecimals(1)
+        self.text_pt_box.setValue(8.0)
+        self.text_pt_box.setSuffix(" pt")
+        text.addWidget(QLabel("panel width"))
+        text.addWidget(self.panel_mm_box)
+        text.addWidget(QLabel("text"))
+        text.addWidget(self.text_pt_box)
+        form.addRow("Labels", text)
         buttons = QHBoxLayout()
         save = QPushButton("Save picture...")
         save.clicked.connect(lambda: self.save_picture())
@@ -597,9 +717,27 @@ class BrillouinZone3DDialog(QDialog):
         form.addRow(self.export_label)
         return group
 
-    def picture(self):
-        return self.view.render_image(self.width_box.value(),
-                                      self.height_box.value())
+    def label_px(self, width_px: int = None):
+        """The label size in pixels for an export ``width_px`` wide that is
+        printed at the panel width: text pt -> mm -> pixels. None when no
+        panel width is set."""
+        mm = float(self.panel_mm_box.value())
+        if mm <= 0:
+            return None
+        width_px = int(width_px or self.width_box.value())
+        return float(self.text_pt_box.value()) * 25.4 / 72.0 * width_px / mm
+
+    def picture(self, width=None, height=None):
+        """The zone as a picture of the export size (or ``width`` x
+        ``height``), its labels sized for the final panel when a panel width
+        is given."""
+        width = int(width or self.width_box.value())
+        height = int(height or self.height_box.value())
+        self.view.font_px_fixed = self.label_px(width)
+        try:
+            return self.view.render_image(width, height)
+        finally:
+            self.view.font_px_fixed = None
 
     def _picture_name(self) -> str:
         name = getattr(self, "_name", "") or f"SG {self.cell_input.space_group()}"

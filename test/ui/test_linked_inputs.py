@@ -129,3 +129,30 @@ def test_the_bottom_layer_shows_the_top_lattice_while_the_same(app, tmp_path, mo
     assert dialog.a2b_box.isEnabled() and dialog.a2b_box.value() == pytest.approx(2.46)
     dialog.close()
     contour.close()
+
+
+def test_closing_the_zone_dialog_keeps_the_plane_that_was_plotted(app, tmp_path, monkeypatch):
+    """Turning the normal to look at the zone, then closing, must not change
+    the plane the next Plot (or the next map) starts from."""
+    from arpes_viewer.ui.viewers import windows as W
+    from arpes_viewer.ui.viewers.widgets import MemoryData
+    monkeypatch.setattr(W.BrillouinZoneDialog, "last_used_path",
+                        classmethod(lambda cls: str(tmp_path / "bz.json")))
+    k = np.linspace(-1.2, 1.2, 21)
+    data = MemoryData("k_map", (k, k, np.linspace(-0.5, 0.1, 5)),
+                      np.ones((21, 21, 5)), {"x": "kx", "y": "ky", "z": "E"},
+                      source_label="t")
+    contour = W.ContourWindow(data, "t", "gray", False)
+    dialog = contour.open_brillouin_zone()
+    dialog.mode_3d.setChecked(True)
+    dialog.a_box.setValue(4.0)
+    dialog.h_box.setValue(0); dialog.k_box.setValue(0); dialog.l_box.setValue(1)
+    dialog.plot()
+    dialog.k_box.setValue(1); dialog.l_box.setValue(0)
+    dialog.a_box.setValue(4.2)
+    dialog.close()
+    last = W.BrillouinZoneDialog._last_used()
+    assert (last["h"], last["k"], last["l"]) == (0, 0, 1)
+    assert last["a"] == pytest.approx(4.2)
+    assert data.scan.info["bz.l"] == 1 and data.scan.info["bz.k"] == 0
+    contour.close()

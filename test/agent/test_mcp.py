@@ -217,3 +217,47 @@ def test_the_bridge_answers_with_its_token_only(launcher, data_file):
     finally:
         bridge.stop()
     assert not os.path.exists(bridge_client.config_path())
+
+
+def test_a_modal_dialog_asked_for_by_an_agent_raises_instead_of_waiting(launcher, tmp_path):
+    from PyQt5.QtWidgets import QDialog, QMessageBox
+    from arpes_viewer.ui.common import agentbridge
+
+    original = QDialog.__dict__["exec_"]
+    notes = []
+    with agentbridge.modal_guard(log=notes.append):
+        with pytest.raises(agentbridge.ModalDialogBlocked, match="Slice series"):
+            dialog = QDialog()
+            dialog.setWindowTitle("Slice series figure")
+            dialog.exec_()
+        assert QMessageBox.warning(None, "Slice figure", "nothing") == QMessageBox.Ok
+        with pytest.raises(agentbridge.ModalDialogBlocked):
+            QMessageBox.question(None, "Shift?", "Shift the whole map?")
+    assert notes == ["[warning] Slice figure: nothing"]
+    assert QDialog.__dict__["exec_"] is original     # put back afterwards
+    assert "warning" in QMessageBox.__dict__ and callable(QMessageBox.warning)
+
+    bridge = agentbridge.start(launcher)
+    try:
+        ask = lambda op, **args: bridge.answer(json.dumps(
+            {"token": bridge.token, "op": op, "args": args}))[0]
+        out = ask("python", code="d = QtWidgets.QDialog(); d.setWindowTitle('X'); d.exec_()")
+        assert "ModalDialogBlocked" in out["result"]["output"]
+        assert not ask("figure")["ok"]                 # no figure window yet
+        import numpy as np
+        from arpes_viewer.tools.output import figure as nf
+        from arpes_viewer.ui.panels.figure import FigureWindow
+        panel = nf.Panel(data=nf.PanelData(array=np.ones((6, 5)),
+                                           x=np.arange(6.0), y=np.arange(5.0)),
+                         title="0 eV")
+        window = FigureWindow([panel], "Test figure")
+        window.show()
+        described = ask("figure", window="Test figure")["result"]
+        assert described["panels"][0]["title"] == "0 eV"
+        assert len(described["panels"][0]["frame_mm"]) == 4
+        rendered = ask("render_figure", path=str(tmp_path / "fig.png"), dpi=100)["result"]
+        assert base64.b64decode(rendered["png_data"])[:4] == b"\x89PNG"
+        assert os.path.exists(rendered["png"]) and rendered["dpi"] == 100
+        window.close()
+    finally:
+        bridge.stop()

@@ -7,7 +7,8 @@ Start with launch_viewer.py. Reads agentic/config.json (copy config.example.json
   screen    1-based monitor number for the window (default: 2)
 Every *.py dropped into agentic/viewer_cmd/ is executed inside this running GUI process
 (globals: A = arpes_viewer.app, HERE, DATA, QtCore, QtWidgets); its printed output goes to
-agentic/out/cmd_<name>.log and the file is moved to agentic/viewer_done/.
+agentic/out/cmd_<name>.log and the file is moved to agentic/viewer_done/. A modal dialog
+opened by a command raises ModalDialogBlocked instead of freezing the poller.
 Nothing here uses the network.
 """
 import os, sys, glob, json, time, io, contextlib, traceback
@@ -21,6 +22,7 @@ sys.path.insert(0, ROOT)
 if sys.platform == "win32":
     os.environ["QT_QPA_PLATFORM"] = "windows"
 import arpes_viewer.app as A
+from arpes_viewer.ui.common.agentbridge import modal_guard
 from PyQt5 import QtCore, QtWidgets
 
 paths = []
@@ -58,8 +60,13 @@ def poll():
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             try:
-                exec(compile(open(src, encoding="utf-8").read(), src, "exec"),
-                     {"A": A, "HERE": HERE, "DATA": DATA, "QtCore": QtCore, "QtWidgets": QtWidgets})
+                # a modal dialog would wait for a click and stop the poller:
+                # it raises ModalDialogBlocked instead (call the tool's own
+                # function, e.g. contour.slice_figure(values=[...]))
+                with modal_guard():
+                    exec(compile(open(src, encoding="utf-8").read(), src, "exec"),
+                         {"A": A, "HERE": HERE, "DATA": DATA, "QtCore": QtCore,
+                          "QtWidgets": QtWidgets})
             except Exception:
                 traceback.print_exc()
         open(os.path.join(HERE, "out", "cmd_" + n[:-3] + ".log"), "w", encoding="utf-8").write(buf.getvalue())
