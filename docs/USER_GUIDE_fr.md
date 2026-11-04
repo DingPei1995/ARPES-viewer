@@ -4,92 +4,147 @@
 
 *Dernière mise à jour : 4 novembre 2026 — pour ARPES viewer v1.3.2*
 
-La version et sa date figurent dans la barre de titre et en bas de la fenêtre
-principale. Signaler un bogue, poser une question, obtenir la dernière version :
-<https://github.com/DingPei1995/ARPES-viewer> (merci d'indiquer le numéro
-de version en signalant un bogue).
+La version et sa date figurent dans la barre de titre de la fenêtre principale
+et sur sa dernière ligne. Rapports de bogues, questions et dernière version :
+<https://github.com/DingPei1995/ARPES-viewer> (indiquez la version quand vous
+signalez un bogue).
 
-Ce guide présente les fonctions du programme, captures d'écran à l'appui,
-dans l'ordre du panneau d'outils : les premiers pas (installation,
-chargement, fenêtre principale et fenêtres de visualisation), puis les
-onglets **Basic**, **Advanced** et **Figure**, puis les figures — pour
-finir par deux figures construites pas à pas dans le composeur de figures.
-Le contexte technique de chaque étape (formules, résultats des tests, choix
-de conception) se trouve dans les références techniques à côté du code —
-[lecture des données](../arpes_viewer/loader/README.md), [les fenêtres](../arpes_viewer/ui/README.md),
-[analyse](../arpes_viewer/tools/README.md) — et dans le [CHANGELOG](../CHANGELOG.md), en
-anglais.
+Le guide suit le programme tel qu'il apparaît à l'écran :
 
-Toutes les captures ont été prises sur le programme en fonctionnement, avec
-les données synthétiques écrites par `devtools/demo_data.py` : vous pouvez
-donc suivre le guide sans temps de faisceau (voir
-[Essayer avec des données de démonstration](#2-essayer-avec-des-données-de-démonstration)).
+- la **partie 1** pour démarrer : installation, données de démonstration,
+  fichiers lus, configuration d'un agent IA, organisation du code ;
+- la **partie 2**, le panneau principal : la liste des jeux de données et ce
+  qui l'entoure ;
+- la **partie 3**, les fenêtres de visualisation : coupes, cartes, cartes kz,
+  cartes k, courbes, spin et balayages résolus spatialement ;
+- les **parties 4, 5 et 6**, les trois onglets du panneau d'outils
+  (**Basic**, **Advanced**, **Figure**) ; la partie 6 se termine par un
+  exemple allant du chargement des données à la figure finie ;
+- la **partie 7**, les agents IA : comment ils pilotent le programme, comment
+  en démarrer et en suivre un, et un exemple de la configuration à la figure ;
+- la **partie 8**, l'entretien : sauvegarde automatique et récupération,
+  enregistrement du travail, journaux d'erreurs, versions et dépannage.
 
-Les noms des boutons et des menus sont donnés tels qu'ils apparaissent dans
-le programme, c'est-à-dire en anglais.
+Toutes les captures d'écran viennent du programme en marche, sur les données
+synthétiques de `devtools/demo_data.py`, pour que vous puissiez suivre sans
+temps de faisceau ([§1.3](#13-essayer-avec-des-données-de-démonstration)).
+**Ce ne sont pas des données expérimentales réelles.** Le contexte technique
+de chaque étape (formules, tests, choix de conception) est dans les
+références à côté du code : [lecture des données](../arpes_viewer/loader/README.md),
+[les fenêtres](../arpes_viewer/ui/README.md),
+[l'analyse](../arpes_viewer/tools/README.md), et le
+[CHANGELOG](../CHANGELOG.md).
+
+## Table des matières
+
+**[Partie 1 — Premiers pas](#partie-1--premiers-pas)**
+
+- [1.1 Ce qu'est ARPES viewer](#11-ce-quest-arpes-viewer)
+- [1.2 Installation et lancement](#12-installation-et-lancement)
+- [1.3 Essayer avec des données de démonstration](#13-essayer-avec-des-données-de-démonstration)
+- [1.4 Installations et formats de fichiers](#14-installations-et-formats-de-fichiers)
+- [1.5 Types de données](#15-types-de-données)
+- [1.6 Configurer un agent IA](#16-configurer-un-agent-ia)
+- [1.7 Organisation du code](#17-organisation-du-code)
+- [1.8 Où le programme range ses fichiers](#18-où-le-programme-range-ses-fichiers)
+
+**[Partie 2 — Le panneau principal](#partie-2--le-panneau-principal)**
+
+- [2.1 La fenêtre principale en un coup d'œil](#21-la-fenêtre-principale-en-un-coup-dœil)
+- [2.2 Charger des données](#22-charger-des-données)
+- [2.3 Le journal d'expérience](#23-le-journal-dexpérience)
+- [2.4 Combiner des jeux de données : empiler, raccorder, additionner](#24-combiner-des-jeux-de-données--empiler-raccorder-additionner)
+- [2.5 Fenêtres pas à pas](#25-fenêtres-pas-à-pas)
+
+**[Partie 3 — Les fenêtres de visualisation](#partie-3--les-fenêtres-de-visualisation)**
+
+- [3.1 Ce que les fenêtres de visualisation ont en commun](#31-ce-que-les-fenêtres-de-visualisation-ont-en-commun)
+- [3.2 Les cartes : le contour et ses deux coupes](#32-les-cartes--le-contour-et-ses-deux-coupes)
+- [3.3 Coupes arbitraires et correction de la surface de Fermi](#33-coupes-arbitraires-et-correction-de-la-surface-de-fermi)
+- [3.4 Cartes kz et cartes k](#34-cartes-kz-et-cartes-k)
+- [3.5 Courbes : EDC, MDC et ajustement de courbes](#35-courbes--edc-mdc-et-ajustement-de-courbes)
+- [3.6 Données résolues en spin](#36-données-résolues-en-spin)
+- [3.7 Balayages résolus spatialement (nano-ARPES)](#37-balayages-résolus-spatialement-nano-arpes)
+- [3.8 Exporter un panneau et enregistrer des données](#38-exporter-un-panneau-et-enregistrer-des-données)
+
+**[Partie 4 — Le panneau d'outils : onglet Basic](#partie-4--le-panneau-doutils--onglet-basic)**
+
+- [4.1 Comment fonctionnent les boutons d'outils](#41-comment-fonctionnent-les-boutons-doutils)
+- [4.2 Ajustement du front de Fermi](#42-ajustement-du-front-de-fermi)
+- [4.3 Supprimer la grille du détecteur](#43-supprimer-la-grille-du-détecteur)
+- [4.4 Corrections du détecteur](#44-corrections-du-détecteur)
+- [4.5 Soustraction du fond](#45-soustraction-du-fond)
+- [4.6 Conversion en k d'une coupe](#46-conversion-en-k-dune-coupe)
+- [4.7 Vérification des niveaux de cœur](#47-vérification-des-niveaux-de-cœur)
+- [4.8 Conversion en k d'une carte](#48-conversion-en-k-dune-carte)
+- [4.9 Aligner les niveaux de Fermi d'une carte kz](#49-aligner-les-niveaux-de-fermi-dune-carte-kz)
+- [4.10 Convertir une carte kz en impulsion](#410-convertir-une-carte-kz-en-impulsion)
+- [4.11 Zone de Brillouin](#411-zone-de-brillouin)
+
+**[Partie 5 — Le panneau d'outils : onglet Advanced](#partie-5--le-panneau-doutils--onglet-advanced)**
+
+- [5.1 Lissage, dérivées, courbure et symétrisation](#51-lissage-dérivées-courbure-et-symétrisation)
+- [5.2 Détection de crêtes](#52-détection-de-crêtes)
+- [5.3 Empilements de courbes](#53-empilements-de-courbes)
+- [5.4 Ajustement MDC et ajustement EDC](#54-ajustement-mdc-et-ajustement-edc)
+- [5.5 Arithmétique de coupes : dichroïsme et division par une référence](#55-arithmétique-de-coupes--dichroïsme-et-division-par-une-référence)
+- [5.6 Figure en série de tranches](#56-figure-en-série-de-tranches)
+- [5.7 Les vues 3D](#57-les-vues-3d)
+
+**[Partie 6 — Le panneau d'outils : onglet Figure](#partie-6--le-panneau-doutils--onglet-figure)**
+
+- [6.1 Le composeur de figures](#61-le-composeur-de-figures)
+- [6.2 Structure cristalline](#62-structure-cristalline)
+- [6.3 3D BZ : la zone de Brillouin en trois dimensions](#63-3d-bz--la-zone-de-brillouin-en-trois-dimensions)
+- [6.4 Ajustement de liaisons fortes](#64-ajustement-de-liaisons-fortes)
+- [6.5 Bandes calculées](#65-bandes-calculées)
+- [6.6 Exemple : du chargement des données à la figure](#66-exemple--du-chargement-des-données-à-la-figure)
+- [6.7 Exemple complet : deux figures dans le composeur](#67-exemple-complet--deux-figures-dans-le-composeur)
+
+**[Partie 7 — Agents IA](#partie-7--agents-ia)**
+
+- [7.1 Principe, et ce qui quitte votre ordinateur](#71-principe-et-ce-qui-quitte-votre-ordinateur)
+- [7.2 Architecture : opérations, référence, voies](#72-architecture--opérations-référence-voies)
+- [7.3 Démarrer depuis le panneau AI assistant](#73-démarrer-depuis-le-panneau-ai-assistant)
+- [7.4 Suivre et intervenir](#74-suivre-et-intervenir)
+- [7.5 Autres façons de démarrer](#75-autres-façons-de-démarrer)
+- [7.6 Les règles de travail de l'agent](#76-les-règles-de-travail-de-lagent)
+- [7.7 Exemple : un agent, de la configuration à la figure](#77-exemple--un-agent-de-la-configuration-à-la-figure)
+- [7.8 Limites et bonnes pratiques](#78-limites-et-bonnes-pratiques)
+
+**[Partie 8 — Entretien](#partie-8--entretien)**
+
+- [8.1 Sauvegarde automatique, mémoire et récupération](#81-sauvegarde-automatique-mémoire-et-récupération)
+- [8.2 Enregistrer et rouvrir son travail](#82-enregistrer-et-rouvrir-son-travail)
+- [8.3 Journaux d'erreurs et rapports de bogue](#83-journaux-derreurs-et-rapports-de-bogue)
+- [8.4 Versions et mises à jour](#84-versions-et-mises-à-jour)
+- [8.5 Conseils et dépannage](#85-conseils-et-dépannage)
 
 ---
 
-## Sommaire
+# Partie 1 — Premiers pas
 
-**[Partie I — Premiers pas](#partie-i--premiers-pas)**
+Ce qu'est le programme, comment l'installer et le lancer, les données de démonstration dont proviennent toutes les captures d'écran, les fichiers qu'il lit, comment connecter un agent IA, et où se trouvent les choses dans le code et sur le disque.
 
-1. [Installation et lancement](#1-installation-et-lancement)  
-2. [Essayer avec des données de démonstration](#2-essayer-avec-des-données-de-démonstration)  
-3. [La fenêtre principale](#3-la-fenêtre-principale)  
-4. [Charger des données](#4-charger-des-données)  
-5. [Ce que les fenêtres de visualisation ont en commun](#5-ce-que-les-fenêtres-de-visualisation-ont-en-commun)  
-6. [Les cartes : le contour et ses deux coupes](#6-les-cartes--le-contour-et-ses-deux-coupes)  
-7. [Coupes arbitraires et correction de la surface de Fermi](#7-coupes-arbitraires-et-correction-de-la-surface-de-fermi)
+## 1.1 Ce qu'est ARPES viewer
 
-**[Partie II — L'onglet Basic](#partie-ii--longlet-basic)**
+ARPES viewer est un programme Python/PyQt5 pour les données de photoémission
+résolue en angle. Il parcourt les mesures d'un temps de faisceau, ouvre
+chacune dans sa propre fenêtre, convertit en impulsion, coupe, ajuste et
+traite, compare aux calculs de structure de bandes, et met les résultats en
+page comme une figure de publication. Chaque étape est aussi du Python simple
+qu'un script ou un agent IA peut exécuter.
 
-8. [Ajustement du front de Fermi](#8-ajustement-du-front-de-fermi)  
-9. [Supprimer la grille du détecteur et corrections du détecteur](#9-supprimer-la-grille-du-détecteur-et-corrections-du-détecteur)  
-10. [Soustraction du fond](#10-soustraction-du-fond)  
-11. [Conversion en k d'une coupe](#11-conversion-en-k-dune-coupe)  
-12. [Vérification des niveaux de cœur](#12-vérification-des-niveaux-de-cœur)  
-13. [Conversion en k d'une carte](#13-conversion-en-k-dune-carte)  
-14. [Balayages en énergie de photon (kz)](#14-balayages-en-énergie-de-photon-kz)  
-15. [Zone de Brillouin](#15-zone-de-brillouin)
+Il est gratuit pour un **usage non commercial** (recherche académique et
+enseignement), sous la licence PolyForm Noncommercial 1.0.0. Si vous l'utilisez
+pour un article, merci de le citer : Ding Pei, *ARPES viewer*, Zenodo,
+<https://doi.org/10.5281/zenodo.23771647>.
 
-**[Partie III — L'onglet Advanced](#partie-iii--longlet-advanced)**
+Ce n'est pas un programme d'acquisition, et il ne modifie pas vos fichiers de
+données : chaque résultat est un nouveau jeu de données dans la liste ou un
+nouveau fichier que vous choisissez.
 
-16. [Lissage, dérivées, courbure et symétrisation](#16-lissage-dérivées-courbure-et-symétrisation)  
-17. [Détection de crêtes](#17-détection-de-crêtes)  
-18. [Empilements de courbes](#18-empilements-de-courbes)  
-19. [Ajustement MDC et ajustement EDC](#19-ajustement-mdc-et-ajustement-edc)  
-20. [Arithmétique de coupes : dichroïsme et division par une référence](#20-arithmétique-de-coupes--dichroïsme-et-division-par-une-référence)  
-21. [Figure en série de tranches](#21-figure-en-série-de-tranches)  
-22. [Les vues 3D](#22-les-vues-3d)  
-23. [Courbes : EDC, MDC et données résolues en spin](#23-courbes--edc-mdc-et-données-résolues-en-spin)  
-24. [Balayages résolus spatialement (nano-ARPES)](#24-balayages-résolus-spatialement-nano-arpes)
-
-**[Partie IV — L'onglet Figure](#partie-iv--longlet-figure)**
-
-25. [Structure cristalline et zone de Brillouin 3D](#25-structure-cristalline-et-zone-de-brillouin-3d)  
-26. [Ajustement de liaisons fortes](#26-ajustement-de-liaisons-fortes)  
-27. [Bandes calculées](#27-bandes-calculées)
-
-**[Partie V — Figures et sorties](#partie-v--figures-et-sorties)**
-
-28. [Le composeur de figures](#28-le-composeur-de-figures)  
-29. [Exporter un panneau et enregistrer des données](#29-exporter-un-panneau-et-enregistrer-des-données)  
-30. [Exemple complet : deux figures dans le composeur](#30-exemple-complet--deux-figures-dans-le-composeur)
-
-**[Partie VI — Entretien](#partie-vi--entretien)**
-
-31. [Sauvegarde automatique, mémoire et récupération](#31-sauvegarde-automatique-mémoire-et-récupération)  
-32. [Conseils et dépannage](#32-conseils-et-dépannage)  
-33. [Piloter le programme depuis un agent IA (MCP)](#33-piloter-le-programme-depuis-un-agent-ia-mcp)  
-
----
-
-# Partie I — Premiers pas
-
----
-
-## 1. Installation et lancement
+## 1.2 Installation et lancement
 
 Il faut Python 3.9 ou plus récent, et cinq paquets :
 
@@ -148,16 +203,9 @@ un Python.
 - Si le programme s'arrête sur une erreur, la fenêtre montre la fin de
   `~/.arpes_viewer/launcher.log` ; joignez ce fichier à un rapport de bogue.
 
-Le programme lit :
+Les fichiers lus sont listés au [§1.4](#14-installations-et-formats-de-fichiers).
 
-| Ligne de lumière / source | Fichiers |
-|---|---|
-| SOLEIL **ANTARES** | NeXus/HDF5 `*.nxs` (coupes, cartes au déflecteur, balayages spatiaux) |
-| SOLEIL **CASSIOPEE** | fichiers texte Scienta SES — spectres isolés, et dossiers numérotés assemblés en carte ou en balayage en énergie de photon |
-| **Station de spin** de CASSIOPEE (MBS A-1) | `*.krx` et `*.txt` — coupes, cartes au déflecteur et EDC résolues en spin |
-| Ce programme | son propre format `*.nxs` |
-
-## 2. Essayer avec des données de démonstration
+## 1.3 Essayer avec des données de démonstration
 
 ```bash
 python devtools/demo_data.py            # écrit ./demo_data/
@@ -181,7 +229,7 @@ données mesurées :
   hamiltonien Wannier90 (`demo_calc_hr.dat` avec `demo_calc.win`) et les
   mêmes bandes sur une grille (`demo_calc.bxsf`). C'est le cristal avant
   renormalisation — ses bandes 1/0,8 fois plus larges et 50 meV plus haut —
-  ce que l'ajustement aux données retrouve ([§27](#27-bandes-calculées)) ;
+  ce que l'ajustement aux données retrouve ([§6.5](#65-bandes-calculées)) ;
 - deux structures cristallines en fichiers CIF (`demo_crystal.cif`, un cristal
   hexagonal lamellaire 1T ; `demo_tetragonal_crystal.cif`, un cristal de type
   ZrSiS) et un spectre EDS (`demo_eds.nxs`).
@@ -197,14 +245,103 @@ python devtools/guide_screenshots.py    # écrit docs/images/*.png
 ```
 
 Les deux figures d'exemple du
-[§30](#30-exemple-complet--deux-figures-dans-le-composeur) sont reconstruites,
+[§6.7](#67-exemple-complet--deux-figures-dans-le-composeur) sont reconstruites,
 à partir des données de démonstration et avec les fenêtres du programme, par
 
 ```bash
 python devtools/figure_tests.py docs/images [dossier des fichiers .afig]
 ```
 
-## 3. La fenêtre principale
+## 1.4 Installations et formats de fichiers
+
+Le lecteur d'un fichier est détecté automatiquement ([§2.2](#22-charger-des-données)).
+
+| Installation / ligne | Fichiers | Données |
+|---|---|---|
+| SOLEIL **ANTARES** | NeXus `*.nxs` | coupes, cartes en déflecteur, balayages en énergie de photon (PhD), balayages spatiaux |
+| SOLEIL **CASSIOPEE** | texte Scienta `*.txt` | spectres seuls ; dossiers numérotés assemblés en carte ou en balayage en énergie de photon |
+| CASSIOPEE **station spin** (MBS A-1) | `*.krx`, `*.txt` | coupes, cartes en déflecteur, EDC résolues en spin |
+| ALS **MAESTRO** | `*.h5`, `*.hdf5` | coupes, cartes, balayages en énergie de photon et spatiaux |
+| ALBA **LOREA** | `*.nxs` | coupes, cartes |
+| Diamond **I05** (HR-ARPES) et **I05-1** (nano-ARPES) | `*.nxs` | coupes, cartes, balayages en énergie de photon, balayages spatiaux |
+| MAX IV **Bloch** (et tout fichier Scienta SES qu'aucun autre lecteur ne prend) | `*.ibw`, `*.zip`, `*.txt` | coupes, cartes en déflecteur, balayages en énergie de photon et du manipulateur |
+| Elettra **APE**, BESSY **One Cube / One Square**, SOLARIS **URANOS** | `*.ibw`, `*.zip`, `*.txt` | tels que SES les écrit |
+| ASTRID2 **SGM4** | `*.h5`, `*.hdf5` | coupes, cartes, balayages au couteau |
+| Ce programme | son propre `*.nxs` | tout ce qu'il a enregistré, plusieurs jeux de données par fichier |
+
+Les jeux de données s'enregistrent dans le format `.nxs` du programme (qu'il
+rouvre) ou en texte Igor Pro (`.itx`). La façon dont les fichiers de chaque
+installation sont lus, et les hypothèses qu'imposent leurs formats, sont dans
+[la référence des lecteurs](../arpes_viewer/loader/README.md), qui
+explique aussi comment ajouter une ligne de lumière.
+
+## 1.5 Types de données
+
+| Type | Axes | Ce que c'est |
+|---|---|---|
+| `cut` | angle (ou k) × E | un spectre |
+| `map` | angle × angle × E | un balayage au déflecteur ou en angle polaire |
+| `k_map` | kx × ky × E | une carte convertie en impulsion |
+| `kz_map` | hν × angle × E | un balayage en énergie de photon |
+| `kz_map_k` | k_z × k∥ × E | ce balayage converti en impulsion |
+| `spem_4d`, `spem_1d` | x (× y) × angle × E | balayages en espace réel |
+| `edc`, `mdc`, `spin_edc` | E (ou k) × canaux | courbes, avec canaux σ facultatifs |
+
+## 1.6 Configurer un agent IA
+
+Un agent IA peut piloter le programme pour vous ([partie 7](#partie-7--agents-ia)). La voie
+habituelle ne demande rien à installer :
+
+1. Ayez une application IA capable de lire et d'écrire des fichiers sur votre
+   ordinateur : l'application de bureau Claude, Claude Code ou un agent
+   semblable.
+2. Dans ARPES viewer, cliquez sur **AI assistant...** en haut du panneau
+   d'outils, choisissez le dossier des données et celui des résultats, et
+   cliquez sur **Copy the prompt and start** ([§7.3](#73-démarrer-depuis-le-panneau-ai-assistant)).
+3. Collez le prompt dans l'application IA et autorisez-la à lire le dossier
+   des données et à lire et écrire celui des résultats.
+
+Une application qui utilise des outils MCP doit d'abord ajouter une fois le
+serveur MCP du programme ; le prompt indique comment ([§7.5](#75-autres-façons-de-démarrer)). Avant de
+commencer, lisez ce qui quitte votre ordinateur ([§7.1](#71-principe-et-ce-qui-quitte-votre-ordinateur)).
+
+## 1.7 Organisation du code
+
+| Dossier | Contenu |
+|---|---|
+| `arpes_viewer/loader/` | les lecteurs : un par installation (`beamlines/`), les formats communs (`formats/`), le `.nxs` du programme, la sauvegarde automatique de la session |
+| `arpes_viewer/tools/` | les calculs, sans fenêtre : spectres (front de Fermi, ajustements, niveaux de cœur, spin), impulsion (conversions k et kz), traitement (lissage, dérivées, arithmétique de coupes ...), cristal (réseaux, zones de Brillouin, bandes calculées), sorties (figures, export) |
+| `arpes_viewer/ui/` | les fenêtres : panneau principal (`launcher/`), visualisation (`viewers/`), outils (`panels/`), parties communes (`common/`), dont les opérations de l'agent `L` (`common/live.py`) |
+| `arpes_viewer/agent/` | le serveur MCP, le pont agent (agent bridge) et `API.md`, la référence de l'agent générée à partir du programme |
+| `agentic/` | exemples et recettes pour agents et scripts |
+| `devtools/` | les données de démonstration, les captures d'écran, les tests de figures, la construction de ce guide |
+| `test/` | les tests (`python -m pytest`) |
+
+Comme les calculs de `tools/` n'ont besoin d'aucune fenêtre, un script peut les
+appeler directement, par exemple
+`arpes_viewer.tools.momentum.kspace.convert_map(...)`. Chaque dossier a un
+README avec les formules et les tests ; l'organisation et les conventions sont
+dans [les notes pour développeurs](DEVELOPER.md).
+
+## 1.8 Où le programme range ses fichiers
+
+| Où | Quoi |
+|---|---|
+| `~/.arpes_viewer/` | les réglages mémorisés d'une session à l'autre, le journal du lanceur, le jeton du pont agent pendant qu'il tourne, les derniers dossiers de l'AI assistant |
+| `~/.arpes_viewer/sessions/` | les copies sauvegardées automatiquement des données calculées, un dossier par session, et `operations.log` ([§8.1](#81-sauvegarde-automatique-mémoire-et-récupération)) |
+| `error_logs/` dans le dossier du programme (sinon `~/.arpes_viewer/error_logs/`) | un fichier texte par session où une erreur s'est produite ([§8.3](#83-journaux-derreurs-et-rapports-de-bogue)) |
+| `<résultats>/_agent/` | les fichiers de commandes d'un agent, leur sortie et leurs images, lorsqu'il est démarré depuis l'AI assistant ([§7.3](#73-démarrer-depuis-le-panneau-ai-assistant)) |
+
+Vos dossiers de données sont seulement lus ; le programme n'y écrit que si vous
+y enregistrez vous-même un fichier.
+
+---
+
+# Partie 2 — Le panneau principal
+
+La fenêtre principale est un navigateur de jeux de données. Cette partie présente la liste et tout ce qui l'entoure, sauf le panneau d'outils (parties 4 à 6) et l'AI assistant (partie 7).
+
+## 2.1 La fenêtre principale en un coup d'œil
 
 ![La fenêtre principale](images/main_window_info.png)
 
@@ -215,33 +352,13 @@ mesures, chacune sur sa propre ligne). Le type est indiqué après le nom :
 
 Elle a trois parties :
 
-- **Le panneau d'outils** (à gauche) — tous les outils d'analyse et de
-  traitement, sous forme de boutons, en trois onglets. **Basic** (affiché au
-  démarrage) contient ce par quoi passe presque chaque jeu de données :
-  ajustement du front de Fermi, suppression de la grille du détecteur,
-  soustraction du fond, les trois conversions en k, la vérification des
-  niveaux de cœur, l'alignement des niveaux de Fermi d'une carte kz, la zone
-  de Brillouin superposée à une carte k (*BZ overlap*) et les corrections du
-  détecteur. **Advanced** contient l'analyse : lissage et filtres qui
-  affinent les bandes, symétrisation, détection de crêtes, empilements de
-  courbes, ajustements MDC et EDC, arithmétique de coupes, figure en série de
-  tranches et les quatre vues 3D. **Figure** contient en haut le
-  **composeur de figures**, puis ce qui est calculé plutôt que mesuré : la
-  structure cristalline, la zone de Brillouin en 3D (*3D BZ*), l'ajustement
-  de liaisons fortes et les bandes calculées (voir
-  [Partie IV](#partie-iv--longlet-figure)). Dans chaque onglet, les outils sont groupés
-  selon les données qu'ils acceptent (*2D & 3D — cuts, maps*, *2D only —
-  cuts*, *3D only — maps* …).
+- **Le panneau d'outils** (à gauche) : le bouton **AI assistant...** en haut
+  ([partie 7](#partie-7--agents-ia)), puis tous les outils d'analyse et de traitement sous
+  forme de boutons, en trois onglets **Basic**, **Advanced** et **Figure**
+  ([parties 4 à 6](#partie-4--le-panneau-doutils--onglet-basic)). Sous les onglets, le cadre **Datasets**.
 - **La liste** (à droite), avec ses boutons.
 - **Le cadre Memory** (en bas à gauche) et la ligne de version (en bas à
   droite).
-
-![L'onglet Advanced du panneau d'outils](images/main_window_advanced.png)
-
-**Les boutons d'outils suivent la sélection.** Un bouton ne s'allume que si
-les lignes sélectionnées dans la liste lui conviennent — une conversion en k
-(cut) demande une coupe en angle, l'arithmétique de coupes exactement deux
-coupes, une vue 3D une carte. Un bouton grisé explique pourquoi au survol.
 
 | Action | Comment |
 |---|---|
@@ -273,89 +390,50 @@ désélectionnées : rien d'invisible n'est traité.
 
 **Le cadre Datasets** (panneau d'outils, entre les outils et Memory) contient
 le reste de ce qui se fait aux lignes : **Experiment info**, **Log format...**
-et **Auto Exp. log** côte à côte (voir [le journal d'expérience](#le-journal-dexpérience)),
+et **Auto Exp. log** côte à côte (voir [le journal d'expérience](#23-le-journal-dexpérience)),
 **Rename**, **Save** et **Remove** sur une ligne, et **Session log...**. Ses
-boutons se grisent comme les outils. (Additionner des mesures répétées est
-désormais l'une des façons de **Combine...**.)
+boutons se grisent quand ils ne conviennent pas à la sélection.
 
-### Ce qui change en v1.2.4
+## 2.2 Charger des données
 
-- **k conversion (map) / (cut)** : l'*Energy offset* est derrière une case à
-  cocher, décochée par défaut (ce n'est pas le niveau de Fermi : seulement
-  pour un axe qui n'est pas une vraie énergie cinétique). Une ligne au-dessus,
-  **Energy axis as E − E_F** (décochée par défaut), donne au résultat un axe
-  E − E_F, avec E_F tel qu'il est sur l'axe du jeu de données ; les moments
-  ne changent pas.
-- **Vues 3-D** (3D slices, Notched cube...) d'une carte k : les plans vides
-  aux bords de k_x / k_y sont retirés, la vue commence au premier plan rempli
-  (*Change sampling... → Whole range* rend tout).
-- **Slice series figure** : la figure d'une carte non affichée (une carte k,
-  souvent) n'est plus refermée aussitôt faite.
-- **Combine...** : *Sum repeated scans* (autrefois dans le cadre Datasets)
-  en est la troisième façon ; des coupes dont un axe est identique sont
-  empilées même si l'autre (souvent l'énergie) diffère : il est d'abord
-  tronqué à la plage commune.
-- **Liste** : une recherche au-dessus (seules les lignes contenant les mots
-  tapés restent affichées) ; clic droit → **Sort by name**, **Sort by data
-  type**.
-- **Crystal structure** : saisie d'abord du groupe d'espace, qui contraint
-  les paramètres de maille ; **Read a CIF file...** est un bouton et remplit
-  le tout ; les CIF à plusieurs blocs (FullProf) sont lus ; « From the
-  Brillouin-zone tool » disparaît.
-- **3D BZ...** : la zone de Brillouin en 3-D, qui était l'étape 4 de
-  Crystal structure, avec autant de plans (**Add a plane in 3D BZ**) que
-  voulu — **chacun** peut porter la carte à énergie constante d'une carte k
-  (n'importe laquelle de la liste) — et de chemins colorés (**Add path**),
-  et l'envoi au composeur de figures. L'ancien **Brillouin zone...**
-  s'appelle **BZ overlap...**.
-- **Tight-binding fit** : le réseau 3-D se saisit aussi groupe d'espace
-  d'abord.
-- L'onglet **Calculation** devient **Figure** : en haut **Figure
-  composer...**, puis Crystal structure, **3D BZ...**, Tight-binding fit,
-  Calculated bands.
-- Dans Crystal structure, le bouton **Read a CIF file...** est au-dessus de
-  la maille.
-- **Interface MCP** : le programme est un serveur MCP (`arpes-viewer-mcp`)
-  que les agents IA de tout modèle peuvent appeler, voir
-  [§33](#33-piloter-le-programme-depuis-un-agent-ia-mcp).
+**Load data...** ouvre la fenêtre de chargement. **Quick add...** la saute et
+ajoute les fichiers choisis avec la détection automatique.
 
-### Où se trouvent les choses maintenant (v1.3.2)
+![La fenêtre de chargement](images/loader_dialog.png)
 
-Pour qui a utilisé une version antérieure : les outils ont quitté le menu
-contextuel et les menus *Functions* des fenêtres pour le panneau d'outils ;
-chacun a ainsi une seule entrée, toujours visible.
+1. **Files** — choisir un ou plusieurs fichiers (*Select file(s)...*). Le
+   filtre de fichiers est construit à partir de ce que les lecteurs installés
+   savent ouvrir.
+2. **Reader** — détecté automatiquement, et le résultat est affiché
+   (*Detected: 3 × This program's own format*). À ne changer que si un
+   fichier est mal lu.
+3. **Datasets found** — le contenu de chaque fichier, lu à partir de sa seule
+   *structure*. C'est instantané même pour un balayage de plusieurs Go ; rien
+   n'est lu avant d'ouvrir une ligne.
+4. **Axes** — *Axis order* réordonne une fois pour toutes les dimensions du
+   tableau, dès le chargement. *First axis of a map is* indique ce qui a été
+   balayé : un angle de déflecteur (par défaut), une **énergie de photon**, une
+   température, une tension de grille, un délai… L'unité reste ainsi correcte
+   partout ensuite, et aucune conversion en k n'est proposée pour un axe qui
+   n'est pas un angle.
 
-| Maintenant | Avant |
-|---|---|
-| Panneau → Basic → **Fermi edge fit...** (coupes et cartes) | fenêtre *Functions → Fermi edge fit* |
-| Panneau → Basic → **Remove detector grid...** | fenêtre *Functions → Remove detector grid* |
-| Panneau → Basic → **k conversion (cut)** / **(map)**, **kz conversion** | fenêtre *Functions → Convert to momentum* |
-| Panneau → Basic → **Align Fermi levels (kz)...** | fenêtre *Functions → Align Fermi levels (kz map)* |
-| Panneau → Basic → **BZ overlap...** | **Brillouin zone...** (v1.2.3) ; carte k *Functions → Brillouin zone* |
-| Panneau → onglet **Figure** | onglet **Calculation** (v1.2.3) |
-| Panneau → Figure → **3D BZ...** | Crystal structure, étape 4 *Brillouin zone* |
-| **Combine...** → *Sum repeated scans* | cadre Datasets → **Sum repeated scans...** (v1.2.3) |
-| Panneau → Basic → **Core-level check...** | clic droit → Core-level check |
-| Panneau → Basic/Advanced → **Background subtraction**, **Smooth**, **Second derivative**, **Curvature**, **Symmetrise** (une fenêtre chacun) | **Smooth / derivative...** (une fenêtre à onglets) |
-| **Truncate...**, **Compress...**, **Self-normalise...** sous la liste | **Crop / bin / normalise...** |
-| Panneau → Advanced → **MDC fit (k-cut only)**, **EDC fit** | fenêtre *Functions → MDC / EDC fit* |
-| Panneau → Advanced → **Cut arithmetic (two cuts)** | clic droit / fenêtre *Functions → Cut arithmetic* |
-| Panneau → Advanced → **Slice series figure...** | carte *Functions → Multi-slice figure* |
-| Panneau → Advanced → **3D slices**, **Notched cube**, **Volume projection** | clic droit → 3D view (une fenêtre, trois modes) |
-| Panneau → Figure → **Figure composer...** (en haut de l'onglet) | Panneau → Advanced (v1.2.3) ; clic droit → Open in figure composer |
-| Clic droit → **Open scan-axis cut**, bouton **Scan-axis cut** | Open deflector cut, Deflector cut |
-| Cadre Memory → **Free RAM**, **Close all**, **Autosaves** (une ligne) | sous la liste ; puis Free memory, Close all viewers, Open auto-save folder |
-| Cadre Datasets → **Experiment info** | clic droit → Show information |
-| Cadre Datasets → **Rename**, **Save**, **Remove** (une ligne), **Session log...** | clic droit ; puis Rename..., Save datasets..., Remove from list |
-| **Combine...** sous la liste (seulement) | aussi clic droit → Combine N datasets |
+**Dossiers CASSIOPEE.** Sélectionnez n'importe quel fichier d'une série
+numérotée (`nom_1_ROI1_.txt`, `nom_2_ROI1_.txt`, …) : tout le dossier est
+listé une seule fois, comme un cube assemblé. Qu'il devienne une carte en
+angle ou une carte kz est déterminé à partir des fichiers de paramètres `_i`
+placés à côté des spectres. La ligne porte l'énergie de photon et la
+polarisation lues dans ces fichiers — `FineMap 117eV LH`, ou
+`KzScan 40-120eV LH` pour un balayage en énergie de photon — pour distinguer
+les répétitions d'un même balayage à une autre énergie ou polarisation.
 
-**Experiment info** ouvre aussi toutes les métadonnées du jeu de données
-dans une fenêtre à part, avec un champ de filtre et **Export metadata
-(.csv)** :
+**Fichiers ANTARES en énergie de photon (PhD).** Un fichier `.nxs` PhD (une
+entrée `Phd_NNNN` par énergie de photon) est listé comme une seule `kz map` :
+les images sont triées par énergie de photon et chaque axe en énergie
+cinétique est rapporté à E_F avec son propre hν (travail de sortie 4,5 eV,
+que la conversion k_z utilise ensuite). Chaque image s'ouvre encore seule
+comme une coupe.
 
-![Informations sur le jeu de données](images/information_window.png)
-
-### Le journal d'expérience
+## 2.3 Le journal d'expérience
 
 Deux boutons côte à côte dans le cadre **Datasets** écrivent le journal du
 temps de faisceau -- un fichier CSV, une ligne par mesure -- à partir des
@@ -419,7 +497,7 @@ fois, il ouvre d'abord *Log format...*.
 Si le journal est ouvert dans Excel, Windows refuse de l'écrire : fermez-le
 dans Excel et cliquez à nouveau.
 
-### Combiner des jeux de données : empiler et raccorder
+## 2.4 Combiner des jeux de données : empiler, raccorder, additionner
 
 **Combine...** (sous la liste) fait trois choses différentes, et demande
 laquelle :
@@ -465,7 +543,7 @@ laquelle :
 
 Une série en énergie de photon de coupes en angle devient une `kz map`, que
 *Align Fermi levels (kz map)* et *Convert to momentum (kz, k∥)* acceptent
-(voir [§14](#14-balayages-en-énergie-de-photon-kz)) ; tout autre axe donne une
+(voir [§4.9](#49-aligner-les-niveaux-de-fermi-dune-carte-kz)) ; tout autre axe donne une
 `map` dont le premier axe est marqué comme n'étant pas un angle, si bien
 qu'aucune conversion en k n'est proposée.
 
@@ -526,7 +604,7 @@ deux, d'un même type) → **Combine...** → **Sum repeated scans** →
    décochés au départ), choisissez de corriger ou non les décalages, **Sum**
    ou **Mean**, puis **Sum to list**.
 
-### Fenêtres pas à pas
+## 2.5 Fenêtres pas à pas
 
 Les outils qui demandent plusieurs décisions s'ouvrent en **étapes numérotées**
 (additionner des mesures répétées, corrections du détecteur, ajustement de
@@ -535,58 +613,13 @@ liaisons fortes, structure cristalline, bandes calculées) : le titre indique
 **Next →** reste grisé (avec la raison à côté) tant que l'étape n'est pas
 terminée, et **← Back** ou la liste des étapes à gauche permet de revenir.
 
-## 4. Charger des données
+---
 
-**Load data...** ouvre la fenêtre de chargement. **Quick add...** la saute et
-ajoute les fichiers choisis avec la détection automatique.
+# Partie 3 — Les fenêtres de visualisation
 
-![La fenêtre de chargement](images/loader_dialog.png)
+Chaque jeu de données s'ouvre dans sa propre fenêtre de visualisation. Cette partie présente d'abord ce que toutes ces fenêtres ont en commun, puis chaque type de données.
 
-1. **Files** — choisir un ou plusieurs fichiers (*Select file(s)...*). Le
-   filtre de fichiers est construit à partir de ce que les lecteurs installés
-   savent ouvrir.
-2. **Reader** — détecté automatiquement, et le résultat est affiché
-   (*Detected: 3 × This program's own format*). À ne changer que si un
-   fichier est mal lu.
-3. **Datasets found** — le contenu de chaque fichier, lu à partir de sa seule
-   *structure*. C'est instantané même pour un balayage de plusieurs Go ; rien
-   n'est lu avant d'ouvrir une ligne.
-4. **Axes** — *Axis order* réordonne une fois pour toutes les dimensions du
-   tableau, dès le chargement. *First axis of a map is* indique ce qui a été
-   balayé : un angle de déflecteur (par défaut), une **énergie de photon**, une
-   température, une tension de grille, un délai… L'unité reste ainsi correcte
-   partout ensuite, et aucune conversion en k n'est proposée pour un axe qui
-   n'est pas un angle.
-
-**Dossiers CASSIOPEE.** Sélectionnez n'importe quel fichier d'une série
-numérotée (`nom_1_ROI1_.txt`, `nom_2_ROI1_.txt`, …) : tout le dossier est
-listé une seule fois, comme un cube assemblé. Qu'il devienne une carte en
-angle ou une carte kz est déterminé à partir des fichiers de paramètres `_i`
-placés à côté des spectres. La ligne porte l'énergie de photon et la
-polarisation lues dans ces fichiers — `FineMap 117eV LH`, ou
-`KzScan 40-120eV LH` pour un balayage en énergie de photon — pour distinguer
-les répétitions d'un même balayage à une autre énergie ou polarisation.
-
-**Fichiers ANTARES en énergie de photon (PhD).** Un fichier `.nxs` PhD (une
-entrée `Phd_NNNN` par énergie de photon) est listé comme une seule `kz map` :
-les images sont triées par énergie de photon et chaque axe en énergie
-cinétique est rapporté à E_F avec son propre hν (travail de sortie 4,5 eV,
-que la conversion k_z utilise ensuite). Chaque image s'ouvre encore seule
-comme une coupe.
-
-### Types de données
-
-| Type | Axes | Ce que c'est |
-|---|---|---|
-| `cut` | angle (ou k) × E | un spectre |
-| `map` | angle × angle × E | un balayage au déflecteur ou en angle polaire |
-| `k_map` | kx × ky × E | une carte convertie en impulsion |
-| `kz_map` | hν × angle × E | un balayage en énergie de photon |
-| `kz_map_k` | k_z × k∥ × E | ce balayage converti en impulsion |
-| `spem_4d`, `spem_1d` | x (× y) × angle × E | balayages en espace réel |
-| `edc`, `mdc`, `spin_edc` | E (ou k) × canaux | courbes, avec canaux σ facultatifs |
-
-## 5. Ce que les fenêtres de visualisation ont en commun
+## 3.1 Ce que les fenêtres de visualisation ont en commun
 
 Chaque jeu de données s'ouvre dans sa propre fenêtre : on peut placer côte à
 côte une carte, ses coupes et un autre fichier.
@@ -615,20 +648,20 @@ côte une carte, ses coupes et un autre fichier.
   Entrée pour l'y placer exactement.
 - **EDC → list** / **MDC → list** ajoutent la courbe affichée à la liste
   principale comme jeu de données à part entière (voir
-  [§23](#23-courbes--edc-mdc-et-données-résolues-en-spin)).
+  [§3.5](#35-courbes--edc-mdc-et-ajustement-de-courbes)).
 - **Clic droit sur l'image → Export** enregistre ce que montre le panneau —
   données (`.nxs`), image, ou axes vectoriels (`.eps`) ; voir
-  [§28](#28-le-composeur-de-figures).
+  [§6.1](#61-le-composeur-de-figures).
 - **Functions → Slice → Save slice to the main list / Freeze slice in a new
   window** conserve une copie de la tranche affichée. La fenêtre figée (et
   *Open this position in a new window* sur une carte spatiale) s'ouvre avec le
   min/max et le gamma du panneau, pour une comparaison directe. Elle a ses
   propres **Plot tools**, et un bouton **Figure composer...** pour en faire
-  une figure ([§28](#28-le-composeur-de-figures)).
+  une figure ([§6.1](#61-le-composeur-de-figures)).
 
 Le menu **Functions** ne contient plus que ce qui agit sur la fenêtre
 elle-même — les outils qui prennent un jeu de données sont dans le panneau
-d'outils de la fenêtre principale ([§3](#3-la-fenêtre-principale)) :
+d'outils de la fenêtre principale ([§2.1](#21-la-fenêtre-principale-en-un-coup-dœil)) :
 
 | Fenêtre | Functions |
 |---|---|
@@ -641,7 +674,7 @@ Une entrée qui s'applique mais ne peut pas encore être lancée est grisée, et
 son infobulle en donne la raison.
 
 **Case Brillouin zone.** Une carte k ou une carte kz convertie sur laquelle
-une zone a été tracée ([§15](#15-zone-de-brillouin)) la garde : sa fenêtre a
+une zone a été tracée ([§4.11](#411-zone-de-brillouin)) la garde : sa fenêtre a
 une case **Brillouin zone** sur la ligne du haut pour l'afficher ou la
 masquer.
 
@@ -677,9 +710,9 @@ petite fenêtre qui dessine **sur le graphique que vous avez sous les yeux** :
 
 Les *Plot tools* servent à regarder les données. Pour faire une figure
 d'article, utilisez le **composeur de figures** et ses **Figure tools**
-([§28](#28-le-composeur-de-figures)).
+([§6.1](#61-le-composeur-de-figures)).
 
-## 6. Les cartes : le contour et ses deux coupes
+## 3.2 Les cartes : le contour et ses deux coupes
 
 Une carte s'ouvre sur son **contour à énergie constante**. Le curseur du haut
 choisit l'énergie (**Pos** en eV, ou **Ind** en indice ; **±** intègre sur une
@@ -707,9 +740,9 @@ On peut aussi ouvrir directement une coupe d'une carte depuis la liste (clic
 droit → **Open slit cut** / **Open scan-axis cut**) ; le contour reste alors
 caché jusqu'à ce qu'on le demande (*Functions → Show the map*).
 
-## 7. Coupes arbitraires et correction de la surface de Fermi
+## 3.3 Coupes arbitraires et correction de la surface de Fermi
 
-### 7.1 Coupe arbitraire
+### Coupe arbitraire
 
 *Functions → Arbitrary cut...* sur n'importe quel contour : cliquez jusqu'à
 six points (ou saisissez-les) ; la coupe les parcourt dans l'ordre — ici
@@ -726,7 +759,7 @@ endroit ne soit pas pris pour de la physique.
 
 ![La coupe le long de Γ–M–K–Γ](images/arbitrary_cut_result.png)
 
-### 7.2 Correction de la surface de Fermi (FS)
+### Correction de la surface de Fermi (FS)
 
 *Functions → Straighten bands (FS correction)...* sur une coupe (ou sur la coupe selon la fente
 d'une carte) redresse une structure qui devrait être plate — en général le
@@ -738,19 +771,141 @@ selon la fente d'une carte, le même décalage est appliqué à tout le cube.
 
 ![Correction FS](images/fs_correction_dialog.png)
 
-# Partie II — L'onglet Basic
+## 3.4 Cartes kz et cartes k
 
-L'onglet **Basic** contient ce par quoi passe presque tout jeu de données,
-groupé selon les données que prend chaque outil : *2D & 3D* — ajustement du
-front de Fermi, suppression de la grille du détecteur, corrections du
-détecteur ; *2D only* — soustraction du fond, conversion en k d'une coupe,
-vérification des niveaux de cœur ; *3D only* — conversion en k d'une carte,
-alignement et conversion d'un balayage en énergie de photon, zone de
-Brillouin.
+Une **carte kz** (balayage en énergie de photon) s'ouvre comme une carte en
+angle : son contour montre l'énergie de photon en fonction de l'angle de
+l'analyseur à l'énergie choisie par le curseur, et ses deux coupes sont le
+spectre à une énergie de photon et la dispersion en énergie de photon à un
+angle. Alignez ses niveaux de Fermi et convertissez-la en (k_z, k∥) depuis
+l'onglet Basic ([§4.9](#49-aligner-les-niveaux-de-fermi-dune-carte-kz), [§4.10](#410-convertir-une-carte-kz-en-impulsion)).
+
+![Une carte kz](images/kz_map_contour.png)
+
+Une **carte k** (une carte convertie en impulsion, [§4.8](#48-conversion-en-k-dune-carte)) et une
+**carte kz convertie** s'ouvrent dans la même fenêtre de contour, sur des axes
+en impulsion. Quand une zone de Brillouin y a été tracée ([§4.11](#411-zone-de-brillouin)),
+elles la gardent, et une case **Brillouin zone** sur la barre du haut l'affiche
+ou la masque. Les séries de tranches ([§5.6](#56-figure-en-série-de-tranches)) et les exports la
+dessinent aussi.
+
+![Une carte k avec sa zone de Brillouin](images/k_map_with_bz.png)
+
+## 3.5 Courbes : EDC, MDC et ajustement de courbes
+
+**EDC → list** / **MDC → list** sous n'importe quelle image, ou un fichier
+résolu en spin, donnent un jeu de données de courbes, qui s'ouvre dans la
+**fenêtre de courbes** :
+
+![Fenêtre de courbes](images/curve_viewer.png)
+
+Les canaux peuvent être masqués, décalés en cascade (**Offset**), affichés
+avec des **Error bars** (à partir d'un canal σ), et **Range** délimite une
+fenêtre en x utilisée par les opérations. *Functions → Transform*
+propose **Crop**, **Bin**, **Normalise**, **Subtract a background**
+(constant, linéaire, Shirley), **Shift the axis** et **Add counting errors
+(√N)** ; chacune crée un nouveau jeu de données et propage correctement σ.
+
+### Ajustement de courbes
+
+*Functions → Curve fit...* : **Peaks on a background** (pics lorentziens,
+gaussiens ou de Voigt, placés par clic ou par **Find peaks** ; fond nul /
+constant / linéaire / Shirley ; résolution instrumentale ; **× Fermi edge**
+facultatif), ou le **Fermi edge** lui-même. La pondération est le σ propre au
+canal, √N, ou uniforme. Chaque paramètre est donné avec son erreur ; le
+résidu est affiché en unités de σ.
+
+![Ajustement de courbe](images/curve_fit_dialog.png)
+
+**Fit to list** conserve les données, l'ajustement, le résidu et les
+composantes ; **Copy results** copie un tableau séparé par des tabulations.
+Un ajustement du front de Fermi permet **List a copy with E_F = 0**.
+
+## 3.6 Données résolues en spin
+
+Une EDC de spin s'ouvre avec une courbe par canal de spin :
+
+![EDC de spin](images/spin_edc_viewer.png)
+
+*Functions → Spin analysis...* :
+
+![Analyse de spin](images/spin_analysis.png)
+
+- Le tableau lit l'étiquette de chaque canal (réglage du manipulateur,
+  aimantation de la cible, axe et signe comptés comme « haut ») ; **Axis** et
+  **Counts as** peuvent être modifiés.
+- Le **Cross ratio** (par défaut quand les canaux le permettent) élimine
+  exactement à la fois la transmission et la réflectivité de la cible ; une
+  **seule paire** est disponible mais porte l'asymétrie instrumentale, qui est
+  mesurée et indiquée (ε).
+- **S_eff** (fonction de Sherman, 0,2 par défaut), **Bin**, fenêtre **Zero
+  reference** facultative.
+- Graphiques : canaux bruts, P avec ses barres d'erreur, et I↑ / I↓ avec
+  leurs erreurs.
+- **P to list**, **I↑ / I↓ to list**, **As a figure** (ouvre le composeur de figures).
+
+## 3.7 Balayages résolus spatialement (nano-ARPES)
+
+Un balayage en espace réel ouvre la **carte spatiale** (à gauche, l'intensité
+totale en chaque position) avec le **spectre E-k au curseur** (à droite).
+Faites glisser la cible rouge pour lire le spectre en un autre point. Un clic
+droit sur un panneau donne les deux intégrations :
+
+- sur la carte, **Integrate selection → E vs k panel** somme les spectres sur
+  une région de l'échantillon ;
+- sur le spectre, **Integrate selection → spatial panel** cartographie sur
+  l'échantillon l'intensité d'une fenêtre (k, E) choisie — c'est ainsi qu'on
+  repère un domaine ou le bord d'un flocon.
+
+![Balayage spatial](images/spatial_scan.png)
+
+## 3.8 Exporter un panneau et enregistrer des données
+
+Clic droit sur n'importe quelle image → **Export** → **Data (.nxs, Igor)...**,
+**Image...** ou **Axes only (.eps)...**. L'exportation reprend toujours
+exactement ce que montre le panneau (étendue comprise) : les données, comme
+un jeu de données que ce programme sait relire, ou pour Igor Pro (`.itx`
+texte ou onde binaire `.ibw`, axes étalonnés, unités et métadonnées dans la
+note de l'onde) ; une image avec la palette
+appliquée (PNG, TIFF ou JPEG, à la taille et à la résolution choisies, avec
+ou sans les axes, avec les guides des Plot tools s'il y en a, et avec la zone
+de Brillouin si le jeu de données en a une) ; ou le cadre, les graduations et
+les étiquettes en PostScript vectoriel, pour y placer l'image dans
+Illustrator (avec, au choix, la zone de Brillouin tracée dans le cadre — voir
+[§4.11](#411-zone-de-brillouin)).
+
+![Exportation](images/export_dialog.png)
+
+**Save** (panneau d'outils, cadre Datasets) écrit les jeux de données
+sélectionnés dans un fichier `.nxs` de votre choix -- plusieurs lignes
+sélectionnées vont dans un même fichier -- ou, selon le type de fichier
+choisi, pour Igor Pro : un `.itx` qui les contient tous, ou un `.ibw` par jeu
+de données. Un fichier Igor est une copie ; les lignes restent inchangées.
 
 ---
 
-## 8. Ajustement du front de Fermi
+# Partie 4 — Le panneau d'outils : onglet Basic
+
+L'onglet **Basic** regroupe les étapes par lesquelles passe presque chaque jeu de données : le niveau de Fermi, le détecteur, le fond, les conversions en impulsion, les niveaux de cœur et la zone de Brillouin.
+
+## 4.1 Comment fonctionnent les boutons d'outils
+
+Chaque onglet regroupe ses outils selon les données qu'ils prennent :
+*2D & 3D — cuts, maps*, *2D only — cuts*, *3D only — maps*. **Un bouton ne
+s'allume que si les lignes sélectionnées dans la liste conviennent** : une
+conversion k (coupe) demande une coupe en angle, l'arithmétique de coupes
+exactement deux coupes, une vue 3D une carte. Survolez un bouton grisé pour
+savoir pourquoi.
+
+![L'onglet Basic](images/main_window.png)
+
+Un outil ne modifie jamais les lignes qu'on lui donne : son résultat est une
+nouvelle ligne de la liste, nommée d'après l'originale et l'opération
+(`cut1 [k]`), et son historique enregistre l'étape et ses paramètres
+(*Experiment info* l'affiche). Les outils qui demandent plusieurs décisions
+s'ouvrent en étapes numérotées ([§2.5](#25-fenêtres-pas-à-pas)).
+
+## 4.2 Ajustement du front de Fermi
 
 L'ordre habituel pour une coupe est : **ajustement du front de Fermi → décaler
 l'axe en énergie → conversion en impulsion → ajustement MDC/EDC**. Chaque
@@ -795,9 +950,7 @@ these fits** ajoute la carte corrigée à la liste.
 
 ![Ajustement de Fermi sur une carte, un E_F par coupe](images/fermi_map_cuts.png)
 
-## 9. Supprimer la grille du détecteur et corrections du détecteur
-
-### 9.1 Supprimer la grille du détecteur
+## 4.3 Supprimer la grille du détecteur
 
 Les motifs du MCP (hexagonal) et de la grille (carré) s'impriment sur chaque
 image. **À faire en premier** : seules les données encore sur les pixels du
@@ -820,7 +973,7 @@ que la photoémission se déplace. **Find and remove the grid** :
   coupe prise plus tard avec le même mode de lentille et la même énergie de
   passage retrouvera et utilisera.
 
-### 9.2 Corrections du détecteur
+## 4.4 Corrections du détecteur
 
 Sur une coupe, une carte ou une carte kz telle que mesurée :
 
@@ -833,7 +986,7 @@ Sur une coupe, une carte ou une carte kz telle que mesurée :
 3. **Appliquer** -- **Apply to list**. Faites ensuite la suppression de la
    grille, le niveau de Fermi et la conversion en k sur le résultat.
 
-## 10. Soustraction du fond
+## 4.5 Soustraction du fond
 
 Panneau → Basic → **Background subtraction...** (coupes) retire l'intensité
 qui n'appartient pas aux bandes : un fond inélastique de **Shirley** ou de
@@ -844,9 +997,9 @@ fichier, à partir de l'E_F enregistré ou, à défaut, de la chute la plus
 raide de l'EDC intégrée en angle). La fenêtre est celle des fenêtres de
 traitement de l'onglet Advanced — source et résultat côte à côte, aperçu en
 direct, **Apply** ajoute le résultat à la liste — décrite au
-[§16](#16-lissage-dérivées-courbure-et-symétrisation).
+[§5.1](#51-lissage-dérivées-courbure-et-symétrisation).
 
-## 11. Conversion en k d'une coupe
+## 4.6 Conversion en k d'une coupe
 
 Panneau → Basic → **k conversion (cut)...** convertit l'axe angulaire en k∥
 (Å⁻¹). Une **ligne verticale** est tracée sur la coupe : faites-la glisser
@@ -878,7 +1031,7 @@ coupe a été mesurée.
 
 ![La coupe en impulsion](images/cut_in_k.png)
 
-## 12. Vérification des niveaux de cœur
+## 4.7 Vérification des niveaux de cœur
 
 Un balayage large des niveaux de cœur est lui aussi listé comme une coupe.
 Sélectionnez-le et appuyez sur panneau → Basic → **Core-level check...** pour
@@ -936,7 +1089,7 @@ Si tous les pics sont décalés de la même quantité, les notes le disent et
 restent fixes en énergie de liaison, les raies Auger et la lumière d'ordre
 supérieur se déplacent.
 
-## 13. Conversion en k d'une carte
+## 4.8 Conversion en k d'une carte
 
 Sélectionnez une carte en angle et appuyez sur panneau → Basic → **k
 conversion (map)...**. La carte s'ouvre sur un contour nu — sans coupes ni
@@ -971,14 +1124,12 @@ résultat est une nouvelle ligne `k-map` dans la liste.
 
 ![La carte convertie en k](images/k_map_contour.png)
 
-## 14. Balayages en énergie de photon (kz)
+## 4.9 Aligner les niveaux de Fermi d'une carte kz
 
 Un balayage en énergie de photon est listé comme `kz map` ; son contour est
 l'énergie de photon en fonction de l'angle, à une énergie donnée.
 
 ![Une carte kz](images/kz_map_contour.png)
-
-### 14.1 Aligner les niveaux de Fermi d'une carte kz
 
 Rien dans les fichiers n'indique où se trouve réellement le niveau de Fermi
 de chaque spectre. Panneau → Basic → **Align Fermi levels (kz)...** le mesure
@@ -1003,7 +1154,7 @@ E_F en fonction de l'énergie de photon est tracé. Une courbe régulière
 signifie des ajustements fiables ; les points dont l'ajustement n'est pas
 crédible sont signalés et remplacés par interpolation de leurs voisins.
 
-### 14.2 Convertir une carte kz en impulsion
+## 4.10 Convertir une carte kz en impulsion
 
 Panneau → Basic → **kz conversion...** convertit le balayage en (k_z, k∥). Il
 part de la dernière conversion d'un balayage de même taille.
@@ -1037,10 +1188,10 @@ part de la dernière conversion d'un balayage de même taille.
 
 ![La carte kz convertie](images/kz_map_in_k.png)
 
-## 15. Zone de Brillouin
+## 4.11 Zone de Brillouin
 
 Sélectionnez une carte k (ou une carte kz convertie) et appuyez sur panneau
-→ Basic → **BZ overlap...** (appelé *Brillouin zone...* avant la v1.2.4).
+→ Basic → **BZ overlap...**.
 Comme la conversion de carte, il ouvre un
 contour à lui avec la fenêtre de la zone, et les deux se ferment ensemble.
 
@@ -1081,19 +1232,13 @@ l'image dans Illustrator.
 
 ![Exportation avec la zone](images/export_dialog_bz.png)
 
-# Partie III — L'onglet Advanced
-
-L'onglet **Advanced** contient l'analyse qui suit : le composeur de figures
-(*1D & 2D*, voir [§28](#28-le-composeur-de-figures)) ; le lissage, les filtres
-qui affinent les bandes, la symétrisation et la détection de crêtes
-(*2D & 3D*) ; les empilements de courbes, les ajustements MDC et EDC et
-l'arithmétique de coupes (*2D only*) ; la figure en série de tranches et les
-quatre vues 3D (*3D only*). Les courbes et les balayages spatiaux s'examinent
-dans leurs propres fenêtres.
-
 ---
 
-## 16. Lissage, dérivées, courbure et symétrisation
+# Partie 5 — Le panneau d'outils : onglet Advanced
+
+L'onglet **Advanced** regroupe l'analyse qui suit : filtres d'affinement des bandes et symétrisation, détection de crêtes, empilements, ajustements MDC et EDC, arithmétique de coupes, figure en série de tranches et vues 3D.
+
+## 5.1 Lissage, dérivées, courbure et symétrisation
 
 Chaque filtre a sa propre fenêtre, ouverte depuis le panneau d'outils avec
 une ou plusieurs coupes (ou cartes) sélectionnées :
@@ -1169,7 +1314,7 @@ son maximum) :
 
 ![Auto-normalisation](images/data_operations.png)
 
-## 17. Détection de crêtes
+## 5.2 Détection de crêtes
 
 Panneau → Advanced → **Ridge detection...** (coupes ou cartes) suit les
 bandes comme des crêtes de l'intensité, chaque point à une fraction de pixel
@@ -1181,9 +1326,9 @@ près : plus net qu'une dérivée seconde, et sans fausses lignes doubles.
   jaunes sur la source).
 - **Result to list** — l'image des crêtes (une carte plan par plan, sur les
   plans choisis) ; **Save ridge points...** — un CSV que l'ajustement de
-  liaisons fortes ([§26](#26-ajustement-de-liaisons-fortes)) sait lire.
+  liaisons fortes ([§6.4](#64-ajustement-de-liaisons-fortes)) sait lire.
 
-## 18. Empilements de courbes
+## 5.3 Empilements de courbes
 
 **Stack plot (EDC / MDC)...** (panneau → Advanced, une coupe sélectionnée) :
 une cascade d'EDC ou de MDC, avec le nombre de courbes, le regroupement, la
@@ -1192,7 +1337,7 @@ figure composer** en fait un panneau de figure.
 
 ![Empilement de courbes](images/stack_plot.png)
 
-## 19. Ajustement MDC et ajustement EDC
+## 5.4 Ajustement MDC et ajustement EDC
 
 Deux outils de l'onglet Advanced ajustent des pics ligne par ligne :
 
@@ -1249,7 +1394,7 @@ bandes. Un point ajusté dont l'erreur s'est effondrée (un pic ajusté à
 largeur nulle) ne prend plus tout le poids de l'ajustement de la
 dispersion : aucun point ne compte plus que dix points typiques.
 
-## 20. Arithmétique de coupes : dichroïsme et division par une référence
+## 5.5 Arithmétique de coupes : dichroïsme et division par une référence
 
 Deux coupes en donnent une troisième : dichroïsme linéaire (LH − LV),
 dichroïsme circulaire, division par une référence d'or, ou simples
@@ -1277,7 +1422,7 @@ reste grisé tant qu'exactement deux coupes ne sont pas sélectionnées.
   le graphique.
 - **Result to list**, **Uncertainty to list**, **All three as a figure**.
 
-## 21. Figure en série de tranches
+## 5.6 Figure en série de tranches
 
 Sélectionnez une carte → panneau → Advanced → **Slice series figure...**
 dispose une page de tranches 2D planes du cube en une figure pour un
@@ -1291,7 +1436,7 @@ choisies, avec intégration, une échelle de couleurs commune et des
 |---|---|
 | ![Réglages de la série de tranches](images/slice_figure_dialog.png) | ![Figure en série de tranches](images/slice_figure.png) |
 
-## 22. Les vues 3D
+## 5.7 Les vues 3D
 
 Quatre outils de l'onglet Advanced montrent une carte en 3D, chacun dans sa
 propre fenêtre — faites glisser l'image pour la faire tourner :
@@ -1366,92 +1511,130 @@ de l'évolution d'une bande.
   espacent leurs graduations selon la place de chaque axe, et écrivent
   indices et exposants dans les titres d'axe (`E - E_F`, `k_x`).
 
-## 23. Courbes : EDC, MDC et données résolues en spin
-
-**EDC → list** / **MDC → list** sous n'importe quelle image, ou un fichier
-résolu en spin, donnent un jeu de données de courbes, qui s'ouvre dans la
-**fenêtre de courbes** :
-
-![Fenêtre de courbes](images/curve_viewer.png)
-
-Les canaux peuvent être masqués, décalés en cascade (**Offset**), affichés
-avec des **Error bars** (à partir d'un canal σ), et **Range** délimite une
-fenêtre en x utilisée par les opérations. *Functions → Transform*
-propose **Crop**, **Bin**, **Normalise**, **Subtract a background**
-(constant, linéaire, Shirley), **Shift the axis** et **Add counting errors
-(√N)** ; chacune crée un nouveau jeu de données et propage correctement σ.
-
-### 23.1 Ajustement de courbes
-
-*Functions → Curve fit...* : **Peaks on a background** (pics lorentziens,
-gaussiens ou de Voigt, placés par clic ou par **Find peaks** ; fond nul /
-constant / linéaire / Shirley ; résolution instrumentale ; **× Fermi edge**
-facultatif), ou le **Fermi edge** lui-même. La pondération est le σ propre au
-canal, √N, ou uniforme. Chaque paramètre est donné avec son erreur ; le
-résidu est affiché en unités de σ.
-
-![Ajustement de courbe](images/curve_fit_dialog.png)
-
-**Fit to list** conserve les données, l'ajustement, le résidu et les
-composantes ; **Copy results** copie un tableau séparé par des tabulations.
-Un ajustement du front de Fermi permet **List a copy with E_F = 0**.
-
-### 23.2 Analyse de spin
-
-Une EDC de spin s'ouvre avec une courbe par canal de spin :
-
-![EDC de spin](images/spin_edc_viewer.png)
-
-*Functions → Spin analysis...* :
-
-![Analyse de spin](images/spin_analysis.png)
-
-- Le tableau lit l'étiquette de chaque canal (réglage du manipulateur,
-  aimantation de la cible, axe et signe comptés comme « haut ») ; **Axis** et
-  **Counts as** peuvent être modifiés.
-- Le **Cross ratio** (par défaut quand les canaux le permettent) élimine
-  exactement à la fois la transmission et la réflectivité de la cible ; une
-  **seule paire** est disponible mais porte l'asymétrie instrumentale, qui est
-  mesurée et indiquée (ε).
-- **S_eff** (fonction de Sherman, 0,2 par défaut), **Bin**, fenêtre **Zero
-  reference** facultative.
-- Graphiques : canaux bruts, P avec ses barres d'erreur, et I↑ / I↓ avec
-  leurs erreurs.
-- **P to list**, **I↑ / I↓ to list**, **As a figure** (ouvre le composeur de figures).
-
-## 24. Balayages résolus spatialement (nano-ARPES)
-
-Un balayage en espace réel ouvre la **carte spatiale** (à gauche, l'intensité
-totale en chaque position) avec le **spectre E-k au curseur** (à droite).
-Faites glisser la cible rouge pour lire le spectre en un autre point. Un clic
-droit sur un panneau donne les deux intégrations :
-
-- sur la carte, **Integrate selection → E vs k panel** somme les spectres sur
-  une région de l'échantillon ;
-- sur le spectre, **Integrate selection → spatial panel** cartographie sur
-  l'échantillon l'intensité d'une fenêtre (k, E) choisie — c'est ainsi qu'on
-  repère un domaine ou le bord d'un flocon.
-
-![Balayage spatial](images/spatial_scan.png)
-
-# Partie IV — L'onglet Figure
-
-L'onglet **Figure** (appelé *Calculation* avant la v1.2.4) contient en haut
-le **composeur de figures** ([§28](#28-le-composeur-de-figures)), puis ce qui
-est calculé plutôt que mesuré : le cristal dans l'espace réel et sa zone de
-Brillouin en 3D, des modèles de bandes ajustés aux données, et des
-structures de bandes calculées par d'autres. La plupart de ses fenêtres
-s'ouvrent en étapes numérotées.
-
-![L'onglet Figure du panneau d'outils](images/main_window_calculation.png)
-
 ---
 
-## 25. Structure cristalline et zone de Brillouin 3D
+# Partie 6 — Le panneau d'outils : onglet Figure
+
+L'onglet **Figure** regroupe le composeur de figures et ce qui est calculé plutôt que mesuré : la structure cristalline, la zone de Brillouin en 3D, les ajustements de liaisons fortes et les bandes calculées. Il se termine par un exemple allant du chargement des données à la figure finie.
+
+## 6.1 Le composeur de figures
+
+Panneau → Figure → **Figure composer...** (en haut de l'onglet) **sans rien
+sélectionner** ouvre
+une page vierge, comme une figure d'article : quatre panneaux vides (a),
+(b), (c), (d) à la largeur de colonne d'une revue. Avec des coupes (ou des
+courbes) sélectionnées, chacune devient un panneau (de même pour le bouton
+**Figure composer...** d'une tranche figée ; un empilement de courbes ou une
+vue 3D a son propre bouton **To figure composer**).
+
+![Composeur de figures](images/figure_composer.png)
+
+- **Mise en page.** Cliquez un panneau pour le sélectionner ; faites-le
+  glisser pour le déplacer, tirez ses poignées pour le redimensionner (Maj
+  sur un coin garde ses proportions). Les panneaux s'alignent sur les bords
+  des autres et sur une grille de 0,5 mm (**Snap**) ; les flèches du clavier
+  le décalent de 0,5 mm (Maj : 5 mm). *Arrange as grid* (onglet Panels à
+  droite) les remet en lignes × colonnes. **Re-letter** les nomme (a), (b)…
+  dans l'ordre de lecture.
+- **Remplir un panneau.** Double-cliquez un panneau vide, ou **Load from
+  list...** / **Load picture...** à gauche : un jeu de la liste principale,
+  ou une image d'un fichier (PNG, JPEG, TIFF… — un schéma ou une figure
+  faite ailleurs ; elle garde ses proportions et n'a pas d'axes).
+- **Encarts.** **Zoom-in inset** : tracez une région d'un panneau — un
+  petit panneau qui l'agrandit apparaît dans le coin, et la région est
+  encadrée. Un **Panel** tracé dans un autre panneau est un encart à remplir
+  avec un autre jeu. Les encarts n'ont pas de lettre et suivent leur panneau.
+- **Dessiner.** **Arrow**, **Line**, **Box**, **Ellipse**, **Text** :
+  faites glisser (ou cliquez, pour le texte) sur la page. Un dessin
+  sélectionné se déplace, ses extrémités ou coins se tirent, et sa couleur,
+  son épaisseur, son trait, son remplissage et son texte se règlent au-dessus
+  des outils. Double-cliquez un texte pour le modifier ; Suppr efface la
+  sélection ; clic droit pour le reste.
+- **Axes et polices.** Les outils à côté de la page agissent sur le panneau
+  sélectionné (ou sur tous) : bornes, graduations, étiquettes, bords
+  numérotés, taille de police propre au panneau, carte de couleurs, barre de
+  couleurs, lignes de référence.
+- **Undo / Redo** (Ctrl+Z / Ctrl+Y) couvrent tout. **PDF**, **PNG**, **SVG**
+  exportent, **Copy** copie dans le presse-papiers ; les panneaux vides ne
+  sont jamais écrits. Les **Figure tools** du composeur ne sont pas les
+  **Plot tools** d'une fenêtre, qui dessinent des guides sur le graphique
+  affiché.
+
+### Disposer les panneaux
+
+Cliquez un panneau, puis **Ctrl+clic** (ou Maj+clic) sur les autres pour en
+sélectionner plusieurs. Les boutons **Arrange** à gauche alors :
+
+| Bouton | Effet |
+|---|---|
+| ⇤ Left, Right ⇥, ⤒ Top, Bottom ⤓ | alignent leurs bords gauche / droit / haut / bas (sur le plus extérieur) |
+| ↔ Centres, ↕ Centres | mettent leurs centres sur une même verticale / horizontale (celle du premier panneau sélectionné) |
+| Space ↔, Space ↕ | espaces égaux entre eux, de gauche à droite / de haut en bas (trois ou plus) |
+| = Width, = Height | la largeur / hauteur du premier panneau sélectionné pour tous |
+
+![Plusieurs panneaux sélectionnés, et les boutons Arrange](images/composer_arrange.png)
+
+### Lettres et barres de couleur
+
+- **Letters in line** (onglet *Text*, activé par défaut) : les lettres des
+  panneaux côte à côte sont à la même hauteur, celles des panneaux l'un
+  au-dessus de l'autre au même bord gauche, quels que soient les titres ou
+  les axes de chacun. **Nudge (mm)** déplace la lettre d'un panneau (pour
+  dégager un long titre d'axe, par exemple) ; **Re-letter** les renomme (a),
+  (b)… dans l'ordre de lecture.
+- **Colour bar** (onglet *Colour*) : **Ends** écrit les valeurs, les mots
+  *High* / *Low*, ou rien ; **Length (%)** de la hauteur ou de la largeur du
+  panneau ; **Position** *right* (debout à côté du panneau) ou *below*
+  (couchée dessous, centrée). La barre d'une vue 3D est dimensionnée sur le
+  cube tel qu'il est dessiné, non sur tout le cadre qui l'entoure.
+
+![Les réglages de la barre de couleur](images/composer_colour_bar.png)
+
+### Courbes : lignes, symboles et barres d'erreur
+
+Onglet *Overlays*, **Curves drawn on the panel** : sélectionnez des courbes
+dans la liste (ou aucune, pour toutes), puis réglez leur **couleur**, leur
+**épaisseur**, leur **style** (plein, tirets, pointillés…), leurs
+**symboles** (cercle, carré, triangles, losange, avec une taille) et si elles
+sont **reliées par une ligne** ; **± σ as error bars** change les deux courbes
+pointillées ±σ d'une courbe en barres d'erreur à ses points. **Apply to the
+curves**. Une courbe avec des trous (NaN) est tracée en morceaux.
+
+### Enregistrer une figure pour la modifier plus tard, avec ses données
+
+**Save** / **Save as...** écrivent la figure dans le format propre au
+programme, `fig1.afig` : la page, ses dessins et chaque panneau avec ses
+données et ses réglages — rouvrez-la avec **Open...** (ou choisissez-la dans
+**Load data...** de la fenêtre principale) et reprenez la modification là où
+vous l'aviez laissée. Une vue 3D est conservée comme l'image qu'elle montre.
+
+À côté, **`data for fig1/`** reçoit un dossier par panneau (`a`, `b`, …) :
+
+```
+data for fig1/
+  a/  processed/  ce que montre le panneau : l'image en coupe .nxs (qui se
+                  rouvre dans la fenêtre de visualisation), ses lignes
+                  (bandes calculées, contours, courbes) en lines.csv, une
+                  image en .png
+      original/   ce dont il a été fait : le premier fichier de mesure (un
+                  plan converti en k, symétrisé, découpé remonte au fichier
+                  d'où il a d'abord été lu), le calcul avec les fichiers lus
+                  avec lui (.win, POSCAR...), le fichier image ou le CIF
+      sources.txt quelle entrée du fichier, et les traitements entre les deux
+  b/  ...
+```
+
+Le fichier d'origine est copié même quand le panneau montre un résultat
+calculé à partir de lui bien des étapes plus tard : chaque jeu de données se
+souvient du fichier dont il est parti. Une figure rouverte dont les fichiers
+d'origine ont été déplacés réutilise les copies de son propre dossier de
+données précédent.
+
+## 6.2 Structure cristalline
 
 Panneau → Figure → **Crystal structure...** (rien à sélectionner). Quatre
 étapes (la zone de Brillouin est l'outil à part **3D BZ...**,
-[§25.1](#251-3d-bz--la-zone-en-trois-dimensions)) :
+[§6.2](#63-3d-bz--la-zone-de-brillouin-en-trois-dimensions)) :
 
 ![La structure cristalline](images/crystal_structure.png)
 
@@ -1485,9 +1668,9 @@ Panneau → Figure → **Crystal structure...** (rien à sélectionner). Quatre
 4. **Export** — le cristal : **Save picture...** (PNG à toute
    taille, redessiné à cette taille) ou **To figure composer...**. Une image
    issue d'un CIF a ce CIF pour source, et le dossier de données de la figure
-   le conserve ([§28](#28-le-composeur-de-figures)).
+   le conserve ([§6.1](#61-le-composeur-de-figures)).
 
-### 25.1 3D BZ : la zone en trois dimensions
+## 6.3 3D BZ : la zone de Brillouin en trois dimensions
 
 Panneau → Figure → **3D BZ...** (rien à sélectionner). C'était l'étape 4 de
 la fenêtre de la structure cristalline.
@@ -1519,7 +1702,7 @@ la fenêtre de la structure cristalline.
 - **Export** : **Save picture...** à toute taille, ou **To figure
   composer...**.
 
-## 26. Ajustement de liaisons fortes
+## 6.4 Ajustement de liaisons fortes
 
 > **Une bande, ou deux bandes hybridées — au choix à l'étape 1 (*Bands*).**
 > **Une bande** : une bande unique sur un réseau de Bravais (une orbitale
@@ -1580,7 +1763,7 @@ Avec une k-map sélectionnée (ou rien, pour lire des points dans un fichier) :
 4. **Utiliser le modèle** -- **Model to list** (sa fonction spectrale, comme
    une carte à côté des données), **Save parameters...**, **Copy results**.
 
-## 27. Bandes calculées
+## 6.5 Bandes calculées
 
 Panneau → Figure → **Calculated bands...** met un calcul de structure
 de bandes à côté de la mesure. Sélectionnez ce avec quoi le comparer —
@@ -1719,153 +1902,41 @@ faite (0,8 et −50 meV).
 
 ![Sorties](images/bands_output.png)
 
-# Partie V — Figures et sorties
+## 6.6 Exemple : du chargement des données à la figure
 
-Comment une figure est assemblée, enregistrée avec ses données et exportée —
-et, pour finir, deux figures construites pas à pas.
+Des données de démonstration ([§1.3](#13-essayer-avec-des-données-de-démonstration)) à une figure de cartes à énergie
+constante avec la zone de Brillouin. C'est le même chemin que l'exemple de
+l'agent au [§7.7](#77-exemple--un-agent-de-la-configuration-à-la-figure), fait à la main.
 
----
+1. **Charger.** **Quick add...** → `demo_bulk_bands.nxs`. La liste montre la
+   carte du plan Γ `FS_map_hv59.3_Gamma_plane`, les coupes `cut_GM_LH`,
+   `cut_GM_LV`, `cut_GK_LH` et le balayage en énergie de photon.
+2. **Niveau de Fermi.** Sélectionnez la carte → Basic → **Fermi edge
+   fit...**. Ajustez sur les données brutes, dans une fenêtre autour du
+   front ; notez E_F ([§4.2](#42-ajustement-du-front-de-fermi)).
+3. **En impulsion.** Basic → **k conversion (map)** : Γ en émission normale,
+   E_F ajusté comme référence d'énergie. Une nouvelle ligne `… [k]` apparaît
+   ([§4.8](#48-conversion-en-k-dune-carte)).
+4. **La zone.** Sélectionnez la carte k → Basic → **BZ overlap...** : groupe
+   d'espace 164 (P-3m1), a = 3,3 Å, c = 6 Å, plan (001) passant par Γ
+   ([§4.11](#411-zone-de-brillouin)).
+5. **Tranches.** Advanced → **Slice series figure...** : énergies 0, −0,2,
+   −0,4 eV, ±20 meV, trois colonnes, la zone en tirets ([§5.6](#56-figure-en-série-de-tranches)). La
+   figure s'ouvre dans le composeur.
+6. **Mise en page et export.** Dans le composeur, réglez la largeur de la
+   page, la palette et les niveaux, les lettres (a), (b), (c), puis
+   **Export** en PNG et PDF et **Save** en `.afig` pour la modifier plus tard
+   ([§6.1](#61-le-composeur-de-figures)).
 
-## 28. Le composeur de figures
+![La figure obtenue](images/agent_figure.png)
 
-Panneau → Figure → **Figure composer...** (en haut de l'onglet) **sans rien
-sélectionner** ouvre
-une page vierge, comme une figure d'article : quatre panneaux vides (a),
-(b), (c), (d) à la largeur de colonne d'une revue. Avec des coupes (ou des
-courbes) sélectionnées, chacune devient un panneau (de même pour le bouton
-**Figure composer...** d'une tranche figée ; un empilement de courbes ou une
-vue 3D a son propre bouton **To figure composer**).
+La section suivante construit de la même façon deux figures de publication
+complètes.
 
-![Composeur de figures](images/figure_composer.png)
-
-- **Mise en page.** Cliquez un panneau pour le sélectionner ; faites-le
-  glisser pour le déplacer, tirez ses poignées pour le redimensionner (Maj
-  sur un coin garde ses proportions). Les panneaux s'alignent sur les bords
-  des autres et sur une grille de 0,5 mm (**Snap**) ; les flèches du clavier
-  le décalent de 0,5 mm (Maj : 5 mm). *Arrange as grid* (onglet Panels à
-  droite) les remet en lignes × colonnes. **Re-letter** les nomme (a), (b)…
-  dans l'ordre de lecture.
-- **Remplir un panneau.** Double-cliquez un panneau vide, ou **Load from
-  list...** / **Load picture...** à gauche : un jeu de la liste principale,
-  ou une image d'un fichier (PNG, JPEG, TIFF… — un schéma ou une figure
-  faite ailleurs ; elle garde ses proportions et n'a pas d'axes).
-- **Encarts.** **Zoom-in inset** : tracez une région d'un panneau — un
-  petit panneau qui l'agrandit apparaît dans le coin, et la région est
-  encadrée. Un **Panel** tracé dans un autre panneau est un encart à remplir
-  avec un autre jeu. Les encarts n'ont pas de lettre et suivent leur panneau.
-- **Dessiner.** **Arrow**, **Line**, **Box**, **Ellipse**, **Text** :
-  faites glisser (ou cliquez, pour le texte) sur la page. Un dessin
-  sélectionné se déplace, ses extrémités ou coins se tirent, et sa couleur,
-  son épaisseur, son trait, son remplissage et son texte se règlent au-dessus
-  des outils. Double-cliquez un texte pour le modifier ; Suppr efface la
-  sélection ; clic droit pour le reste.
-- **Axes et polices.** Les outils à côté de la page agissent sur le panneau
-  sélectionné (ou sur tous) : bornes, graduations, étiquettes, bords
-  numérotés, taille de police propre au panneau, carte de couleurs, barre de
-  couleurs, lignes de référence.
-- **Undo / Redo** (Ctrl+Z / Ctrl+Y) couvrent tout. **PDF**, **PNG**, **SVG**
-  exportent, **Copy** copie dans le presse-papiers ; les panneaux vides ne
-  sont jamais écrits. Les **Figure tools** du composeur ne sont pas les
-  **Plot tools** d'une fenêtre, qui dessinent des guides sur le graphique
-  affiché.
-
-### Disposer les panneaux
-
-Cliquez un panneau, puis **Ctrl+clic** (ou Maj+clic) sur les autres pour en
-sélectionner plusieurs. Les boutons **Arrange** à gauche alors :
-
-| Bouton | Effet |
-|---|---|
-| ⇤ Left, Right ⇥, ⤒ Top, Bottom ⤓ | alignent leurs bords gauche / droit / haut / bas (sur le plus extérieur) |
-| ↔ Centres, ↕ Centres | mettent leurs centres sur une même verticale / horizontale (celle du premier panneau sélectionné) |
-| Space ↔, Space ↕ | espaces égaux entre eux, de gauche à droite / de haut en bas (trois ou plus) |
-| = Width, = Height | la largeur / hauteur du premier panneau sélectionné pour tous |
-
-![Plusieurs panneaux sélectionnés, et les boutons Arrange](images/composer_arrange.png)
-
-### Lettres et barres de couleur
-
-- **Letters in line** (onglet *Text*, activé par défaut) : les lettres des
-  panneaux côte à côte sont à la même hauteur, celles des panneaux l'un
-  au-dessus de l'autre au même bord gauche, quels que soient les titres ou
-  les axes de chacun. **Nudge (mm)** déplace la lettre d'un panneau (pour
-  dégager un long titre d'axe, par exemple) ; **Re-letter** les renomme (a),
-  (b)… dans l'ordre de lecture.
-- **Colour bar** (onglet *Colour*) : **Ends** écrit les valeurs, les mots
-  *High* / *Low*, ou rien ; **Length (%)** de la hauteur ou de la largeur du
-  panneau ; **Position** *right* (debout à côté du panneau) ou *below*
-  (couchée dessous, centrée). La barre d'une vue 3D est dimensionnée sur le
-  cube tel qu'il est dessiné, non sur tout le cadre qui l'entoure.
-
-![Les réglages de la barre de couleur](images/composer_colour_bar.png)
-
-### Courbes : lignes, symboles et barres d'erreur
-
-Onglet *Overlays*, **Curves drawn on the panel** : sélectionnez des courbes
-dans la liste (ou aucune, pour toutes), puis réglez leur **couleur**, leur
-**épaisseur**, leur **style** (plein, tirets, pointillés…), leurs
-**symboles** (cercle, carré, triangles, losange, avec une taille) et si elles
-sont **reliées par une ligne** ; **± σ as error bars** change les deux courbes
-pointillées ±σ d'une courbe en barres d'erreur à ses points. **Apply to the
-curves**. Une courbe avec des trous (NaN) est tracée en morceaux.
-
-### Enregistrer une figure pour la modifier plus tard, avec ses données
-
-**Save** / **Save as...** écrivent la figure dans le format propre au
-programme, `fig1.afig` : la page, ses dessins et chaque panneau avec ses
-données et ses réglages — rouvrez-la avec **Open...** (ou choisissez-la dans
-**Load data...** de la fenêtre principale) et reprenez la modification là où
-vous l'aviez laissée. Une vue 3D est conservée comme l'image qu'elle montre.
-
-À côté, **`data for fig1/`** reçoit un dossier par panneau (`a`, `b`, …) :
-
-```
-data for fig1/
-  a/  processed/  ce que montre le panneau : l'image en coupe .nxs (qui se
-                  rouvre dans la fenêtre de visualisation), ses lignes
-                  (bandes calculées, contours, courbes) en lines.csv, une
-                  image en .png
-      original/   ce dont il a été fait : le premier fichier de mesure (un
-                  plan converti en k, symétrisé, découpé remonte au fichier
-                  d'où il a d'abord été lu), le calcul avec les fichiers lus
-                  avec lui (.win, POSCAR...), le fichier image ou le CIF
-      sources.txt quelle entrée du fichier, et les traitements entre les deux
-  b/  ...
-```
-
-Le fichier d'origine est copié même quand le panneau montre un résultat
-calculé à partir de lui bien des étapes plus tard : chaque jeu de données se
-souvient du fichier dont il est parti. Une figure rouverte dont les fichiers
-d'origine ont été déplacés réutilise les copies de son propre dossier de
-données précédent.
-
-## 29. Exporter un panneau et enregistrer des données
-
-Clic droit sur n'importe quelle image → **Export** → **Data (.nxs, Igor)...**,
-**Image...** ou **Axes only (.eps)...**. L'exportation reprend toujours
-exactement ce que montre le panneau (étendue comprise) : les données, comme
-un jeu de données que ce programme sait relire, ou pour Igor Pro (`.itx`
-texte ou onde binaire `.ibw`, axes étalonnés, unités et métadonnées dans la
-note de l'onde) ; une image avec la palette
-appliquée (PNG, TIFF ou JPEG, à la taille et à la résolution choisies, avec
-ou sans les axes, avec les guides des Plot tools s'il y en a, et avec la zone
-de Brillouin si le jeu de données en a une) ; ou le cadre, les graduations et
-les étiquettes en PostScript vectoriel, pour y placer l'image dans
-Illustrator (avec, au choix, la zone de Brillouin tracée dans le cadre — voir
-[§15](#15-zone-de-brillouin)).
-
-![Exportation](images/export_dialog.png)
-
-**Save** (panneau d'outils, cadre Datasets) écrit les jeux de données
-sélectionnés dans un fichier `.nxs` de votre choix -- plusieurs lignes
-sélectionnées vont dans un même fichier -- ou, selon le type de fichier
-choisi, pour Igor Pro : un `.itx` qui les contient tous, ou un `.ibw` par jeu
-de données. Un fichier Igor est une copie ; les lignes restent inchangées.
-
-## 30. Exemple complet : deux figures dans le composeur
+## 6.7 Exemple complet : deux figures dans le composeur
 
 Les deux figures ci-dessous ont été faites à partir des données de
-démonstration ([§2](#2-essayer-avec-des-données-de-démonstration)) avec les
+démonstration ([§1.3](#13-essayer-avec-des-données-de-démonstration)) avec les
 fenêtres du programme, puis assemblées dans le composeur de figures.
 `devtools/figure_tests.py` exécute exactement ces étapes : c'est aussi un
 script à lire en parallèle de cette section.
@@ -1875,7 +1946,7 @@ script à lire en parallèle de cette section.
 ![Figure d'exemple 1](images/example_figure_1.png)
 
 **(a) Le cube entaillé.** Convertissez la carte du plan Γ en impulsion
-([§13](#13-conversion-en-k-dune-carte)) ; sélectionnez la k-map → Advanced →
+([§4.8](#48-conversion-en-k-dune-carte)) ; sélectionnez la k-map → Advanced →
 **Notched cube...**. *Change sampling...* : k_x, k_y dans ±1,25 Å⁻¹ et E
 jusqu'à E_F ; placez l'entaille en k_x = k_y = 0 jusqu'à l'énergie la plus
 basse, coin **+ − +** ; palette *blue*, inversée ; azimut −52°, élévation
@@ -1934,7 +2005,7 @@ list**). *Path* `K-H` (la ligne où les deux bandes se croisent) ; *Label on
 the left* `L, M`. **To figure composer...** → la figure de (a).
 
 **(c) Les coupes empilées selon k_z.** Convertissez le balayage en énergie
-de photon en impulsion ([§14](#14-balayages-en-énergie-de-photon-kz)),
+de photon en impulsion ([§4.9](#49-aligner-les-niveaux-de-fermi-dune-carte-kz)),
 sélectionnez-le → Advanced → **Stacked slices...** : *Layers* selon k_z aux
 quatre k_z des coupes (8,0, 8,3, 8,6 et 9,0 π/c), *Fade* 30 %, **Spread** 3,
 azimut 40°, élévation 12°. Dans **Mark a curve through the layers**, ajoutez
@@ -1971,110 +2042,162 @@ ouvrez le `.afig`, sélectionnez le panneau et utilisez les outils de
 figure ; le dossier de données conserve à la fois les données telles
 qu'affichées et la mesure dont elles proviennent.
 
-# Partie VI — Entretien
-
 ---
 
-## 31. Sauvegarde automatique, mémoire et récupération
+# Partie 7 — Agents IA
 
-- **Sauvegarde automatique.** Chaque jeu de données calculé (une carte k, une
-  coupe traitée, un résultat d'ajustement…) est écrit, sans compression, dans
-  le dossier de la session sous `~/.arpes_viewer/sessions/` dès qu'il existe.
-  Les balayages en espace réel ne le sont pas (ce sont les mesures
-  elles-mêmes, et elles sont volumineuses).
-- **Une fermeture normale supprime les copies automatiques.** Quand vous
-  fermez la fenêtre principale et confirmez (tout ce que vous voulez garder
-  est enregistré, ou *Close anyway*), les fenêtres ouvertes sont fermées et le
-  dossier de la session est supprimé immédiatement. La copie d'un jeu de
-  données disparaît aussi dès que vous l'enregistrez dans un fichier à vous.
-- **Récupération après un plantage.** Ce n'est que si le programme ne s'est
-  pas fermé normalement (plantage, arrêt forcé) que le dossier de la session
-  est conservé : au démarrage suivant, ses jeux de données vous sont
-  proposés, et il est supprimé au bout de trois jours.
-- **Journal des opérations.** `~/.arpes_viewer/sessions/operations.log`, une
-  ligne par écriture / enregistrement / suppression — pour retrouver ce qui
-  était où.
-- **Cadre Memory** (en bas du panneau d'outils). La mémoire du programme et celle du système, le nombre de
-  fenêtres et de fichiers HDF5 ouverts, et la quantité de données calculées
-  conservées. **Free RAM** abandonne les copies en cache des données
-  calculées (elles sont relues depuis leur fichier de sauvegarde au besoin) ;
-  **Close all** ferme toutes les fenêtres puis libère la mémoire.
-- **Autosaves** (dans le cadre Memory) ouvre le dossier des
-  sessions dans l'explorateur de fichiers, pour supprimer à la main les
-  anciennes copies de travail. Le dossier de la session en cours (nommé dans
-  la barre d'état) est utilisé : n'y touchez pas.
-- **Les opérations longues** (lecture d'une grande carte, conversion,
-  dégrillage, assemblage d'un dossier) tournent hors du fil de l'interface,
-  avec une barre de progression et un bouton Cancel qui fonctionne.
-- **La fermeture** avec des données calculées non enregistrées demande
-  d'abord confirmation, en nommant les jeux de données : **Save to a
-  file...**, **Close anyway** (les copies automatiques sont supprimées) ou
-  **Cancel** (rien ne se passe).
+Un agent IA (Claude, ou toute application capable de lire et d'écrire des fichiers ou d'appeler des outils MCP) peut piloter le programme sur votre écran, étape par étape, pendant que vous suivez et pouvez reprendre la main. Cette partie explique le principe, comment démarrer et suivre un agent, et donne un exemple de la configuration à la figure.
 
-## 32. Conseils et dépannage
+## 7.1 Principe, et ce qui quitte votre ordinateur
 
-- **Un bouton d'outil grisé** — survolez-le : l'infobulle dit pourquoi (par
-  ex. l'ajustement MDC exige une coupe déjà en Å⁻¹, l'arithmétique de coupes
-  deux coupes). Sélectionnez les bonnes lignes dans la liste et il s'allume.
-- **Un outil manque au menu Functions d'une fenêtre** — il est dans le
-  panneau d'outils (voir *Où se trouvent les choses maintenant* au
-  [§3](#3-la-fenêtre-principale)) ; regardez les trois onglets (Basic,
-  Advanced, Figure).
-- **Une fenêtre est plus haute que l'écran** — elle s'ouvre au plus à la
-  hauteur de l'écran et son contenu défile ; les boutons Apply / Close
-  restent en bas. Toutes les fenêtres se redimensionnent.
-- **Aucune conversion en k n'est proposée** — le premier axe de la carte
-  n'est pas un angle (énergie de photon, température…). Vérifiez *First axis
-  of a map is* dans la fenêtre de chargement.
-- **Conversion en k d'une coupe en E − E_F** — le décalage en énergie est
-  rempli pour vous à partir de l'ajustement de Fermi ; si vous avez décalé
-  l'axe autrement, saisissez dans *Energy offset* l'énergie cinétique de E_F
-  (énergie de photon − travail de sortie).
-- **Un fichier est mal lu** — choisissez explicitement le lecteur dans la
-  fenêtre de chargement, et voyez *Assumptions worth knowing about* dans la
-  [référence technique de la lecture](../arpes_viewer/loader/README.md#assumptions-worth-knowing-about)
-  (ordre des axes dans les fichiers SOLEIL).
-- **Le curseur est lent sur une grande carte** — une carte lue à la demande
-  dans son fichier se recoupe en environ 0,1 s par fenêtre, si bien que les
-  autres fenêtres attendent que la souris s'arrête. Une fois la carte lue en
-  mémoire, elle suit en direct.
-- **Saisie des nombres** — toutes les cases numériques prennent un point
-  décimal (`0.05`), quelle que soit la langue du système ; la virgule n'est
-  pas acceptée.
-- **La machine utilise la mémoire d'échange** — surveillez la barre Memory
-  (ambre au-delà d'un tiers de la RAM, rouge au-delà de la moitié) ; utilisez
-  **Free RAM** ou **Close all**.
+Le programme n'a pas de conversation à lui. Vous parlez à votre application
+IA (l'application de bureau Claude, Claude Code ou un autre agent) en langage
+courant, et le programme est l'outil de cet agent. L'agent envoie au programme
+de petites étapes : lister les données, ajuster un front de Fermi, convertir
+en impulsion, faire une figure. Le programme exécute chaque étape sur votre
+écran ; chaque résultat apparaît comme une nouvelle ligne de la liste ou une
+nouvelle fenêtre, et vous pouvez mettre l'agent en pause et travailler à la
+main à tout moment.
 
-## 33. Piloter le programme depuis un agent IA (MCP)
+**Ce qui reste sur votre ordinateur, et ce qui n'y reste pas :**
 
-**Le plus simple : AI assistant... et le dossier de commandes (recommandé).**
-Parlez à votre application d'IA (l'application de bureau Claude, Claude
-Code, tout agent qui sait lire et écrire des fichiers) en langage courant ;
-elle pilote cette fenêtre sous vos yeux. Cliquez sur **AI assistant...**
-(en haut du panneau d'outils), choisissez le dossier des données et celui
-des résultats, cochez ce que vous voulez (demander avant chaque paramètre
-physique, pas à pas, journal d'utilisation, cacher l'identité de
-l'échantillon, rapport, diapositives) et ajoutez vos demandes ; **Copy the
-prompt and start** met le programme à l'écoute (dossiers : l'agent écrit de
-petits fichiers Python dans `<results>/_agent/viewer_cmd/` ; MCP : le pont
-agent) et copie un message à coller dans l'application. La fenêtre liste
-ensuite chaque étape de l'agent, et **Pause the agent** vous laisse la main.
-Le bouton **AI assistant** est un voyant, même fenêtre fermée (la fermer
-n'arrête pas l'agent) : gris à l'arrêt, vert en marche, jaune en pause,
-rouge en erreur. Pendant ce temps, vous pouvez consulter les données dans
-la fenêtre principale ; les étapes de l'agent ne touchent pas votre
-sélection.
-Le message renvoie l'agent à `API.md`, lu là où le programme est installé
-(dans le paquet `arpes_viewer`, installation pip ou téléchargement ; rien
-n'est copié dans vos dossiers) : la liste des quelque 50 opérations documentées du
-programme (`L.rows()`, `L.fermi_edge(...)`, `L.cut_to_k(...)`,
-`L.kz_to_k(...)`, `L.bz_overlay(...)`, `L.slice_series(...)`,
-`L.figure_render(...)` …) : l'agent lit ce seul fichier au lieu du code
-source. Chaque opération
-ajoute de nouvelles lignes sans modifier les anciennes, n'écrase aucun
-fichier et n'attend aucun clic. Le guide complet est `agentic/README.md`.
+- Vos fichiers de données brutes restent où ils sont et sont lus et traités
+  par le programme, localement. Le programme n'envoie rien.
+- Ce que **l'agent lit** est envoyé au fournisseur d'IA dans la conversation :
+  le texte qu'affiche une étape (noms des lignes, valeurs ajustées, étendues
+  des axes) et toute image que l'agent ouvre pour juger un résultat. Avec des
+  sorties compactes, la conversation contient des nombres et quelques images,
+  pas vos tableaux de données.
+- Que le fournisseur puisse utiliser le contenu des conversations pour
+  l'entraînement dépend du fournisseur et des réglages de votre compte.
+  Vérifiez-les avant de commencer.
+- Gardez le code privé, les manuscrits non publiés et tout ce que vous ne
+  voulez pas faire lire hors des dossiers que l'agent peut atteindre. Donnez-lui
+  seulement le dossier des données (en lecture) et celui des résultats.
 
-La suite de cette section décrit l'autre voie : le serveur MCP.
+Comme pour toute analyse, vérifiez ce qu'un agent a produit avant de
+l'utiliser.
+
+## 7.2 Architecture : opérations, référence, voies
+
+```
+ vous ⇄ application IA (conversation)       ARPES viewer (sur votre écran)
+            │                                 ┌──────────────────────────┐
+            │  écrit <results>/_agent/         │  exécute chaque fichier  │
+            ├──── viewer_cmd/01_….py  ───────▶ │  de commandes, ou chaque │
+            │                                 │  appel MCP, avec L       │
+            │  lit out/cmd_01_….log  ◀──────── │  nouvelles lignes,       │
+            │  (ou les résultats MCP)          │  fenêtres, fichiers      │
+            │                                 └──────────────────────────┘
+```
+
+- **Les opérations `L`.** Une cinquantaine d'opérations documentées sur les
+  lignes nommées de la liste principale (`arpes_viewer/ui/common/live.py`) :
+  `L.rows()`, `L.add_files(...)`, `L.fermi_edge_search(...)`,
+  `L.fermi_edge(...)`, `L.map_to_k(...)`, `L.kz_to_k(...)`,
+  `L.bz_overlay(...)`, `L.cut_arithmetic(...)`, `L.slice_series(...)`,
+  `L.figure_render(...)` … Chacune ajoute de nouvelles lignes au lieu de
+  modifier les anciennes, n'écrase jamais un fichier et n'attend jamais un
+  clic. Une ligne se désigne par son nom, son numéro dans `L.rows()` ou le
+  chemin de son fichier.
+- **La référence `API.md`** (`arpes_viewer/agent/API.md`, dans le programme
+  installé) liste toutes les opérations, les boutons du panneau d'outils, les
+  outils MCP et les calculs de `tools/`, avec leurs paramètres. Elle est
+  générée à partir du programme, donc toujours à jour ; l'agent la lit au
+  lieu du code source. `L.help()` affiche la même liste.
+- **Trois voies** vers les mêmes opérations :
+  1. **Dossier de commandes** (recommandé) : l'agent écrit un petit fichier
+     Python par étape dans `<results>/_agent/viewer_cmd/` ; le programme
+     l'exécute et écrit ce qu'il a affiché dans `<results>/_agent/out/`. Toute
+     application IA qui lit et écrit des fichiers convient, et chaque étape
+     est conservée comme fichier.
+  2. **MCP** : l'application IA appelle le programme par son serveur MCP
+     (`arpes-viewer-mcp`) ; quand le programme est lancé avec le pont agent,
+     `viewer_api` appelle les mêmes opérations.
+  3. **Scripts sans écran** : les calculs de `arpes_viewer/tools/` et
+     l'espace de travail sans fenêtre, pour un script à conserver.
+- **Fenêtres.** Une fenêtre qu'une opération n'ouvre que pour la piloter (un
+  dialogue de conversion, une figure provisoire) n'apparaît jamais à l'écran ;
+  les fenêtres encore ouvertes à la fin d'une étape (une figure, une
+  visualisation, un outil qui attend votre saisie) apparaissent sur l'écran du
+  panneau principal, pas sur celui où vous travaillez.
+
+## 7.3 Démarrer depuis le panneau AI assistant
+
+![Le bouton AI assistant : un voyant d'état](images/assistant_button.png)
+
+Cliquez sur **AI assistant...** en haut du panneau d'outils.
+
+![La fenêtre AI assistant avant le démarrage](images/assistant_setup.png)
+
+1. **Dossiers.** Le dossier des **données** (l'agent ne fait que le lire) et
+   un dossier de **résultats** (tout ce que l'agent écrit y va ; ses commandes
+   vont dans `<résultats>/_agent`).
+2. **Ce que vous voulez.** Cochez ce qui convient :
+   - *Ask me before choosing a physical parameter* : Γ, une fenêtre en
+     énergie, le potentiel interne, un seuil ;
+   - *Show me each step and wait for my go-ahead* ;
+   - *Record token / plan usage per step* : un journal d'usage, une ligne par
+     étape ;
+   - *Hide the sample's real identity* dans tout ce qui est écrit ;
+   - *Write a report*, *Make slides* ;
+   - *Keep the list tidy* : proposer à la fin de retirer les lignes
+     intermédiaires.
+
+   Puis écrivez votre demande avec vos mots : quelles données, quelles étapes,
+   quelles figures.
+3. **Votre application IA.** *Works in folders* (recommandé ; rien à
+   configurer) ou *Uses MCP tools* (le prompt explique comment connecter
+   l'application une fois).
+4. Cliquez sur **Copy the prompt and start**. Le programme se met à l'écoute
+   et le prompt est dans le presse-papiers. **Show the prompt** l'affiche : les
+   dossiers, l'emplacement d'`API.md`, la façon d'envoyer les étapes et les
+   règles de travail ([§7.6](#76-les-règles-de-travail-de-lagent)).
+5. Collez le prompt dans votre application IA et envoyez-le. Quand elle le
+   demande, autorisez-la à lire le dossier des données et à lire et écrire
+   celui des résultats.
+
+## 7.4 Suivre et intervenir
+
+![La fenêtre AI assistant pendant que l'agent travaille](images/assistant_running.png)
+
+- **La liste des étapes** (à droite) : chaque étape exécutée par l'agent, avec
+  son heure et ✓, ou ✗ en rouge en cas d'échec. Cliquez sur une étape pour voir
+  ce qu'elle a affiché.
+- **Le voyant d'état** sur le bouton **AI assistant**, même fenêtre fermée :
+  gris à l'arrêt, vert en cours, jaune en pause, rouge une étape échouée ou des
+  commandes qui ne sont plus exécutées. Fermer la fenêtre n'arrête pas l'agent.
+- **Pause the agent** retient ses commandes suivantes (le voyant passe au
+  jaune) pour que vous travailliez à la main ; **Resume** les laisse passer.
+  L'agent a pour consigne d'attendre et de vous demander quand ses commandes
+  sont retenues.
+- **Votre travail continue.** Les étapes de l'agent laissent votre sélection
+  dans la liste telle quelle, vous pouvez donc regarder des données pendant
+  qu'il travaille, et les fenêtres qu'il n'ouvre que pour les piloter
+  n'apparaissent jamais sur vos écrans.
+- **Open results** ouvre le dossier des résultats : les fichiers de commandes
+  et journaux de l'agent dans `_agent`, les images et figures qu'il a écrites.
+
+## 7.5 Autres façons de démarrer
+
+- **Claude Code ou une autre application MCP.** Dans l'AI assistant,
+  choisissez *Uses MCP tools* : le programme active son pont agent et le prompt
+  contient la commande pour ajouter le serveur, pour Claude Code
+  `claude mcp add arpes-viewer -- python -m arpes_viewer.agent`. Si votre
+  application charge les définitions d'outils à la demande, faites-lui charger
+  tous les outils arpes-viewer en une fois.
+- **À la main.** Lancez le programme avec le pont activé
+  (`arpes-viewer --agent-bridge`), ajoutez `arpes-viewer-mcp` aux serveurs MCP
+  de l'application et indiquez `API.md` à l'agent.
+- **Le dossier de commandes sans le panneau.** `agentic/launch_viewer.py`
+  lance le programme à l'écoute d'un dossier de votre choix ;
+  `agentic/README.md` est le guide pas à pas, avec des demandes à copier dans
+  `agentic/PROMPTS.md` et des exemples exécutables dans `agentic/examples/`.
+- **Un script à conserver.** Les calculs de `arpes_viewer/tools/` n'ont besoin
+  d'aucune fenêtre ; `devtools/figure_tests.py` construit ainsi deux figures
+  complètes à partir des données de démonstration.
+
+Le détail du serveur MCP, pour référence :
 
 ARPES viewer est aussi un **serveur MCP** (Model Context Protocol) : un
 agent IA de n'importe quel modèle — Claude, GPT, Gemini, ou un modèle local
@@ -2149,6 +2272,263 @@ aléatoire qu'il écrit au démarrage dans `~/.arpes_viewer/agent_bridge.json`
 `viewer_python` exécute du code dans le programme — accordez-le à un agent
 comme vous le laisseriez taper dans une console Python de votre ordinateur.
 
-Le flux de travail par fichiers de commandes de
-[docs/AGENTIC_WORKFLOW_en.md](AGENTIC_WORKFLOW_en.md) fonctionne toujours ;
-le serveur MCP est la même idée sans le dossier, pour n'importe quel agent.
+La voie du dossier de commandes est détaillée dans
+[docs/AGENTIC_WORKFLOW_en.md](AGENTIC_WORKFLOW_en.md) ; le serveur MCP est
+la même idée sans le dossier.
+
+## 7.6 Les règles de travail de l'agent
+
+Le prompt donne à l'agent des règles tirées de sessions réelles ; `API.md` les
+répète. Vous pouvez en ajouter, ou en remplacer une, dans votre demande.
+
+| Règle | Pourquoi |
+|---|---|
+| Après l'ajout des données, comparer les lignes au dossier et signaler ce qui a été laissé de côté, non reconnu ou signalé | des spectres seuls dans le dossier d'une carte, ou des fichiers qu'aucun lecteur ne prend, ne doivent pas passer inaperçus |
+| Dire quelle partie d'un nom de ligne vient du nom de fichier et laquelle des métadonnées enregistrées ; marquer ce qui est deviné | tout le monde lit ces noms ensuite |
+| Chercher une opération (`L.help()`, `L.tools()`, `L.functions()`) avant tout calcul propre ; ne jamais modifier les tables internes du programme ; s'il manque une opération, dire laquelle et demander | des résultats reproductibles, avec leur historique |
+| Niveau de Fermi : ajuster les données brutes, ligne par ligne, sur l'axe propre de la ligne (`L.fermi_edge_search`), dessiner chaque ajustement ; les lignes de même énergie de photon et de passage doivent concorder ; quand les données ne tranchent pas, demander une fois | la chute la plus raide n'est pas toujours le front ; une seule fenêtre ne convient pas à tous les axes |
+| Enchaîner les étapes en un appel (`L.map_to_k(row, ef=…, normalise_axes=(1, 2))`) pour que seules les lignes finales soient listées ; ne retirer des lignes qu'avec votre accord | une liste qui reste lisible |
+| Essayer les figures dans `check/`, publier une version par figure dans `figures/FigureN/`, mettre de côté les versions remplacées | un seul fichier final par figure |
+| Les grandeurs signées (dichroïsme, différences) ont une palette divergente aux niveaux symétriques | le signe doit se lire |
+| Sorties compactes : `L.rows(compact=True)`, `L.profile(..., summary=True)`, tableaux dans des fichiers | moins de jetons, moins d'envoi au fournisseur |
+| Ne jamais supprimer ni écraser ; demander avant chaque paramètre physique (si coché) | vos données et vos décisions restent les vôtres |
+
+## 7.7 Exemple : un agent, de la configuration à la figure
+
+Cet exemple suit une vraie journée de traitement de données CASSIOPEE par un
+agent (cartes de surface de Fermi et coupes en plusieurs polarisations,
+jusqu'aux figures de dichroïsme), refaite ici sur les données de
+démonstration pour que vous puissiez la reproduire. Les changements du
+programme que cette session a demandés sont dans le
+[CHANGELOG](../CHANGELOG.md) (1.3.2).
+
+**1. Configuration.** AI assistant : données `demo_data`, résultats
+`results_demo` ; *ask before a physical parameter*, *step by step*, *report*
+et *tidy list* cochés ; la demande : *« Process the Γ-plane map and the LH and
+LV cuts along Γ-M: fit E_F per row, convert to k (Γ at normal emission), draw
+the zone (P-3m1, a = 3.3, c = 6 Å), make constant-energy slices at E_F, −0.2
+and −0.4 eV, and the linear dichroism of the two cuts. »* → **Copy the prompt
+and start**, coller dans l'application IA.
+
+**2. D'abord regarder.** Le premier fichier de commandes de l'agent :
+
+```python
+print(L.add_files(DATA))           # added, left_out, unrecognised, warnings
+print(L.rows(compact=True))        # une ligne par jeu de données
+```
+
+Il indique ce que contient le dossier et propose un plan ; avec *step by step*,
+il attend votre feu vert.
+
+**3. Le niveau de Fermi, ligne par ligne**, chacune sur son propre axe en
+énergie :
+
+```python
+found = L.fermi_edge_search(row, temperature=20)   # les fronts candidats
+fit = L.fermi_edge(row, found["candidates"][0]["window"], temperature=20,
+                   picture=os.path.join(HERE, "ef_" + row + ".png"))
+```
+
+![L'ajustement du front de Fermi par l'agent, dessiné pour vous](images/agent_fermi_fit.png)
+
+`fermi_edge_search` liste toutes les chutes de l'EDC qui dépassent le bruit,
+de la plus haute énergie à la plus basse, ajuste chacune et dit laquelle est
+le front de Fermi. Quand deux s'ajustent bien (une queue faible au-dessus
+d'une forte chute, comme sur les vraies données à énergie de passage 20), il
+le dit et l'agent vous demande une fois. Chaque ajustement est dessiné : en
+gris la fenêtre, en rouge le front ajusté.
+
+**4. En impulsion, une ligne chacune.**
+
+```python
+k = L.map_to_k(MAP, ef=EF[MAP], normalise_axes=(1, 2), new_name="map Gamma plane k")
+L.cut_to_k("cut_GM_LH", ef=EF["cut_GM_LH"], new_name="cut GM LH k")
+```
+
+Le passage à E − E_F, la normalisation de chaque coupe de la carte et la
+conversion se font en un appel : seule la ligne finale est listée, et son
+historique enregistre les trois étapes.
+
+**5. La zone et la figure.**
+
+```python
+L.bz_overlay("map Gamma plane k", space_group=164, a=3.3, c=6.0, hkl=(0, 0, 1), offset=0.0)
+L.slice_series("map Gamma plane k", values=[0, -0.2, -0.4], half_width=0.02, cols=3,
+               colormap="blue", flip=True, shared=False, percentiles=(3, 99.7),
+               high_factor=1.4, zone_style="dashed", zone_color="#B8D62020",
+               title="Figure 1")
+L.figure_render("Figure 1", os.path.join(HERE, "..", "figures", "Figure1.png"), dpi=150)
+```
+
+![La figure faite par l'agent](images/agent_figure.png)
+
+**6. Dichroïsme.**
+
+```python
+L.cut_arithmetic("cut GM LH k", "cut GM LV k", operation="asymmetry", normalise="total")
+```
+
+L'arithmétique de coupes du programme, la même que la fenêtre Cut arithmetic
+([§5.5](#55-arithmétique-de-coupes--dichroïsme-et-division-par-une-référence)) : LV mise à l'échelle du total de LH, (LH − LV)/(LH + LV), les
+points de faible intensité masqués.
+
+**7. Suivre.** Pendant ce temps, l'AI assistant liste chaque étape
+([§7.4](#74-suivre-et-intervenir)) ; vous pouvez cliquer sur une étape pour lire sa sortie, mettre
+en pause pour regarder vous-même une ligne, puis reprendre. À la fin, l'agent
+écrit le rapport et, si vous êtes d'accord, retire les lignes intermédiaires ;
+le dossier des résultats contient les figures, les images des ajustements et
+chaque fichier de commandes, qui gardent ensemble la trace exacte de ce qui a
+été fait.
+
+## 7.8 Limites et bonnes pratiques
+
+- **Vérifiez la physique.** Un agent peut choisir un front de Fermi, une
+  position de Γ ou un potentiel interne plausibles mais faux. Cochez *Ask me
+  before choosing a physical parameter* et regardez chaque image
+  d'ajustement.
+- **Gardez la trace.** Les fichiers de commandes de `<résultats>/_agent/` et
+  l'historique des lignes montrent ce qui a été fait ; conservez-les avec les
+  résultats.
+- **Usage.** L'agent ne voit pas sa propre consommation de jetons ; si vous
+  voulez des chiffres dans le journal d'usage, donnez-les-lui.
+- **Confidentialité.** Seul ce que lit l'agent quitte votre ordinateur
+  ([§7.1](#71-principe-et-ce-qui-quitte-votre-ordinateur)) ; gardez ce qui est privé hors des dossiers qu'il peut
+  atteindre.
+- **Encodage.** Les fichiers de commandes sont en UTF-8 ; le programme
+  avertit quand le code d'une étape contient des caractères abîmés par un
+  mauvais encodage (« âˆ’ » pour « − »).
+
+---
+
+# Partie 8 — Entretien
+
+Sauvegarde automatique et récupération, enregistrement du travail, journaux d'erreurs, versions, et que faire quand quelque chose ne va pas.
+
+## 8.1 Sauvegarde automatique, mémoire et récupération
+
+- **Sauvegarde automatique.** Chaque jeu de données calculé (une carte k, une
+  coupe traitée, un résultat d'ajustement…) est écrit, sans compression, dans
+  le dossier de la session sous `~/.arpes_viewer/sessions/` dès qu'il existe.
+  Les balayages en espace réel ne le sont pas (ce sont les mesures
+  elles-mêmes, et elles sont volumineuses).
+- **Une fermeture normale supprime les copies automatiques.** Quand vous
+  fermez la fenêtre principale et confirmez (tout ce que vous voulez garder
+  est enregistré, ou *Close anyway*), les fenêtres ouvertes sont fermées et le
+  dossier de la session est supprimé immédiatement. La copie d'un jeu de
+  données disparaît aussi dès que vous l'enregistrez dans un fichier à vous.
+- **Récupération après un plantage.** Ce n'est que si le programme ne s'est
+  pas fermé normalement (plantage, arrêt forcé) que le dossier de la session
+  est conservé : au démarrage suivant, ses jeux de données vous sont
+  proposés, et il est supprimé au bout de trois jours.
+- **Journal des opérations.** `~/.arpes_viewer/sessions/operations.log`, une
+  ligne par écriture / enregistrement / suppression — pour retrouver ce qui
+  était où.
+- **Cadre Memory** (en bas du panneau d'outils). La mémoire du programme et celle du système, le nombre de
+  fenêtres et de fichiers HDF5 ouverts, et la quantité de données calculées
+  conservées. **Free RAM** abandonne les copies en cache des données
+  calculées (elles sont relues depuis leur fichier de sauvegarde au besoin) ;
+  **Close all** ferme toutes les fenêtres puis libère la mémoire.
+- **Autosaves** (dans le cadre Memory) ouvre le dossier des
+  sessions dans l'explorateur de fichiers, pour supprimer à la main les
+  anciennes copies de travail. Le dossier de la session en cours (nommé dans
+  la barre d'état) est utilisé : n'y touchez pas.
+- **Les opérations longues** (lecture d'une grande carte, conversion,
+  dégrillage, assemblage d'un dossier) tournent hors du fil de l'interface,
+  avec une barre de progression et un bouton Cancel qui fonctionne.
+- **La fermeture** avec des données calculées non enregistrées demande
+  d'abord confirmation, en nommant les jeux de données : **Save to a
+  file...**, **Close anyway** (les copies automatiques sont supprimées) ou
+  **Cancel** (rien ne se passe).
+
+## 8.2 Enregistrer et rouvrir son travail
+
+- **Jeux de données.** Sélectionnez des lignes → boîte Datasets → **Save** :
+  un fichier `.nxs` au format du programme (plusieurs jeux de données par
+  fichier, avec leurs métadonnées et leur historique de traitement), que
+  **Load data...** rouvre ; ou du texte Igor Pro (`.itx`). Un panneau de
+  visualisation exporte ce qu'il montre ([§3.8](#38-exporter-un-panneau-et-enregistrer-des-données)).
+- **Figures.** Dans le composeur, **Save** écrit un fichier `.afig` qui se
+  rouvre pour être modifié, avec les données de chaque panneau à côté
+  (« data for <nom> »), de sorte qu'il s'ouvre même là où les fichiers
+  d'origine ne sont pas. Ne joignez pas ce dossier à ce que vous partagez.
+  **Export** écrit du PNG, PDF, SVG ou TIFF.
+- **Le journal d'expérience** et le **journal de session** gardent la trace de
+  ce qui a été mesuré et fait ([§2.3](#23-le-journal-dexpérience)).
+- Rien n'est écrasé sans demander : enregistrer sur un fichier existant pose
+  d'abord la question.
+
+## 8.3 Journaux d'erreurs et rapports de bogue
+
+Quand quelque chose se passe mal, le programme **continue de tourner** et
+enregistre l'erreur et sa trace dans
+**`error_logs/errors_<date>_<heure>.txt` dans le dossier du programme** (dans
+`~/.arpes_viewer/error_logs/` si ce dossier n'est pas accessible en
+écriture), un fichier par session où une erreur s'est produite. Un message
+l'indique.
+
+Pour signaler un bogue, ouvrez une issue sur
+<https://github.com/DingPei1995/ARPES-viewer/issues> avec :
+
+- le journal d'erreurs : **téléversez le fichier** (glissez-le dans la zone de
+  texte) **ou collez son texte**. La dernière ligne du panneau principal a
+  **Copy the newest error log** et **Open the error logs** ;
+- la version, lue dans la barre de titre ;
+- ce que vous faisiez juste avant et, si possible, le type de fichier (ligne,
+  coupe ou carte).
+
+Si le programme ne démarre pas du tout, le journal du lanceur
+`~/.arpes_viewer/launcher.log` en donne la raison.
+
+## 8.4 Versions et mises à jour
+
+La barre de titre et la dernière ligne du panneau principal montrent la
+version et sa date (`ARPES viewer v1.3.2 (updated 2026-11-04)`). Ce qui a
+changé à chaque version, et pourquoi, est dans le
+[CHANGELOG](../CHANGELOG.md).
+
+Pour mettre à jour une installation pip :
+
+```bash
+pip install --upgrade arpes-viewer
+```
+
+Pour la dernière version non publiée, `pip install
+git+https://github.com/DingPei1995/ARPES-viewer` ; une copie téléchargée se met
+à jour en la téléchargeant de nouveau. Les données et figures enregistrées
+par une version antérieure s'ouvrent dans les suivantes.
+
+## 8.5 Conseils et dépannage
+
+- **Un bouton d'outil grisé** — survolez-le : l'infobulle dit pourquoi (par
+  ex. l'ajustement MDC exige une coupe déjà en Å⁻¹, l'arithmétique de coupes
+  deux coupes). Sélectionnez les bonnes lignes dans la liste et il s'allume.
+- **Un outil manque au menu Functions d'une fenêtre** — il est dans le
+  panneau d'outils (voir *Où se trouvent les choses maintenant* au
+  [§2.1](#21-la-fenêtre-principale-en-un-coup-dœil)) ; regardez les trois onglets (Basic,
+  Advanced, Figure).
+- **Une fenêtre est plus haute que l'écran** — elle s'ouvre au plus à la
+  hauteur de l'écran et son contenu défile ; les boutons Apply / Close
+  restent en bas. Toutes les fenêtres se redimensionnent.
+- **Aucune conversion en k n'est proposée** — le premier axe de la carte
+  n'est pas un angle (énergie de photon, température…). Vérifiez *First axis
+  of a map is* dans la fenêtre de chargement.
+- **Conversion en k d'une coupe en E − E_F** — le décalage en énergie est
+  rempli pour vous à partir de l'ajustement de Fermi ; si vous avez décalé
+  l'axe autrement, saisissez dans *Energy offset* l'énergie cinétique de E_F
+  (énergie de photon − travail de sortie).
+- **Un fichier est mal lu** — choisissez explicitement le lecteur dans la
+  fenêtre de chargement, et voyez *Assumptions worth knowing about* dans la
+  [référence technique de la lecture](../arpes_viewer/loader/README.md#assumptions-worth-knowing-about)
+  (ordre des axes dans les fichiers SOLEIL).
+- **Le curseur est lent sur une grande carte** — une carte lue à la demande
+  dans son fichier se recoupe en environ 0,1 s par fenêtre, si bien que les
+  autres fenêtres attendent que la souris s'arrête. Une fois la carte lue en
+  mémoire, elle suit en direct.
+- **Saisie des nombres** — toutes les cases numériques prennent un point
+  décimal (`0.05`), quelle que soit la langue du système ; la virgule n'est
+  pas acceptée.
+- **La machine utilise la mémoire d'échange** — surveillez la barre Memory
+  (ambre au-delà d'un tiers de la RAM, rouge au-delà de la moitié) ; utilisez
+  **Free RAM** ou **Close all**.
+
+<!-- Generated by devtools/build_guide.py from docs/guide/fr/: edit those files, not this one. -->

@@ -4,87 +4,145 @@
 
 *Last updated: 4 November 2026 — for ARPES viewer v1.3.2*
 
-The version and its date are in the main window's title bar and at the bottom of
-the main window. Bug reports, questions and the latest version:
+The version and its date are in the main window's title bar and on its last
+line. Bug reports, questions and the latest version:
 <https://github.com/DingPei1995/ARPES-viewer> (please give the version
 number when reporting a bug).
 
-This guide walks through the program's features with screenshots, in the
-order of the tool panel: getting started (installing, loading, the main
-window and the viewers), then the **Basic**, **Advanced** and
-**Figure** tabs, then figures — ending with two figures built step
-by step in the figure composer. The technical
-background for each step (formulas, test results, design choices) is in the
-technical references beside the code — [reading data](../arpes_viewer/loader/README.md),
-[the windows](../arpes_viewer/ui/README.md), [analysis](../arpes_viewer/tools/README.md) — and in the
+The guide follows the program as it appears on screen:
+
+- **Part 1** gets you started: installing, the demo data, the files the
+  program reads, setting up an AI agent, and how the code is organised.
+- **Part 2** is the main panel: the list of datasets and what is around it.
+- **Part 3** is the data viewers: cuts, maps, kz maps, k-maps, curves, spin
+  and spatially resolved scans.
+- **Parts 4, 5 and 6** are the three tabs of the tool panel (**Basic**,
+  **Advanced**, **Figure**). Part 6 ends with an example that goes from
+  loading data to a finished figure.
+- **Part 7** is AI agents: how they drive the program, how to start and
+  watch one, and an example from set-up to figure.
+- **Part 8** is housekeeping: autosave and recovery, saving work, error
+  logs, versions, and troubleshooting.
+
+Every screenshot was taken from the running program on the synthetic data
+of `devtools/demo_data.py`, so you can follow along without a beamtime
+([§1.3](#13-trying-it-with-demo-data)). **These are not real experimental
+data.** The technical background of each step (formulas, tests, design
+choices) is in the references beside the code:
+[reading data](../arpes_viewer/loader/README.md),
+[the windows](../arpes_viewer/ui/README.md),
+[analysis](../arpes_viewer/tools/README.md), and the
 [CHANGELOG](../CHANGELOG.md).
-
-Every screenshot was taken from the running program, using the synthetic
-data written by `devtools/demo_data.py`, so you can follow along without a
-beamtime (see [Trying it with demo data](#2-trying-it-with-demo-data)).
-
----
 
 ## Contents
 
-**[Part I — Getting started](#part-i--getting-started)**
+**[Part 1 — Getting started](#part-1--getting-started)**
 
-1. [Installing and starting](#1-installing-and-starting)  
-2. [Trying it with demo data](#2-trying-it-with-demo-data)  
-3. [The main window](#3-the-main-window)  
-4. [Loading data](#4-loading-data)  
-5. [What the viewers have in common](#5-what-the-viewers-have-in-common)  
-6. [Maps: the contour and its two cuts](#6-maps-the-contour-and-its-two-cuts)  
-7. [Arbitrary cuts and Fermi-surface correction](#7-arbitrary-cuts-and-fermi-surface-correction)
+- [1.1 What ARPES viewer is](#11-what-arpes-viewer-is)
+- [1.2 Installing and starting](#12-installing-and-starting)
+- [1.3 Trying it with demo data](#13-trying-it-with-demo-data)
+- [1.4 Facilities and file formats](#14-facilities-and-file-formats)
+- [1.5 Data kinds](#15-data-kinds)
+- [1.6 Setting up an AI agent](#16-setting-up-an-ai-agent)
+- [1.7 How the code is organised](#17-how-the-code-is-organised)
+- [1.8 Where the program keeps its files](#18-where-the-program-keeps-its-files)
 
-**[Part II — The Basic tab](#part-ii--the-basic-tab)**
+**[Part 2 — The main panel](#part-2--the-main-panel)**
 
-8. [Fermi edge fit](#8-fermi-edge-fit)  
-9. [Removing the detector grid and detector corrections](#9-removing-the-detector-grid-and-detector-corrections)  
-10. [Background subtraction](#10-background-subtraction)  
-11. [Converting a cut to momentum](#11-converting-a-cut-to-momentum)  
-12. [Core-level check](#12-core-level-check)  
-13. [Converting a map to momentum](#13-converting-a-map-to-momentum)  
-14. [Photon-energy scans (kz)](#14-photon-energy-scans-kz)  
-15. [Brillouin zone](#15-brillouin-zone)
+- [2.1 The main window at a glance](#21-the-main-window-at-a-glance)
+- [2.2 Loading data](#22-loading-data)
+- [2.3 The experiment log](#23-the-experiment-log)
+- [2.4 Combining datasets: stacking, joining and summing](#24-combining-datasets-stacking-joining-and-summing)
+- [2.5 Step-by-step windows](#25-step-by-step-windows)
 
-**[Part III — The Advanced tab](#part-iii--the-advanced-tab)**
+**[Part 3 — The data viewers](#part-3--the-data-viewers)**
 
-16. [Smoothing, derivatives, curvature and symmetrising](#16-smoothing-derivatives-curvature-and-symmetrising)  
-17. [Ridge detection](#17-ridge-detection)  
-18. [Stack plots](#18-stack-plots)  
-19. [MDC fit and EDC fit](#19-mdc-fit-and-edc-fit)  
-20. [Cut arithmetic: dichroism and reference division](#20-cut-arithmetic-dichroism-and-reference-division)  
-21. [Slice series figure](#21-slice-series-figure)  
-22. [The 3-D views](#22-the-3-d-views)  
-23. [Curves: EDCs, MDCs and spin-resolved data](#23-curves-edcs-mdcs-and-spin-resolved-data)  
-24. [Spatially resolved scans (nano-ARPES)](#24-spatially-resolved-scans-nano-arpes)
+- [3.1 What the viewers have in common](#31-what-the-viewers-have-in-common)
+- [3.2 Maps: the contour and its two cuts](#32-maps-the-contour-and-its-two-cuts)
+- [3.3 Arbitrary cuts and Fermi-surface correction](#33-arbitrary-cuts-and-fermi-surface-correction)
+- [3.4 kz maps and k-maps](#34-kz-maps-and-k-maps)
+- [3.5 Curves: EDCs, MDCs and the curve fit](#35-curves-edcs-mdcs-and-the-curve-fit)
+- [3.6 Spin-resolved data](#36-spin-resolved-data)
+- [3.7 Spatially resolved scans (nano-ARPES)](#37-spatially-resolved-scans-nano-arpes)
+- [3.8 Exporting a panel and saving data](#38-exporting-a-panel-and-saving-data)
 
-**[Part IV — The Figure tab](#part-iv--the-figure-tab)**
+**[Part 4 — The tool panel: Basic tab](#part-4--the-tool-panel-basic-tab)**
 
-25. [Crystal structure and the 3-D Brillouin zone](#25-crystal-structure-and-the-3-d-brillouin-zone)  
-26. [Tight-binding fit](#26-tight-binding-fit)  
-27. [Calculated bands](#27-calculated-bands)
+- [4.1 How the tool buttons work](#41-how-the-tool-buttons-work)
+- [4.2 Fermi edge fit](#42-fermi-edge-fit)
+- [4.3 Removing the detector grid](#43-removing-the-detector-grid)
+- [4.4 Detector corrections](#44-detector-corrections)
+- [4.5 Background subtraction](#45-background-subtraction)
+- [4.6 Converting a cut to momentum](#46-converting-a-cut-to-momentum)
+- [4.7 Core-level check](#47-core-level-check)
+- [4.8 Converting a map to momentum](#48-converting-a-map-to-momentum)
+- [4.9 Aligning the Fermi levels of a kz map](#49-aligning-the-fermi-levels-of-a-kz-map)
+- [4.10 Converting a kz map to momentum](#410-converting-a-kz-map-to-momentum)
+- [4.11 Brillouin zone](#411-brillouin-zone)
 
-**[Part V — Figures and output](#part-v--figures-and-output)**
+**[Part 5 — The tool panel: Advanced tab](#part-5--the-tool-panel-advanced-tab)**
 
-28. [The figure composer](#28-the-figure-composer)  
-29. [Exporting a panel and saving data](#29-exporting-a-panel-and-saving-data)  
-30. [Worked example: two figures in the figure composer](#30-worked-example-two-figures-in-the-figure-composer)
+- [5.1 Smoothing, derivatives, curvature and symmetrising](#51-smoothing-derivatives-curvature-and-symmetrising)
+- [5.2 Ridge detection](#52-ridge-detection)
+- [5.3 Stack plots](#53-stack-plots)
+- [5.4 MDC fit and EDC fit](#54-mdc-fit-and-edc-fit)
+- [5.5 Cut arithmetic: dichroism and reference division](#55-cut-arithmetic-dichroism-and-reference-division)
+- [5.6 Slice series figure](#56-slice-series-figure)
+- [5.7 The 3-D views](#57-the-3-d-views)
 
-**[Part VI — Housekeeping](#part-vi--housekeeping)**
+**[Part 6 — The tool panel: Figure tab](#part-6--the-tool-panel-figure-tab)**
 
-31. [Autosave, memory and recovery](#31-autosave-memory-and-recovery)  
-32. [Tips and troubleshooting](#32-tips-and-troubleshooting)  
-33. [Driving the program from an AI agent (MCP)](#33-driving-the-program-from-an-ai-agent-mcp)  
+- [6.1 The figure composer](#61-the-figure-composer)
+- [6.2 Crystal structure](#62-crystal-structure)
+- [6.3 3D BZ: the Brillouin zone in three dimensions](#63-3d-bz-the-brillouin-zone-in-three-dimensions)
+- [6.4 Tight-binding fit](#64-tight-binding-fit)
+- [6.5 Calculated bands](#65-calculated-bands)
+- [6.6 Worked example: from loading data to a figure](#66-worked-example-from-loading-data-to-a-figure)
+- [6.7 Worked example: two figures in the figure composer](#67-worked-example-two-figures-in-the-figure-composer)
+
+**[Part 7 — AI agents](#part-7--ai-agents)**
+
+- [7.1 How it works, and what leaves your computer](#71-how-it-works-and-what-leaves-your-computer)
+- [7.2 Architecture: operations, reference, routes](#72-architecture-operations-reference-routes)
+- [7.3 Starting from the AI assistant panel](#73-starting-from-the-ai-assistant-panel)
+- [7.4 Watching and stepping in](#74-watching-and-stepping-in)
+- [7.5 Other ways to start](#75-other-ways-to-start)
+- [7.6 The working rules the agent follows](#76-the-working-rules-the-agent-follows)
+- [7.7 Worked example: an agent from set-up to figure](#77-worked-example-an-agent-from-set-up-to-figure)
+- [7.8 Limitations and good practice](#78-limitations-and-good-practice)
+
+**[Part 8 — Housekeeping](#part-8--housekeeping)**
+
+- [8.1 Autosave, memory and recovery](#81-autosave-memory-and-recovery)
+- [8.2 Saving and reopening work](#82-saving-and-reopening-work)
+- [8.3 Error logs and bug reports](#83-error-logs-and-bug-reports)
+- [8.4 Versions and updates](#84-versions-and-updates)
+- [8.5 Tips and troubleshooting](#85-tips-and-troubleshooting)
 
 ---
 
-# Part I — Getting started
+# Part 1 — Getting started
 
----
+What the program is, how to install and start it, the demo data that every screenshot is made from, the files it reads, how to connect an AI agent, and where things are in the code and on disk.
 
-## 1. Installing and starting
+## 1.1 What ARPES viewer is
+
+ARPES viewer is a Python/PyQt5 program for angle-resolved photoemission
+data. It browses the measurements of a beamtime, opens each in its own
+window, converts to momentum, cuts, fits and processes, compares with
+band-structure calculations, and lays the results out as a publication
+figure. Every step is also plain Python that a script or an AI agent can
+run.
+
+It is free for **non-commercial use** (academic research and teaching), under
+the PolyForm Noncommercial License 1.0.0. If you use it for a paper, please
+cite it: Ding Pei, *ARPES viewer*, Zenodo,
+<https://doi.org/10.5281/zenodo.23771647>.
+
+It is not an acquisition program and does not change your data files: every
+result is a new dataset in the list or a new file you choose.
+
+## 1.2 Installing and starting
 
 You need Python 3.9 or newer and five packages:
 
@@ -141,16 +199,9 @@ a Python yourself.
 - If the program stops with an error, the dialog shows the end of
   `~/.arpes_viewer/launcher.log`; please send that file with a bug report.
 
-The program reads:
+The files it reads are listed in [§1.4](#14-facilities-and-file-formats).
 
-| Beamline / source | Files |
-|---|---|
-| SOLEIL **ANTARES** | NeXus/HDF5 `*.nxs` (cuts, deflector maps, spatial scans) |
-| SOLEIL **CASSIOPEE** | Scienta SES text files — single spectra, and numbered folders assembled into a map or a photon-energy scan |
-| CASSIOPEE **spin end station** (MBS A-1) | `*.krx` and `*.txt` — cuts, deflector maps and spin-resolved EDCs |
-| This program | its own saved `*.nxs` format |
-
-## 2. Trying it with demo data
+## 1.3 Trying it with demo data
 
 ```bash
 python devtools/demo_data.py            # writes ./demo_data/
@@ -172,7 +223,7 @@ This writes synthetic data that opens exactly like measured data:
   Wannier90 Hamiltonian (`demo_calc_hr.dat` with `demo_calc.win`) and the
   same bands on a grid (`demo_calc.bxsf`). It is the crystal before
   renormalisation -- its bands 1/0.8 times wider and 50 meV higher -- which is
-  what fitting it to the data recovers ([§27](#27-calculated-bands));
+  what fitting it to the data recovers ([§6.5](#65-calculated-bands));
 - two crystal structures as CIF files (`demo_crystal.cif`, a 1T layered
   hexagonal crystal; `demo_tetragonal_crystal.cif`, a ZrSiS-type one) and an
   EDS spectrum (`demo_eds.nxs`).
@@ -185,14 +236,101 @@ To re-take every screenshot in this guide after changing a window:
 python devtools/guide_screenshots.py    # writes docs/images/*.png
 ```
 
-The two example figures of [§30](#30-worked-example-two-figures-in-the-figure-composer)
+The two example figures of [§6.7](#67-worked-example-two-figures-in-the-figure-composer)
 are rebuilt, from the demo data and with the program's own windows, by
 
 ```bash
 python devtools/figure_tests.py docs/images [folder for the .afig files]
 ```
 
-## 3. The main window
+## 1.4 Facilities and file formats
+
+The reader for a file is detected automatically ([§2.2](#22-loading-data)).
+
+| Facility / beamline | Files | Data |
+|---|---|---|
+| SOLEIL **ANTARES** | NeXus `*.nxs` | cuts, deflector maps, photon-energy (PhD) scans, spatial scans |
+| SOLEIL **CASSIOPEE** | Scienta text `*.txt` | single spectra; numbered folders assembled into a map or a photon-energy scan |
+| CASSIOPEE **spin end station** (MBS A-1) | `*.krx`, `*.txt` | cuts, deflector maps, spin-resolved EDCs |
+| ALS **MAESTRO** | `*.h5`, `*.hdf5` | cuts, maps, photon-energy and spatial scans |
+| ALBA **LOREA** | `*.nxs` | cuts, maps |
+| Diamond **I05** (HR-ARPES) and **I05-1** (nano-ARPES) | `*.nxs` | cuts, maps, photon-energy scans, spatial scans |
+| MAX IV **Bloch** (and any Scienta SES file no other reader claims) | `*.ibw`, `*.zip`, `*.txt` | cuts, deflector maps, photon-energy and manipulator scans |
+| Elettra **APE**, BESSY **One Cube / One Square**, SOLARIS **URANOS** | `*.ibw`, `*.zip`, `*.txt` | as SES writes them |
+| ASTRID2 **SGM4** | `*.h5`, `*.hdf5` | cuts, maps, knife-edge scans |
+| This program | its own `*.nxs` | anything it saved, several datasets per file |
+
+Datasets are written back as the program's own `.nxs` (which it opens again)
+or as Igor Pro text (`.itx`). How each facility's files are read, and the
+assumptions their formats force, is in
+[the loaders' reference](../arpes_viewer/loader/README.md); adding a
+beamline is explained there too.
+
+## 1.5 Data kinds
+
+| Kind | Axes | What it is |
+|---|---|---|
+| `cut` | angle (or k) × E | one spectrum |
+| `map` | angle × angle × E | a deflector or polar-angle scan |
+| `k_map` | kx × ky × E | a map converted to momentum |
+| `kz_map` | hν × angle × E | a photon-energy scan |
+| `kz_map_k` | k_z × k∥ × E | that scan converted to momentum |
+| `spem_4d`, `spem_1d` | x (× y) × angle × E | real-space scans |
+| `edc`, `mdc`, `spin_edc` | E (or k) × channels | curves, with optional σ channels |
+
+## 1.6 Setting up an AI agent
+
+An AI agent can drive the program for you ([Part 7](#part-7--ai-agents)).
+There is nothing extra to install for the usual route:
+
+1. Have an AI app that can read and write files on your computer: the
+   Claude desktop app, Claude Code, or a similar agent.
+2. In ARPES viewer, press **AI assistant...** at the top of the tool panel,
+   choose the data and results folders, and press **Copy the prompt and
+   start** ([§7.3](#73-starting-from-the-ai-assistant-panel)).
+3. Paste the prompt into the AI app and allow it to read the data folder
+   and to read and write the results folder.
+
+An app that uses MCP tools instead needs the program's MCP server added once;
+the prompt says how ([§7.5](#75-other-ways-to-start)). Before you start,
+read what leaves your computer ([§7.1](#71-how-it-works-and-what-leaves-your-computer)).
+
+## 1.7 How the code is organised
+
+| Folder | What is in it |
+|---|---|
+| `arpes_viewer/loader/` | the readers: one per facility (`beamlines/`), shared formats (`formats/`), the program's own `.nxs`, the session's autosave |
+| `arpes_viewer/tools/` | the computations, without any window: spectra (Fermi edge, fits, core levels, spin), momentum (k and kz conversion), processing (smoothing, derivatives, cut arithmetic ...), crystal (lattices, Brillouin zones, calculated bands), output (figures, export) |
+| `arpes_viewer/ui/` | the windows: the main panel (`launcher/`), the viewers (`viewers/`), the tool windows (`panels/`), shared pieces (`common/`), including the agent's operations `L` (`common/live.py`) |
+| `arpes_viewer/agent/` | the MCP server, the agent bridge, and `API.md`, the agent's reference generated from the program |
+| `agentic/` | examples and recipes for agents and scripts |
+| `devtools/` | the demo data, the screenshots, the figure tests, the guide's build |
+| `test/` | the tests (`python -m pytest`) |
+
+Because the computations in `tools/` need no window, a script can call them
+directly, for example `arpes_viewer.tools.momentum.kspace.convert_map(...)`.
+Each folder has a README with the formulas and tests behind it; the layout
+and conventions are in [the developer notes](DEVELOPER.md).
+
+## 1.8 Where the program keeps its files
+
+| Where | What |
+|---|---|
+| `~/.arpes_viewer/` | settings remembered between sessions, the launcher's log, the agent bridge's token while it runs, the AI assistant's last folders |
+| `~/.arpes_viewer/sessions/` | the autosaved copies of computed datasets, one folder per session, and `operations.log` ([§8.1](#81-autosave-memory-and-recovery)) |
+| `error_logs/` in the program's folder (else `~/.arpes_viewer/error_logs/`) | one text file per session in which an error happened ([§8.3](#83-error-logs-and-bug-reports)) |
+| `<results>/_agent/` | an agent's command files, their output and pictures, when started from the AI assistant ([§7.3](#73-starting-from-the-ai-assistant-panel)) |
+
+Your data folders are only read; the program writes into them only when you
+save a file there yourself.
+
+---
+
+# Part 2 — The main panel
+
+The main window is a browser of datasets. This part covers the list and everything around it except the tool panel (Parts 4–6) and the AI assistant (Part 7).
+
+## 2.1 The main window at a glance
 
 ![The main window](images/main_window_info.png)
 
@@ -203,31 +341,13 @@ kind is written after the name: `[Cut]`, `[Map]`, `[kz map]`, `[k-map]`,
 
 It has three parts:
 
-- **The tool panel** (left) — every analysis and processing tool, as a
-  button, in three tabs. **Basic** (shown at start) holds what nearly every
-  dataset goes through: Fermi edge fit, detector-grid removal, background
-  subtraction, the three k conversions, the core-level check, aligning a kz
-  map's Fermi levels, the Brillouin zone overlay (*BZ overlap*) and the
-  detector corrections.
-  **Advanced** holds the analysis:
-  smoothing and the band-sharpening filters, symmetrising,
-  ridge detection, stack plots, MDC and EDC fits, cut arithmetic, the slice
-  series figure and the four 3-D views. **Figure** holds the **figure
-  composer** (at the top) and what is worked out rather than measured: the
-  crystal structure, the 3-D Brillouin zone (*3D BZ*), the tight-binding
-  fit and calculated band structures (see
-  [Part IV](#part-iv--the-figure-tab)).
-  Within a tab the tools are grouped by the data they
-  take (*2D & 3D — cuts, maps*, *2D only — cuts*, *3D only — maps* …).
+- **The tool panel** (left): the **AI assistant...** button at the top
+  ([Part 7](#part-7--ai-agents)), then every analysis and processing tool as
+  a button, in three tabs: **Basic**, **Advanced** and **Figure**
+  ([Parts 4–6](#part-4--the-tool-panel-basic-tab)). Below the tabs, the
+  **Datasets** box.
 - **The list** (right), with its buttons.
 - **The Memory box** (bottom left) and the version line (bottom right).
-
-![The Advanced tab of the tool panel](images/main_window_advanced.png)
-
-**The tool buttons follow the selection.** A button lights up only when the
-rows selected in the list are what it takes — a k conversion (cut) needs one
-angle cut, cut arithmetic exactly two cuts, a 3-D view a map. A greyed button
-says why when you hover over it.
 
 | Action | How |
 |---|---|
@@ -249,10 +369,9 @@ not fit the selection is greyed, with the reason in its tooltip.
 
 **The Datasets box** (tool panel, between the tools and Memory) holds the
 rest of what is done to the rows: **Experiment info**, **Log format...** and
-**Auto Exp. log** side by side (see [the experiment log](#the-experiment-log)),
+**Auto Exp. log** side by side (see [the experiment log](#23-the-experiment-log)),
 **Rename**, **Save** and **Remove** on one row, and **Session log...**. Its
-buttons grey out like the tools. (Summing repeated scans is now one of the
-ways of **Combine...**, under the list.)
+buttons grey out when they do not fit the selection.
 
 **Finding and ordering rows.** The **search box** above the list shows only
 the rows whose name or kind holds every word typed (`map 80K`); clear it to
@@ -260,42 +379,43 @@ see them all. Hidden rows are deselected, so nothing out of sight is acted
 on. Right-click the list → **Sort by name** (`Cut_9` before `Cut_10`) or
 **Sort by data type** (cuts, maps, k-maps… each group by name).
 
-### Where things are now (v1.3.2)
+## 2.2 Loading data
 
-If you used an earlier version: the tools moved out of the right-click menu
-and the viewers' *Functions* menus into the tool panel, so each has one way
-in, always in sight.
+**Load data...** opens the loader. **Quick add...** skips it and adds the
+chosen files with everything detected automatically.
 
-| Now | Was |
-|---|---|
-| Tool panel → Basic → **Fermi edge fit...** (cuts and maps) | viewer *Functions → Fermi edge fit* |
-| Tool panel → Basic → **Remove detector grid...** | viewer *Functions → Remove detector grid* |
-| Tool panel → Basic → **k conversion (cut)** / **(map)**, **kz conversion** | viewer *Functions → Convert to momentum* |
-| Tool panel → Basic → **Align Fermi levels (kz)...** | viewer *Functions → Align Fermi levels (kz map)* |
-| Tool panel → Basic → **BZ overlap...** | **Brillouin zone...** (v1.2.3); k-map viewer *Functions → Brillouin zone* |
-| Tool panel → **Figure** tab | the **Calculation** tab (v1.2.3) |
-| Tool panel → Figure → **3D BZ...** | Crystal structure, step 4 *Brillouin zone* |
-| Tool panel → Figure → **Figure composer...** (top of the tab) | Tool panel → Advanced (v1.2.3); right-click → Open in figure composer |
-| **Combine...** → *Sum repeated scans* | Datasets box → **Sum repeated scans...** (v1.2.3) |
-| Tool panel → Basic → **Core-level check...** | right-click → Core-level check |
-| Tool panel → Basic/Advanced → **Background subtraction**, **Smooth**, **Second derivative**, **Curvature**, **Symmetrise** (one window each) | **Smooth / derivative...** (one window with tabs) |
-| **Truncate...**, **Compress...**, **Self-normalise...** under the list | **Crop / bin / normalise...** |
-| Tool panel → Advanced → **MDC fit (k-cut only)**, **EDC fit** | viewer *Functions → MDC / EDC fit* |
-| Tool panel → Advanced → **Cut arithmetic (two cuts)** | right-click / viewer *Functions → Cut arithmetic* |
-| Tool panel → Advanced → **Slice series figure...** | map viewer *Functions → Multi-slice figure* |
-| Tool panel → Advanced → **3D slices**, **Notched cube**, **Volume projection** | right-click → 3D view (one window, three modes) |
-| Right-click → **Open scan-axis cut**, viewer button **Scan-axis cut** | Open deflector cut, Deflector cut |
-| Memory box → **Free RAM**, **Close all**, **Autosaves** (one row) | under the list; then Free memory, Close all viewers, Open auto-save folder |
-| Datasets box → **Experiment info** | right-click → Show information |
-| Datasets box → **Rename**, **Save**, **Remove** (one row), **Session log...** | right-click; then Rename..., Save datasets..., Remove from list |
-| **Combine...** under the list (only) | also right-click → Combine N datasets |
+![The loader](images/loader_dialog.png)
 
-**Experiment info** also opens the full metadata of the dataset in a window
-of its own, with a filter box and **Export metadata (.csv)**:
+1. **Files** — pick one or many (*Select file(s)...*). The file filter is built
+   from what the installed readers can open.
+2. **Reader** — detected automatically, and the result is shown
+   (*Detected: 3 × This program's own format*). Override it only if a file is
+   being misread.
+3. **Datasets found** — what is inside each file, read from its *structure*
+   only. This is instant even for a multi-GB scan; nothing is read until you
+   open a row.
+4. **Axes** — *Axis order* reorders the array's dimensions once, at the door.
+   *First axis of a map is* says what was scanned: a deflector angle (the
+   default), a **photon energy**, a temperature, a gate voltage, a delay… This
+   keeps the right unit everywhere afterwards, and stops a k conversion being
+   offered for an axis that is not an angle.
 
-![Dataset information](images/information_window.png)
+**CASSIOPEE folders.** Select any file of a numbered series
+(`name_1_ROI1_.txt`, `name_2_ROI1_.txt`, …) and the whole folder is listed
+once, as one assembled cube. Whether it becomes an angle map or a kz map is
+read from the `_i` parameter files next to the spectra. The row is named
+with the photon energy and polarisation read from those files —
+`FineMap 117eV LH`, or `KzScan 40-120eV LH` for a photon-energy scan — so
+repeats of the same scan at another energy or polarisation can be told
+apart.
 
-### The experiment log
+**ANTARES photon-energy (PhD) files.** A PhD `.nxs` file (one `Phd_NNNN`
+entry per photon energy) is listed as one `kz map`: the frames are sorted by
+photon energy and each kinetic-energy axis is referred to E_F with its own
+hν (work function 4.5 eV, which the k_z conversion then uses). Each frame
+still opens on its own as a cut.
+
+## 2.3 The experiment log
 
 Two buttons side by side in the **Datasets** box write the beamtime's log --
 a CSV file, one row per measurement -- from the files' own metadata:
@@ -357,7 +477,7 @@ first time, it opens *Log format...* first.
 If the log is open in Excel, Windows will not let it be written: close it
 there and click again.
 
-### Combining datasets: stacking and joining
+## 2.4 Combining datasets: stacking, joining and summing
 
 **Combine...** (under the list) does two different things, and asks which:
 
@@ -395,7 +515,7 @@ there and click again.
 
 A photon-energy series of angle cuts becomes a `kz map`, so *Align Fermi
 levels (kz map)* and *Convert to momentum (kz, k∥)* take it (see
-[§14](#14-photon-energy-scans-kz)); any other axis gives a `map` whose first
+[§4.9](#49-aligning-the-fermi-levels-of-a-kz-map)); any other axis gives a `map` whose first
 axis is marked as not an angle, so no k conversion is offered for it.
 
 **Joining pieces of a measurement**
@@ -448,7 +568,7 @@ be caught. Select the scans (two or more of one kind) → **Combine...** →
    whether to undo the energy shifts, **Sum** or **Mean**, and **Sum to
    list**.
 
-### Step-by-step windows
+## 2.5 Step-by-step windows
 
 The tools that take several decisions open as **numbered steps** (sum
 repeated scans, detector corrections, tight-binding fit, crystal structure,
@@ -457,55 +577,13 @@ the step is for and what to do, **Next →** stays greyed (with the reason
 beside it) until the step is done, and **← Back** or the list of steps on
 the left goes back.
 
-## 4. Loading data
+---
 
-**Load data...** opens the loader. **Quick add...** skips it and adds the
-chosen files with everything detected automatically.
+# Part 3 — The data viewers
 
-![The loader](images/loader_dialog.png)
+Each dataset opens in a viewer window of its own. This part covers what all viewers share, then each kind of data in turn.
 
-1. **Files** — pick one or many (*Select file(s)...*). The file filter is built
-   from what the installed readers can open.
-2. **Reader** — detected automatically, and the result is shown
-   (*Detected: 3 × This program's own format*). Override it only if a file is
-   being misread.
-3. **Datasets found** — what is inside each file, read from its *structure*
-   only. This is instant even for a multi-GB scan; nothing is read until you
-   open a row.
-4. **Axes** — *Axis order* reorders the array's dimensions once, at the door.
-   *First axis of a map is* says what was scanned: a deflector angle (the
-   default), a **photon energy**, a temperature, a gate voltage, a delay… This
-   keeps the right unit everywhere afterwards, and stops a k conversion being
-   offered for an axis that is not an angle.
-
-**CASSIOPEE folders.** Select any file of a numbered series
-(`name_1_ROI1_.txt`, `name_2_ROI1_.txt`, …) and the whole folder is listed
-once, as one assembled cube. Whether it becomes an angle map or a kz map is
-read from the `_i` parameter files next to the spectra. The row is named
-with the photon energy and polarisation read from those files —
-`FineMap 117eV LH`, or `KzScan 40-120eV LH` for a photon-energy scan — so
-repeats of the same scan at another energy or polarisation can be told
-apart.
-
-**ANTARES photon-energy (PhD) files.** A PhD `.nxs` file (one `Phd_NNNN`
-entry per photon energy) is listed as one `kz map`: the frames are sorted by
-photon energy and each kinetic-energy axis is referred to E_F with its own
-hν (work function 4.5 eV, which the k_z conversion then uses). Each frame
-still opens on its own as a cut.
-
-### Data kinds
-
-| Kind | Axes | What it is |
-|---|---|---|
-| `cut` | angle (or k) × E | one spectrum |
-| `map` | angle × angle × E | a deflector or polar-angle scan |
-| `k_map` | kx × ky × E | a map converted to momentum |
-| `kz_map` | hν × angle × E | a photon-energy scan |
-| `kz_map_k` | k_z × k∥ × E | that scan converted to momentum |
-| `spem_4d`, `spem_1d` | x (× y) × angle × E | real-space scans |
-| `edc`, `mdc`, `spin_edc` | E (or k) × channels | curves, with optional σ channels |
-
-## 5. What the viewers have in common
+## 3.1 What the viewers have in common
 
 Each dataset opens in its own window, so you can put a map, its cuts and
 another file side by side.
@@ -530,19 +608,19 @@ another file side by side.
   shown as a shaded band on the image. Type a position into the **Cursor**
   row and press Enter to put it exactly there.
 - **EDC → list** / **MDC → list** put the curve on screen in the main list as
-  a dataset of its own (see [§23](#23-curves-edcs-mdcs-and-spin-resolved-data)).
+  a dataset of its own (see [§3.5](#35-curves-edcs-mdcs-and-the-curve-fit)).
 - **Right-click the image → Export** saves what the panel shows — data
-  (`.nxs`), an image, or vector axes (`.eps`); see [§28](#28-the-figure-composer).
+  (`.nxs`), an image, or vector axes (`.eps`); see [§6.1](#61-the-figure-composer).
 - **Functions → Slice → Save slice to the main list / Freeze slice in a new
   window** keeps a copy of the slice on screen. The frozen window (and *Open
   this position in a new window* on a spatial map) opens with the panel's
   min/max and gamma, so the two can be compared directly. It has its own
   **Plot tools**, and a **Figure composer...** button to make a figure of it
-  ([§28](#28-the-figure-composer)).
+  ([§6.1](#61-the-figure-composer)).
 
 The **Functions** menu now holds only what works on the window itself —
 the tools that take a dataset are in the launcher's tool panel
-([§3](#3-the-main-window)):
+([§2.1](#21-the-main-window-at-a-glance)):
 
 | Viewer | Functions |
 |---|---|
@@ -555,7 +633,7 @@ An entry that applies but cannot run yet is greyed, with the reason in its
 tooltip.
 
 **Brillouin zone tick box.** A k-map or converted kz map on which a zone has
-been plotted ([§15](#15-brillouin-zone)) keeps it: its viewer has a
+been plotted ([§4.11](#411-brillouin-zone)) keeps it: its viewer has a
 **Brillouin zone** tick box on the top row that shows or hides it.
 
 ### Plot tools: guide lines and labels on the plot
@@ -586,9 +664,9 @@ front of you**:
   **Export → Image** draws them too (*Include the Plot tools guides*).
 
 *Plot tools* are for looking at the data. To make a figure for a paper, use
-the **figure composer** and its **Figure tools** ([§28](#28-the-figure-composer)).
+the **figure composer** and its **Figure tools** ([§6.1](#61-the-figure-composer)).
 
-## 6. Maps: the contour and its two cuts
+## 3.2 Maps: the contour and its two cuts
 
 A map opens on its **constant-energy contour**. The slider at the top picks
 the energy (**Pos** in eV, or **Ind** as an index; **±** integrates over a
@@ -616,9 +694,9 @@ From the list you can also open a map's cut straight away (right-click →
 **Open slit cut** / **Open scan-axis cut**); the contour then stays hidden
 until you ask for it (*Functions → Show the map*).
 
-## 7. Arbitrary cuts and Fermi-surface correction
+## 3.3 Arbitrary cuts and Fermi-surface correction
 
-### 7.1 Arbitrary cut
+### Arbitrary cut
 
 *Functions → Arbitrary cut...* on any contour: click up to six points (or type
 them) and the cut runs through them in order — here Γ → M → K → Γ on the
@@ -634,7 +712,7 @@ physics.
 
 ![The cut along Γ–M–K–Γ](images/arbitrary_cut_result.png)
 
-### 7.2 Fermi-surface (FS) correction
+### Fermi-surface (FS) correction
 
 *Functions → Straighten bands (FS correction)...* on a cut (or a map's slit cut) straightens a
 feature that should be flat — usually the Fermi edge, which curves across the
@@ -645,17 +723,133 @@ map's slit cut the same shift is applied to the whole cube.
 
 ![FS correction](images/fs_correction_dialog.png)
 
-# Part II — The Basic tab
+## 3.4 kz maps and k-maps
 
-The **Basic** tab holds what nearly every dataset goes through, grouped by
-the data each tool takes: *2D & 3D* — Fermi edge fit, detector-grid
-removal, detector corrections; *2D only* — background subtraction, the cut's
-k conversion, the core-level check; *3D only* — the map's k conversion,
-aligning and converting a photon-energy scan, the Brillouin zone.
+A **kz map** (photon-energy scan) opens like an angle map: its contour shows
+photon energy against the analyser angle at the energy chosen by the slider,
+and its two cuts are the spectrum at one photon energy and the
+photon-energy dispersion at one angle. Align its Fermi levels and convert it
+to (k_z, k∥) from the Basic tab ([§4.9](#49-aligning-the-fermi-levels-of-a-kz-map),
+[§4.10](#410-converting-a-kz-map-to-momentum)).
+
+![A kz map](images/kz_map_contour.png)
+
+A **k-map** (a map converted to momentum, [§4.8](#48-converting-a-map-to-momentum))
+and a **converted kz map** open in the same contour viewer, on momentum axes.
+When a Brillouin zone has been drawn on them ([§4.11](#411-brillouin-zone)),
+they keep it, and a **Brillouin zone** tick box on the top row shows or hides
+it. Slice series ([§5.6](#56-slice-series-figure)) and exports draw it too.
+
+![A k-map with its Brillouin zone](images/k_map_with_bz.png)
+
+## 3.5 Curves: EDCs, MDCs and the curve fit
+
+**EDC → list** / **MDC → list** under any image, or a spin-resolved file,
+give a curve dataset, which opens in the **curve viewer**:
+
+![Curve viewer](images/curve_viewer.png)
+
+Channels can be hidden, offset into a waterfall (**Offset**), shown with
+**Error bars** (from a σ channel), and **Range** marks an x window used by
+the operations. *Functions → Transform* gives **Crop**, **Bin**,
+**Normalise**, **Subtract a background** (constant, linear, Shirley),
+**Shift the axis** and **Add counting errors (√N)**; each makes a new dataset
+and propagates σ correctly.
+
+### Curve fit
+
+*Functions → Curve fit...*: **Peaks on a background** (Lorentzian, Gaussian
+or Voigt peaks placed by clicking or **Find peaks**; none / constant /
+linear / Shirley background; instrumental resolution; optional **× Fermi
+edge**), or the **Fermi edge** itself. Weighting is the channel's own σ,
+√N, or uniform. Every parameter comes with its error; the residual is shown
+in units of σ.
+
+![Curve fit](images/curve_fit_dialog.png)
+
+**Fit to list** keeps data, fit, residual and components; **Copy results**
+copies a tab-separated table. A Fermi-edge fit can **List a copy with
+E_F = 0**.
+
+## 3.6 Spin-resolved data
+
+A spin EDC opens with one curve per spin channel:
+
+![Spin EDC](images/spin_edc_viewer.png)
+
+*Functions → Spin analysis...*:
+
+![Spin analysis](images/spin_analysis.png)
+
+- The table reads each channel's label (manipulator setting, target
+  magnetisation, axis and sign counted as "up"); **Axis** and **Counts as**
+  can be overridden.
+- **Cross ratio** (default when the channels allow it) cancels both the
+  transmission and the target reflectivity exactly; **one pair** is available
+  but carries the instrumental asymmetry, which is measured and reported (ε).
+- **S_eff** (Sherman function, default 0.2), **Bin**, optional **Zero
+  reference** window.
+- Plots: raw channels, P with its error bars, and I↑ / I↓ with errors.
+- **P to list**, **I↑ / I↓ to list**, **As a figure** (opens the figure composer).
+
+## 3.7 Spatially resolved scans (nano-ARPES)
+
+A real-space scan opens the **spatial map** (left, the total intensity at
+each position) together with the **E vs k spectrum at the cursor** (right).
+Drag the red target to read the spectrum at another point. Right-click a
+panel for the two integrations:
+
+- on the map, **Integrate selection → E vs k panel** sums the spectra over a
+  region of the sample;
+- on the spectrum, **Integrate selection → spatial panel** maps the intensity
+  of a chosen (k, E) window across the sample — how a domain or a flake edge
+  is found.
+
+![Spatial scan](images/spatial_scan.png)
+
+## 3.8 Exporting a panel and saving data
+
+Right-click any image → **Export** → **Data (.nxs, Igor)...**, **Image...** or
+**Axes only (.eps)...**. It always exports exactly what the panel shows
+(range and all): the data as a dataset this program reads back, or for
+Igor Pro (`.itx` text or `.ibw` binary wave, with the axes scaled, the units
+set and the metadata in the wave note); an image
+with the colormap applied (PNG, TIFF or JPEG, at a chosen size and dpi, with
+or without the axes, with the Plot tools guides if there are any, and with
+the Brillouin zone if the dataset has one); or the frame, ticks and labels as
+vector PostScript to place the image in, in Illustrator (optionally with the
+Brillouin zone drawn in the box — see [§4.11](#411-brillouin-zone)).
+
+![Export](images/export_dialog.png)
+
+**Save** (tool panel, Datasets box) writes the selected datasets to a
+`.nxs` file of your own -- several selected rows go into one file -- or, by
+choosing the file type, for Igor Pro: one `.itx` holding them all, or one
+`.ibw` per dataset. An Igor file is a copy; the rows stay as they were.
 
 ---
 
-## 8. Fermi edge fit
+# Part 4 — The tool panel: Basic tab
+
+The **Basic** tab holds the steps nearly every dataset goes through: the Fermi level, the detector, the background, the conversions to momentum, the core levels and the Brillouin zone.
+
+## 4.1 How the tool buttons work
+
+Each tab groups its tools by the data they take: *2D & 3D — cuts, maps*,
+*2D only — cuts*, *3D only — maps*. **A button lights up only when the rows
+selected in the list are what it takes**: a k conversion (cut) needs one
+angle cut, cut arithmetic exactly two cuts, a 3-D view a map. Hover over a
+greyed button to see why it is greyed.
+
+![The Basic tab](images/main_window.png)
+
+A tool never changes the rows it was given: its result is a new row in the
+list, named after the original with what was done (`cut1 [k]`), and its
+history records the step and its parameters (*Experiment info* shows it).
+Tools that take several decisions open as numbered steps
+([§2.5](#25-step-by-step-windows)).
+
+## 4.2 Fermi edge fit
 
 The usual order for a single cut is: **Fermi edge fit → offset the energy axis →
 convert to momentum → MDC/EDC fit**. Each step is a button of the tool panel:
@@ -696,9 +890,7 @@ corrected map.
 
 ![Fermi fit on a map, one E_F per cut](images/fermi_map_cuts.png)
 
-## 9. Removing the detector grid and detector corrections
-
-### 9.1 Removing the detector grid
+## 4.3 Removing the detector grid
 
 MCP (hexagonal) and mesh (square) patterns print on every image. **Do it
 first**: only data still on the detector's pixels can be de-gridded, so the
@@ -719,7 +911,7 @@ every slice while the photoemission moves. **Find and remove the grid**:
 - **Also list the grid pattern** keeps a `[grid]` dataset, which a cut taken
   later with the same lens mode and pass energy will find and use.
 
-### 9.2 Detector corrections
+## 4.4 Detector corrections
 
 On a cut, map or kz map as measured:
 
@@ -732,7 +924,7 @@ On a cut, map or kz map as measured:
 3. **Apply** -- **Apply to list**. Do the grid removal, Fermi level and k
    conversion on the result.
 
-## 10. Background subtraction
+## 4.5 Background subtraction
 
 Tool panel → Basic → **Background subtraction...** (cuts) removes the
 intensity that is not the bands: a **Shirley** or **Tougaard** inelastic
@@ -742,9 +934,9 @@ row), a smooth **polynomial** — or it divides out the **Fermi cut-off**
 at the E_F it records or else at the steepest fall of the angle-integrated
 EDC). The window is the same as the Advanced tab's processing windows —
 source and result side by side, live preview, **Apply** lists the result —
-described in [§16](#16-smoothing-derivatives-curvature-and-symmetrising).
+described in [§5.1](#51-smoothing-derivatives-curvature-and-symmetrising).
 
-## 11. Converting a cut to momentum
+## 4.6 Converting a cut to momentum
 
 Tool panel → Basic → **k conversion (cut)...** converts the angle axis to k∥
 (Å⁻¹). A **vertical line** is drawn on the cut: drag it to the slit angle of
@@ -774,7 +966,7 @@ the only choice when only this cut was measured.
 
 ![The cut in momentum](images/cut_in_k.png)
 
-## 12. Core-level check
+## 4.7 Core-level check
 
 A wide scan of the core levels is listed as a cut too. Select it and press
 tool panel → Basic → **Core-level check...** to find out what its peaks are.
@@ -827,7 +1019,7 @@ the whole result as text. Measuring at a second photon energy settles what
 stays doubtful: core levels stay put in binding energy, Auger lines and
 higher-order light move.
 
-## 13. Converting a map to momentum
+## 4.8 Converting a map to momentum
 
 Select an angle map and press tool panel → Basic → **k conversion (map)...**.
 The map opens on a bare constant-energy contour — no cuts, no other
@@ -860,14 +1052,12 @@ new `k-map` row in the list.
 
 ![The converted k-map](images/k_map_contour.png)
 
-## 14. Photon-energy scans (kz)
+## 4.9 Aligning the Fermi levels of a kz map
 
 A photon-energy scan is listed as a `kz map`; its contour is photon energy
 against angle at one energy.
 
 ![A kz map](images/kz_map_contour.png)
-
-### 14.1 Aligning the Fermi levels of a kz map
 
 Nothing in the files says where each spectrum's Fermi level really is.
 Tool panel → Basic → **Align Fermi levels (kz)...** measures it from the
@@ -890,7 +1080,7 @@ E_F against photon energy is plotted. A smooth curve means the fits are
 sound; points whose fit is not believed are marked and filled in from their
 neighbours.
 
-### 14.2 Converting a kz map to momentum
+## 4.10 Converting a kz map to momentum
 
 Tool panel → Basic → **kz conversion...** converts the scan to (k_z, k∥). It
 starts from the last conversion of a scan of the same size.
@@ -937,10 +1127,10 @@ starts from the last conversion of a scan of the same size.
 
 ![The converted kz map](images/kz_map_in_k.png)
 
-## 15. Brillouin zone
+## 4.11 Brillouin zone
 
 Select a k-map (or a converted kz map) and press tool panel → Basic →
-**BZ overlap...** (called *Brillouin zone...* before v1.2.4). Like the map conversion, it opens a contour of its
+**BZ overlap...**. Like the map conversion, it opens a contour of its
 own with the zone window, and the two close together.
 
 ![Brillouin-zone dialog](images/brillouin_dialog.png)
@@ -976,18 +1166,13 @@ Illustrator.
 
 ![Export with the zone](images/export_dialog_bz.png)
 
-# Part III — The Advanced tab
-
-The **Advanced** tab holds the analysis that follows: the figure composer
-(*1D & 2D*, see [§28](#28-the-figure-composer)); smoothing, the band-sharpening
-filters, symmetrising and ridge detection (*2D & 3D*); stack plots, MDC and
-EDC fits and cut arithmetic (*2D only*); the slice series figure and the
-four 3-D views (*3D only*). Curves and spatial scans are looked at in
-viewers of their own.
-
 ---
 
-## 16. Smoothing, derivatives, curvature and symmetrising
+# Part 5 — The tool panel: Advanced tab
+
+The **Advanced** tab holds the analysis that follows: band-sharpening filters and symmetrising, ridge detection, stack plots, MDC and EDC fits, cut arithmetic, the slice series figure and the 3-D views.
+
+## 5.1 Smoothing, derivatives, curvature and symmetrising
 
 Each filter has a window of its own, opened from the tool panel with one or
 more cuts (or maps) selected:
@@ -1057,7 +1242,7 @@ they have the same kind and the same number of points on every axis:
 
 ![Self-normalise](images/data_operations.png)
 
-## 17. Ridge detection
+## 5.2 Ridge detection
 
 Tool panel → Advanced → **Ridge detection...** (cuts or maps) traces bands
 as ridges of the intensity, each point to a fraction of a pixel, which is
@@ -1068,9 +1253,9 @@ sharper than a second derivative and draws no false double lines.
   the source).
 - **Result to list** — the ridge image (a map plane by plane, on the planes
   chosen); **Save ridge points...** — a CSV that the tight-binding fit
-  ([§26](#26-tight-binding-fit)) reads.
+  ([§6.4](#64-tight-binding-fit)) reads.
 
-## 18. Stack plots
+## 5.3 Stack plots
 
 **Stack plot (EDC / MDC)...** (tool panel → Advanced, with a cut selected): a
 waterfall of EDCs or MDCs, with the number of curves, binning,
@@ -1079,7 +1264,7 @@ composer** makes it a figure panel.
 
 ![Stack plot](images/stack_plot.png)
 
-## 19. MDC fit and EDC fit
+## 5.4 MDC fit and EDC fit
 
 Two tools of the tool panel's Advanced tab fit peaks line by line:
 
@@ -1133,7 +1318,7 @@ collapsed (a peak fit that went to zero width) no longer takes the whole
 weight of the dispersion fit: no point counts for more than ten typical
 ones.
 
-## 20. Cut arithmetic: dichroism and reference division
+## 5.5 Cut arithmetic: dichroism and reference division
 
 Two cuts combined into a third: linear dichroism (LH − LV), circular
 dichroism, dividing by a gold reference, or plain differences, ratios and
@@ -1157,7 +1342,7 @@ them). The button is greyed until exactly two cuts are selected.
   propagated and summarised under the plot.
 - **Result to list**, **Uncertainty to list**, **All three as a figure**.
 
-## 21. Slice series figure
+## 5.6 Slice series figure
 
 Select a map → tool panel → Advanced → **Slice series figure...** lays out a
 page of flat 2-D slices through the cube as one figure for a paper —
@@ -1181,7 +1366,7 @@ confused with **3D slices**, which draws three planes in a 3-D view.)
 |---|---|
 | ![Slice series settings](images/slice_figure_dialog.png) | ![Slice series figure](images/slice_figure.png) |
 
-## 22. The 3-D views
+## 5.7 The 3-D views
 
 Four tools of the Advanced tab show a map in 3-D, each in a window of its
 own — drag the picture to turn it:
@@ -1252,88 +1437,129 @@ energy) — the usual picture of how a band evolves.
   each axis has, and write sub- and superscripts in the axis titles
   (`E - E_F`, `k_x`).
 
-## 23. Curves: EDCs, MDCs and spin-resolved data
-
-**EDC → list** / **MDC → list** under any image, or a spin-resolved file,
-give a curve dataset, which opens in the **curve viewer**:
-
-![Curve viewer](images/curve_viewer.png)
-
-Channels can be hidden, offset into a waterfall (**Offset**), shown with
-**Error bars** (from a σ channel), and **Range** marks an x window used by
-the operations. *Functions → Transform* gives **Crop**, **Bin**,
-**Normalise**, **Subtract a background** (constant, linear, Shirley),
-**Shift the axis** and **Add counting errors (√N)**; each makes a new dataset
-and propagates σ correctly.
-
-### 23.1 Curve fit
-
-*Functions → Curve fit...*: **Peaks on a background** (Lorentzian, Gaussian
-or Voigt peaks placed by clicking or **Find peaks**; none / constant /
-linear / Shirley background; instrumental resolution; optional **× Fermi
-edge**), or the **Fermi edge** itself. Weighting is the channel's own σ,
-√N, or uniform. Every parameter comes with its error; the residual is shown
-in units of σ.
-
-![Curve fit](images/curve_fit_dialog.png)
-
-**Fit to list** keeps data, fit, residual and components; **Copy results**
-copies a tab-separated table. A Fermi-edge fit can **List a copy with
-E_F = 0**.
-
-### 23.2 Spin analysis
-
-A spin EDC opens with one curve per spin channel:
-
-![Spin EDC](images/spin_edc_viewer.png)
-
-*Functions → Spin analysis...*:
-
-![Spin analysis](images/spin_analysis.png)
-
-- The table reads each channel's label (manipulator setting, target
-  magnetisation, axis and sign counted as "up"); **Axis** and **Counts as**
-  can be overridden.
-- **Cross ratio** (default when the channels allow it) cancels both the
-  transmission and the target reflectivity exactly; **one pair** is available
-  but carries the instrumental asymmetry, which is measured and reported (ε).
-- **S_eff** (Sherman function, default 0.2), **Bin**, optional **Zero
-  reference** window.
-- Plots: raw channels, P with its error bars, and I↑ / I↓ with errors.
-- **P to list**, **I↑ / I↓ to list**, **As a figure** (opens the figure composer).
-
-## 24. Spatially resolved scans (nano-ARPES)
-
-A real-space scan opens the **spatial map** (left, the total intensity at
-each position) together with the **E vs k spectrum at the cursor** (right).
-Drag the red target to read the spectrum at another point. Right-click a
-panel for the two integrations:
-
-- on the map, **Integrate selection → E vs k panel** sums the spectra over a
-  region of the sample;
-- on the spectrum, **Integrate selection → spatial panel** maps the intensity
-  of a chosen (k, E) window across the sample — how a domain or a flake edge
-  is found.
-
-![Spatial scan](images/spatial_scan.png)
-
-# Part IV — The Figure tab
-
-The **Figure** tab (called *Calculation* before v1.2.4) holds, at its top,
-the **figure composer** ([§28](#28-the-figure-composer)), then what is
-worked out rather than measured: the crystal in real space and its
-Brillouin zone in 3-D, band models fitted to the data, and band structures
-calculated by others. Most of its windows open as numbered steps.
-
-![The Figure tab of the tool panel](images/main_window_calculation.png)
-
 ---
 
-## 25. Crystal structure and the 3-D Brillouin zone
+# Part 6 — The tool panel: Figure tab
+
+The **Figure** tab holds the figure composer and what is worked out rather than measured: the crystal, its Brillouin zone in 3-D, tight-binding fits and calculated band structures. It ends with an example from loading data to a finished figure.
+
+## 6.1 The figure composer
+
+Tool panel → Figure → **Figure composer...** (the top of the tab) with
+**nothing selected**
+opens a blank page, like a figure of a manuscript: four empty panels (a),
+(b), (c), (d) at a journal's column width. With cuts (or curves) selected,
+each becomes a panel (so does a frozen slice's **Figure composer...**
+button; a stack plot or a 3-D view has its own **To figure composer**
+button).
+
+![Figure composer](images/figure_composer.png)
+
+- **Lay out the page.** Click a panel to select it; drag it to move it and
+  drag its handles to resize it (Shift on a corner keeps its shape). Panels
+  snap to each other's edges and to a 0.5 mm grid (**Snap**); the arrow keys
+  nudge by 0.5 mm (Shift: 5 mm). *Arrange as grid* (figure tools, Panels
+  tab) puts them back on rows × columns; a panel can take several cells
+  (*Grid cells (rows / cols)* of the selected panel — a schematic beside a
+  row of data panels), and a picture keeps its own shape in them. The page
+  height follows the panels when they are moved by hand. **Re-letter**
+  names them (a), (b)… in reading order.
+- **Fill a panel.** Double-click an empty panel, or use **Load from
+  list...** / **Load picture...** on the left: a dataset from the main list,
+  or a picture from a file (PNG, JPEG, TIFF… — a sketch or a figure made
+  elsewhere; it keeps its shape and has no axes).
+- **Insets.** **Zoom-in inset**: drag out a region of a panel — a small
+  panel magnifying it appears in the corner and the region is outlined.
+  **Panel** drawn inside another panel makes an inset to fill with another
+  dataset. Insets take no letter and move with their panel.
+- **Draw.** **Arrow**, **Line**, **Box**, **Ellipse**, **Text**: drag (or
+  click, for text) on the page. A selected drawing can be moved, its ends
+  or corners dragged, and its colour, width, line style, fill and text set
+  above the figure tools. Double-click a text to edit it; Del removes the
+  selection; right-click for more (bring to front, delete…).
+- **Axes and fonts.** The figure tools beside the page act on the selected
+  panel (or all of them): ranges, ticks, labels, which edges carry numbers,
+  the panel's own font size, colour map, colour bar, reference lines. With
+  *Tick labels on outer edges only*, *…but tick numbers on every panel*
+  keeps the numbers on the inner panels and leaves only the axis names to
+  the edges.
+- **Undo / Redo** (Ctrl+Z / Ctrl+Y) cover every change. **PDF**, **PNG**,
+  **SVG** export, **Copy** puts it on the clipboard; empty panels are never
+  written. The composer's **Figure tools** are not a viewer's **Plot
+  tools**, which draw guides on the live plot.
+
+### Arranging panels
+
+Click a panel, then **Ctrl+click** (or Shift+click) the others to select
+several. The **Arrange** buttons on the left then:
+
+| Button | What it does |
+|---|---|
+| ⇤ Left, Right ⇥, ⤒ Top, Bottom ⤓ | line up their left / right / top / bottom edges (at the outermost one) |
+| ↔ Centres, ↕ Centres | put their centres on one vertical / horizontal line (the first-selected panel's) |
+| Space ↔, Space ↕ | equal gaps between them, left to right / top to bottom (three or more) |
+| = Width, = Height | the first-selected panel's width / height for all |
+
+![Several panels selected, and the Arrange buttons](images/composer_arrange.png)
+
+### Letters and colour bars
+
+- **Letters in line** (*Text* tab, on by default): the letters of panels
+  side by side sit at one height and those of panels one above another at
+  one left edge, whatever titles or axes each panel has. **Nudge (mm)**
+  moves one panel's letter (clear of a long axis title, say);
+  **Re-letter** names them (a), (b)… in reading order.
+- **Colour bar** (*Colour* tab): **Ends** writes the levels, the words
+  *High* / *Low*, or nothing; **Length (%)** of the panel's height or width;
+  **Position** *right* (upright beside the panel) or *below* (lying under
+  it, centred). A 3-D view's bar is sized to the cube as drawn, not to the
+  whole frame round it.
+
+![The colour bar settings](images/composer_colour_bar.png)
+
+### Curves: lines, symbols and error bars
+
+*Overlays* tab, **Curves drawn on the panel**: select curves in the list (or
+none, for all), then set their **colour**, **width**, **style** (solid,
+dashed, dotted…), **symbols** (circle, square, triangles, diamond, with a
+size) and whether they are **joined by a line**; **± σ as error bars**
+turns a curve's two dotted ±σ curves into error bars at its points. **Apply
+to the curves**. A curve with gaps (NaN) is drawn in pieces.
+
+### Saving a figure to edit later, with its data
+
+**Save** / **Save as...** write the figure in the program's own format,
+`fig1.afig`: the page, its drawings and every panel with its data and
+settings — open it again with **Open...** (or pick it in **Load data...**
+in the main window) and go on editing exactly where you stopped. A 3-D view
+is kept as the picture it shows.
+
+Beside it, **`data for fig1/`** gets one folder per panel (`a`, `b`, …):
+
+```
+data for fig1/
+  a/  processed/  what the panel shows: the image as a .nxs cut (opens in the
+                  viewer again), its lines (calculated bands, contours,
+                  curves) as lines.csv, a picture as .png
+      original/   what it was made from: the first measurement file (a
+                  k-converted, symmetrised, cut-out plane traces back to the
+                  file it was first read from), the calculation with the
+                  files it is read with (.win, POSCAR...), the picture file
+                  or the CIF
+      sources.txt which entry of the file, and the processing in between
+  b/  ...
+```
+
+The original file is copied even when the panel shows something computed
+from it many steps later: every dataset remembers the file it began as. A
+figure opened again whose original files have moved reuses the copies in
+its own earlier data folder.
+
+## 6.2 Crystal structure
 
 Tool panel → Figure → **Crystal structure...** (needs nothing
 selected). Four steps (the Brillouin zone is the tool of its own **3D
-BZ...**, [§25.1](#251-3d-bz-the-zone-in-three-dimensions)):
+BZ...**, [§6.2](#63-3d-bz-the-brillouin-zone-in-three-dimensions)):
 
 ![The crystal structure](images/crystal_structure.png)
 
@@ -1364,9 +1590,9 @@ BZ...**, [§25.1](#251-3d-bz-the-zone-in-three-dimensions)):
 4. **Export** — the crystal: **Save picture...** (PNG at any
    size, drawn again at that size) or **To figure composer...**. A picture
    from a CIF names the CIF as its source, so the figure's data folder keeps
-   it ([§28](#28-the-figure-composer)).
+   it ([§6.1](#61-the-figure-composer)).
 
-### 25.1 3D BZ: the zone in three dimensions
+## 6.3 3D BZ: the Brillouin zone in three dimensions
 
 Tool panel → Figure → **3D BZ...** (needs nothing selected). It was step 4
 of the crystal-structure window.
@@ -1406,7 +1632,7 @@ of the crystal-structure window.
   will have in the figure (8 pt in a 30 mm panel), whatever its size in
   pixels; off, they scale with the picture as on screen.
 
-## 26. Tight-binding fit
+## 6.4 Tight-binding fit
 
 > **One band, or two hybridised bands — chosen in step 1 (*Bands*).**
 > **One band** is a single band on a Bravais lattice (one orbital per
@@ -1461,7 +1687,7 @@ With a k-map selected (or nothing, to use a file of points):
 4. **Use the model** -- **Model to list** (its spectral function, as a map
    beside the data), **Save parameters...**, **Copy results**.
 
-## 27. Calculated bands
+## 6.5 Calculated bands
 
 Tool panel → Figure → **Calculated bands...** puts a band-structure
 calculation beside the measurement. Select what to compare it with — k-maps,
@@ -1633,149 +1859,40 @@ of −49.8 meV, the values the demo was made with (0.8 and −50 meV).
 
 ![Output](images/bands_output.png)
 
-# Part V — Figures and output
+## 6.6 Worked example: from loading data to a figure
 
-How a figure is put together, saved with its data and exported — and, at
-the end, two figures built step by step.
+From the demo data ([§1.3](#13-trying-it-with-demo-data)) to a figure of
+constant-energy maps with the Brillouin zone. This is the same path as the
+agent's example in [§7.7](#77-worked-example-an-agent-from-set-up-to-figure),
+done by hand.
 
----
+1. **Load.** **Quick add...** → `demo_bulk_bands.nxs`. The list shows the
+   Γ-plane map `FS_map_hv59.3_Gamma_plane`, the cuts `cut_GM_LH`,
+   `cut_GM_LV`, `cut_GK_LH` and the photon-energy scan.
+2. **Fermi level.** Select the map → Basic → **Fermi edge fit...**. Fit on
+   the raw data, in a window around the edge; note E_F
+   ([§4.2](#42-fermi-edge-fit)).
+3. **To momentum.** Basic → **k conversion (map)**: Γ at normal emission,
+   the fitted E_F as the energy reference. A new row `… [k]` appears
+   ([§4.8](#48-converting-a-map-to-momentum)).
+4. **The zone.** Select the k-map → Basic → **BZ overlap...**: space group
+   164 (P-3m1), a = 3.3 Å, c = 6 Å, plane (001) through Γ
+   ([§4.11](#411-brillouin-zone)).
+5. **Slices.** Advanced → **Slice series figure...**: energies 0, −0.2,
+   −0.4 eV, ±20 meV, three columns, the zone dashed
+   ([§5.6](#56-slice-series-figure)). The figure opens in the composer.
+6. **Lay out and export.** In the composer set the page width, colour map
+   and levels, letters (a), (b), (c), then **Export** a PNG and a PDF and
+   **Save** an `.afig` to edit later ([§6.1](#61-the-figure-composer)).
 
-## 28. The figure composer
+![The figure the steps make](images/agent_figure.png)
 
-Tool panel → Figure → **Figure composer...** (the top of the tab) with
-**nothing selected**
-opens a blank page, like a figure of a manuscript: four empty panels (a),
-(b), (c), (d) at a journal's column width. With cuts (or curves) selected,
-each becomes a panel (so does a frozen slice's **Figure composer...**
-button; a stack plot or a 3-D view has its own **To figure composer**
-button).
+The next section builds two complete publication figures in the same way.
 
-![Figure composer](images/figure_composer.png)
-
-- **Lay out the page.** Click a panel to select it; drag it to move it and
-  drag its handles to resize it (Shift on a corner keeps its shape). Panels
-  snap to each other's edges and to a 0.5 mm grid (**Snap**); the arrow keys
-  nudge by 0.5 mm (Shift: 5 mm). *Arrange as grid* (figure tools, Panels
-  tab) puts them back on rows × columns; a panel can take several cells
-  (*Grid cells (rows / cols)* of the selected panel — a schematic beside a
-  row of data panels), and a picture keeps its own shape in them. The page
-  height follows the panels when they are moved by hand. **Re-letter**
-  names them (a), (b)… in reading order.
-- **Fill a panel.** Double-click an empty panel, or use **Load from
-  list...** / **Load picture...** on the left: a dataset from the main list,
-  or a picture from a file (PNG, JPEG, TIFF… — a sketch or a figure made
-  elsewhere; it keeps its shape and has no axes).
-- **Insets.** **Zoom-in inset**: drag out a region of a panel — a small
-  panel magnifying it appears in the corner and the region is outlined.
-  **Panel** drawn inside another panel makes an inset to fill with another
-  dataset. Insets take no letter and move with their panel.
-- **Draw.** **Arrow**, **Line**, **Box**, **Ellipse**, **Text**: drag (or
-  click, for text) on the page. A selected drawing can be moved, its ends
-  or corners dragged, and its colour, width, line style, fill and text set
-  above the figure tools. Double-click a text to edit it; Del removes the
-  selection; right-click for more (bring to front, delete…).
-- **Axes and fonts.** The figure tools beside the page act on the selected
-  panel (or all of them): ranges, ticks, labels, which edges carry numbers,
-  the panel's own font size, colour map, colour bar, reference lines. With
-  *Tick labels on outer edges only*, *…but tick numbers on every panel*
-  keeps the numbers on the inner panels and leaves only the axis names to
-  the edges.
-- **Undo / Redo** (Ctrl+Z / Ctrl+Y) cover every change. **PDF**, **PNG**,
-  **SVG** export, **Copy** puts it on the clipboard; empty panels are never
-  written. The composer's **Figure tools** are not a viewer's **Plot
-  tools**, which draw guides on the live plot.
-
-### Arranging panels
-
-Click a panel, then **Ctrl+click** (or Shift+click) the others to select
-several. The **Arrange** buttons on the left then:
-
-| Button | What it does |
-|---|---|
-| ⇤ Left, Right ⇥, ⤒ Top, Bottom ⤓ | line up their left / right / top / bottom edges (at the outermost one) |
-| ↔ Centres, ↕ Centres | put their centres on one vertical / horizontal line (the first-selected panel's) |
-| Space ↔, Space ↕ | equal gaps between them, left to right / top to bottom (three or more) |
-| = Width, = Height | the first-selected panel's width / height for all |
-
-![Several panels selected, and the Arrange buttons](images/composer_arrange.png)
-
-### Letters and colour bars
-
-- **Letters in line** (*Text* tab, on by default): the letters of panels
-  side by side sit at one height and those of panels one above another at
-  one left edge, whatever titles or axes each panel has. **Nudge (mm)**
-  moves one panel's letter (clear of a long axis title, say);
-  **Re-letter** names them (a), (b)… in reading order.
-- **Colour bar** (*Colour* tab): **Ends** writes the levels, the words
-  *High* / *Low*, or nothing; **Length (%)** of the panel's height or width;
-  **Position** *right* (upright beside the panel) or *below* (lying under
-  it, centred). A 3-D view's bar is sized to the cube as drawn, not to the
-  whole frame round it.
-
-![The colour bar settings](images/composer_colour_bar.png)
-
-### Curves: lines, symbols and error bars
-
-*Overlays* tab, **Curves drawn on the panel**: select curves in the list (or
-none, for all), then set their **colour**, **width**, **style** (solid,
-dashed, dotted…), **symbols** (circle, square, triangles, diamond, with a
-size) and whether they are **joined by a line**; **± σ as error bars**
-turns a curve's two dotted ±σ curves into error bars at its points. **Apply
-to the curves**. A curve with gaps (NaN) is drawn in pieces.
-
-### Saving a figure to edit later, with its data
-
-**Save** / **Save as...** write the figure in the program's own format,
-`fig1.afig`: the page, its drawings and every panel with its data and
-settings — open it again with **Open...** (or pick it in **Load data...**
-in the main window) and go on editing exactly where you stopped. A 3-D view
-is kept as the picture it shows.
-
-Beside it, **`data for fig1/`** gets one folder per panel (`a`, `b`, …):
-
-```
-data for fig1/
-  a/  processed/  what the panel shows: the image as a .nxs cut (opens in the
-                  viewer again), its lines (calculated bands, contours,
-                  curves) as lines.csv, a picture as .png
-      original/   what it was made from: the first measurement file (a
-                  k-converted, symmetrised, cut-out plane traces back to the
-                  file it was first read from), the calculation with the
-                  files it is read with (.win, POSCAR...), the picture file
-                  or the CIF
-      sources.txt which entry of the file, and the processing in between
-  b/  ...
-```
-
-The original file is copied even when the panel shows something computed
-from it many steps later: every dataset remembers the file it began as. A
-figure opened again whose original files have moved reuses the copies in
-its own earlier data folder.
-
-## 29. Exporting a panel and saving data
-
-Right-click any image → **Export** → **Data (.nxs, Igor)...**, **Image...** or
-**Axes only (.eps)...**. It always exports exactly what the panel shows
-(range and all): the data as a dataset this program reads back, or for
-Igor Pro (`.itx` text or `.ibw` binary wave, with the axes scaled, the units
-set and the metadata in the wave note); an image
-with the colormap applied (PNG, TIFF or JPEG, at a chosen size and dpi, with
-or without the axes, with the Plot tools guides if there are any, and with
-the Brillouin zone if the dataset has one); or the frame, ticks and labels as
-vector PostScript to place the image in, in Illustrator (optionally with the
-Brillouin zone drawn in the box — see [§15](#15-brillouin-zone)).
-
-![Export](images/export_dialog.png)
-
-**Save** (tool panel, Datasets box) writes the selected datasets to a
-`.nxs` file of your own -- several selected rows go into one file -- or, by
-choosing the file type, for Igor Pro: one `.itx` holding them all, or one
-`.ibw` per dataset. An Igor file is a copy; the rows stay as they were.
-
-## 30. Worked example: two figures in the figure composer
+## 6.7 Worked example: two figures in the figure composer
 
 The two figures below were made from the demo data
-([§2](#2-trying-it-with-demo-data)) with the program's windows and put
+([§1.3](#13-trying-it-with-demo-data)) with the program's windows and put
 together in the figure composer. `devtools/figure_tests.py` runs exactly
 these steps, so it is also a script to read alongside this section.
 
@@ -1784,7 +1901,7 @@ these steps, so it is also a script to read alongside this section.
 ![Example figure 1](images/example_figure_1.png)
 
 **(a) The notched cube.** Convert the Γ-plane map to momentum
-([§13](#13-converting-a-map-to-momentum)); select the k-map → Advanced →
+([§4.8](#48-converting-a-map-to-momentum)); select the k-map → Advanced →
 **Notched cube...**. *Change sampling...* to k_x, k_y within ±1.25 Å⁻¹ and E
 up to E_F; put the notch at k_x = k_y = 0 down to the lowest energy, corner
 **+ − +**; colormap *blue*, reversed; azimuth −52°, elevation 24°. **To
@@ -1840,7 +1957,7 @@ plane is through Γ, the second at the zone top); the first plane's *map* →
 **To figure composer...** → the figure of (a).
 
 **(c) The cuts stacked along k_z.** Convert the photon-energy scan to
-momentum ([§14](#14-photon-energy-scans-kz)), select it → Advanced →
+momentum ([§4.9](#49-aligning-the-fermi-levels-of-a-kz-map)), select it → Advanced →
 **Stacked slices...**: *Layers* along k_z at the four k_z of the cuts
 (8.0, 8.3, 8.6 and 9.0 π/c), *Fade* 30 %, **Spread** 3, azimuth 40°,
 elevation 12°. In **Mark a curve through the layers**, add the crossing on
@@ -1874,95 +1991,148 @@ Each panel of either figure can be changed afterwards — open the `.afig`,
 select the panel, and use the figure tools; the data folder keeps both the
 data as shown and the measurement it came from.
 
-# Part VI — Housekeeping
-
 ---
 
-## 31. Autosave, memory and recovery
+# Part 7 — AI agents
 
-- **Autosave.** Every computed dataset (a k-map, a processed cut, a fit
-  result…) is written, uncompressed, to this session's folder in
-  `~/.arpes_viewer/sessions/` the moment it exists. Real-space scans are not
-  (they are the measurement itself, and large).
-- **A normal close deletes the autosaved copies.** When you close the main
-  window and confirm (everything you want is saved, or *Close anyway*), the
-  open viewers are closed and the session folder is deleted straight away.
-  A dataset's copy also goes as soon as you save it to a file of your own.
-- **Recovery after a crash.** Only if the program did not close normally (a
-  crash, a kill) is the session folder kept: the next start offers its
-  datasets back, and it is deleted after three days.
-- **Operations log.** `~/.arpes_viewer/sessions/operations.log`, one line per
-  store / save / discard — how to find what was where.
-- **Memory box** (bottom of the tool panel). This program's memory, the system's, how many viewers and
-  HDF5 files are open, and how much computed data is held. **Free RAM**
-  drops cached copies of computed data (they are re-read from their autosaved
-  file when needed); **Close all** closes every window and then frees
-  memory.
-- **Autosaves** (in the Memory box) shows the session folders
-  in the system's file browser, to delete old working copies by hand. The
-  folder of the session now running (named in the status bar) is in use.
-- **Long operations** (reading a big map, converting, de-gridding, assembling
-  a folder) run off the GUI thread with a progress bar and a working Cancel.
-- **Closing** with unsaved computed data asks first, and names the datasets:
-  **Save to a file...**, **Close anyway** (the autosaved copies are deleted)
-  or **Cancel** (nothing happens).
+An AI agent (Claude, or any app that can read and write files or call MCP tools) can drive the program on your screen, step by step, while you watch and can take over. This part explains how that works, how to start and watch an agent, and gives an example from set-up to figure.
 
-## 32. Tips and troubleshooting
+## 7.1 How it works, and what leaves your computer
 
-- **A greyed tool button** — hover over it: the tooltip says why (e.g. the
-  MDC fit needs a cut already in Å⁻¹, cut arithmetic two cuts). Select the
-  right rows in the list and it lights up.
-- **A tool is not in a viewer's Functions menu** — it is in the tool panel
-  (see *Where things are now* in [§3](#3-the-main-window)); check all three tabs (Basic, Advanced, Figure).
-- **A window is taller than the screen** — it opens no taller than the
-  screen, and its contents scroll; the Apply / Close buttons stay at the
-  bottom. Every window can be resized.
-- **A k conversion is not offered** — the first axis of the map is not an
-  angle (a photon energy, temperature…). Check *First axis of a map is* in
-  the loader.
-- **Cut k conversion of an E − E_F cut** — the energy offset is filled in for
-  you from the Fermi fit; if you shifted the axis some other way, type the
-  kinetic energy of E_F (photon energy − work function) into *Energy offset*.
-- **A file is misread** — choose the reader explicitly in the loader, and see
-  *Assumptions worth knowing about* in the
-  [reading-data reference](../arpes_viewer/loader/README.md#assumptions-worth-knowing-about)
-  (axis order in SOLEIL files).
-- **Dragging the cursor on a big map is sluggish** — a map read lazily from
-  its file re-slices in about 0.1 s per window, so the other windows wait for
-  the mouse to pause. Once the map has been read into memory it follows live.
-- **Typing numbers** — every number box takes a decimal point (`0.05`),
-  whatever the system language; a comma is not accepted.
-- **The machine is paging** — watch the Memory bar (amber past a third of the
-  RAM, red past a half); use **Free RAM** or **Close all**.
+The program has no chat of its own. You talk to your AI app (the Claude
+desktop app, Claude Code, or another agent) in plain words, and the program
+is that agent's tool. The agent sends the program small steps: list the
+data, fit a Fermi edge, convert to momentum, make a figure. The program runs
+each step on your screen, so you see every result as a new row in the list
+or a new window, and you can pause the agent and work by hand at any time.
 
-## 33. Driving the program from an AI agent (MCP)
+**What stays on your computer, and what does not:**
 
-**The easiest way: AI assistant... and the command folder (recommended).**
-Talk to your AI app (the Claude desktop app, Claude Code, any agent that can
-read and write files) in plain words; it drives this window while you
-watch. Press **AI assistant...** (top of the tool panel), choose the data
-and results folders, tick what you want (ask before each physical parameter,
-step by step, a usage log, hiding the sample's identity, a report, slides)
-and add your own requests; **Copy the prompt and start** makes the program
-listen — in folders: the agent writes small Python files into
-`<results>/_agent/viewer_cmd/`, the program runs them; with MCP: the agent
-bridge — and copies one prompt to paste into the AI app. The window then
-lists each step the agent ran, and **Pause the agent** lets you work by
-hand. The **AI assistant** button is a status light, also with the window
-closed (closing it does not stop the agent): grey not running, green
-running, yellow paused, red an error. Meanwhile you can look at the data in
-the main window; the agent's steps leave your selection alone. The prompt
-points the agent to `API.md`, read where the program is installed (inside
-the `arpes_viewer` package, for a pip install and a download alike; nothing
-is copied into your folders): the list of the program's ~50
-documented operations (`L.rows()`, `L.fermi_edge(...)`, `L.cut_to_k(...)`,
-`L.kz_to_k(...)`, `L.bz_overlay(...)`, `L.slice_series(...)`,
-`L.figure_render(...)` …), so the agent reads one file instead of the
-source. Every operation adds new rows
-rather than changing old ones, never overwrites a file and never waits for a
-click. The full guide is `agentic/README.md`.
+- Your raw data files stay where they are and are read and processed by the
+  program, locally. The program does not upload anything.
+- What the **agent reads** is sent to the AI provider as part of the
+  conversation: the text a step prints (row names, fitted values, axis
+  ranges), and any picture the agent opens to judge a result. Ask for
+  compact outputs, and the conversation holds numbers and a few pictures,
+  not your data arrays.
+- Whether the provider may use conversation content for training depends
+  on the provider and your account settings. Check them before you start.
+- Keep private code, unpublished manuscripts and anything you do not want
+  read out of the folders the agent can reach. Give it the data folder
+  (read only) and the results folder only.
 
-The rest of this section is the other route: the MCP server.
+As with any analysis, check what an agent produced before you use it.
+
+## 7.2 Architecture: operations, reference, routes
+
+```
+ you  ⇄  AI app (chat)                       ARPES viewer (on your screen)
+            │                                 ┌──────────────────────────┐
+            │  writes <results>/_agent/        │  runs each command file, │
+            ├──── viewer_cmd/01_….py  ───────▶ │  or each MCP call, with  │
+            │                                 │  L = its operations      │
+            │  reads out/cmd_01_….log  ◀────── │  new rows, windows, files│
+            │  (or MCP tool results)           └──────────────────────────┘
+```
+
+- **The operations `L`.** About fifty documented operations on the named
+  rows of the main list (`arpes_viewer/ui/common/live.py`): `L.rows()`,
+  `L.add_files(...)`, `L.fermi_edge_search(...)`, `L.fermi_edge(...)`,
+  `L.map_to_k(...)`, `L.kz_to_k(...)`, `L.bz_overlay(...)`,
+  `L.cut_arithmetic(...)`, `L.slice_series(...)`, `L.figure_render(...)` …
+  Each one adds new rows rather than changing old ones, never overwrites a
+  file, and never waits for a click. A row can be named by its name, its
+  number in `L.rows()` or the path of its file.
+- **The reference `API.md`** (`arpes_viewer/agent/API.md`, inside the
+  installed program) lists every operation, the tool-panel buttons, the MCP
+  tools and the computations in `tools/`, with their parameters. It is
+  generated from the program, so it is always current; the agent reads it
+  instead of the source. `L.help()` prints the same list.
+- **Three routes** to the same operations:
+  1. **Command folder** (recommended): the agent writes one small Python
+     file per step into `<results>/_agent/viewer_cmd/`; the program runs it
+     and writes what it printed to `<results>/_agent/out/`. Any AI app that
+     can read and write files works, and every step is kept as a file.
+  2. **MCP**: the AI app calls the program through its MCP server
+     (`arpes-viewer-mcp`); with the program started with the agent bridge,
+     `viewer_api` calls the same operations.
+  3. **Scripts without a screen**: the computations in `arpes_viewer/tools/`
+     and the headless workspace, for a script to keep.
+- **Windows.** A window an operation opens only to drive it (a conversion
+  dialog, a temporary figure) never appears on screen; the windows still
+  open when a step ends (a figure, a viewer, a tool waiting for you) appear
+  on the screen of the main panel, not on the screen you are working on.
+
+## 7.3 Starting from the AI assistant panel
+
+![The AI assistant button: a status light](images/assistant_button.png)
+
+Press **AI assistant...** at the top of the tool panel.
+
+![The AI assistant window before starting](images/assistant_setup.png)
+
+1. **Folders.** The **data** folder (the agent only reads it) and a
+   **results** folder (everything the agent writes goes there; its commands
+   go in `<results>/_agent`).
+2. **What you want.** Tick what applies:
+   - *Ask me before choosing a physical parameter*: Γ, an energy window,
+     the inner potential, a threshold;
+   - *Show me each step and wait for my go-ahead*;
+   - *Record token / plan usage per step*: a usage log, one line per step;
+   - *Hide the sample's real identity* in everything written;
+   - *Write a report*, *Make slides*;
+   - *Keep the list tidy*: offer to remove intermediate rows at the end.
+
+   Then write your request in your own words: which data, which steps,
+   which figures.
+3. **Your AI app.** *Works in folders* (recommended; nothing to set up) or
+   *Uses MCP tools* (the prompt says how to connect the app once).
+4. Press **Copy the prompt and start**. The program starts listening and the
+   prompt is on the clipboard. **Show the prompt** shows it: the folders,
+   where `API.md` is, how to send steps, and the working rules
+   ([§7.6](#76-the-working-rules-the-agent-follows)).
+5. Paste the prompt into your AI app and send it. Allow the app to read the
+   data folder and to read and write the results folder when it asks.
+
+## 7.4 Watching and stepping in
+
+![The AI assistant window while the agent works](images/assistant_running.png)
+
+- **The list of steps** (right): each step the agent ran, with its time and
+  ✓, or ✗ in red if it failed. Click a step to see what it printed.
+- **The status light** on the **AI assistant** button, also with the window
+  closed: grey not running, green running, yellow paused, red a failed step
+  or commands no longer being run. Closing the window does not stop the
+  agent.
+- **Pause the agent** holds its next commands (the light turns yellow), so
+  you can work by hand; **Resume** lets them through. The agent is told to
+  wait and ask you when its commands are held.
+- **Your work goes on.** The agent's steps leave your selection in the list
+  as it was, so you can look at data while it works, and windows it opens
+  only to drive them never appear on your screens.
+- **Open results** opens the results folder: the agent's command files and
+  logs in `_agent`, the pictures and figures it wrote.
+
+## 7.5 Other ways to start
+
+- **Claude Code or another MCP app.** In the AI assistant choose *Uses MCP
+  tools*: the program turns its agent bridge on and the prompt holds the
+  command to add the server, for Claude Code
+  `claude mcp add arpes-viewer -- python -m arpes_viewer.agent`. If your app
+  loads tool definitions on demand, have it load all the arpes-viewer tools
+  at once.
+- **By hand.** Start the program with the bridge on
+  (`arpes-viewer --agent-bridge`), add `arpes-viewer-mcp` to the app's MCP
+  servers, and point the agent to `API.md`.
+- **The command folder without the panel.** `agentic/launch_viewer.py`
+  starts the program listening on a folder of your choice;
+  `agentic/README.md` is the step-by-step guide, with requests to copy in
+  `agentic/PROMPTS.md` and runnable examples in `agentic/examples/`.
+- **A script to keep.** The computations in `arpes_viewer/tools/` need no
+  window; `devtools/figure_tests.py` builds two complete figures from the
+  demo data that way.
+
+The details of the MCP server, for reference:
 
 ARPES viewer is also an **MCP server** (Model Context Protocol), so an AI
 agent of any model — Claude, GPT, Gemini, or a local model in an
@@ -2036,6 +2206,240 @@ token it writes, at start, to `~/.arpes_viewer/agent_bridge.json`
 `viewer_python` runs code in the program — let an agent use it as you would
 let it type in a Python console on your computer.
 
-The file-based workflow of [docs/AGENTIC_WORKFLOW_en.md](AGENTIC_WORKFLOW_en.md)
-(command files dropped into a folder) still works; the MCP server is the
-same idea without the folder, for any agent.
+The command-folder route is described in more detail in
+[docs/AGENTIC_WORKFLOW_en.md](AGENTIC_WORKFLOW_en.md); the MCP server
+is the same idea without the folder.
+
+## 7.6 The working rules the agent follows
+
+The prompt gives the agent rules learnt from real sessions; `API.md`
+repeats them. You can add your own, or override one, in your request.
+
+| Rule | Why |
+|---|---|
+| After adding the data, compare the rows with the folder and report what was left out, not recognised or warned about | single spectra in a map's folder, and files no reader takes, must not pass unnoticed |
+| Say which part of a row name comes from the file name and which from recorded metadata; mark guesses | names are what everyone reads afterwards |
+| Look for an operation (`L.help()`, `L.tools()`, `L.functions()`) before computing anything; never edit the program's internal tables; if an operation is missing, say which and ask | results stay reproducible, with their history |
+| Fermi level: fit raw data, per row, on that row's own axis (`L.fermi_edge_search`), draw each fit; rows of the same photon and pass energy must agree; when the data cannot decide, ask once | the steepest drop is not always the edge; one window does not fit every axis |
+| Chain steps in one call (`L.map_to_k(row, ef=…, normalise_axes=(1, 2))`) so only final rows are listed; remove rows only when you agree | a list you can still read |
+| Try figures in `check/`, publish one version per figure in `figures/FigureN/`, move superseded versions aside | one final file per figure |
+| Signed quantities (dichroism, differences) get a diverging colour map with symmetric levels | a sign must be readable |
+| Small outputs: `L.rows(compact=True)`, `L.profile(..., summary=True)`, arrays to files | fewer tokens, less sent to the provider |
+| Never delete or overwrite; ask before each physical parameter (if ticked) | your data and your decisions stay yours |
+
+## 7.7 Worked example: an agent from set-up to figure
+
+This example follows a real day of processing CASSIOPEE data with an agent
+(Fermi-surface maps and cuts in several polarisations, up to dichroism
+figures), redone here on the demo data so you can repeat it. The program
+changes that day's session asked for are in the
+[CHANGELOG](../CHANGELOG.md) (1.3.2).
+
+**1. Set-up.** AI assistant: data `demo_data`, results `results_demo`;
+*ask before a physical parameter*, *step by step*, *report* and *tidy list*
+ticked; the request: *"Process the Γ-plane map and the LH and LV cuts along
+Γ-M: fit E_F per row, convert to k (Γ at normal emission), draw the zone
+(P-3m1, a = 3.3, c = 6 Å), make constant-energy slices at E_F, −0.2 and
+−0.4 eV, and the linear dichroism of the two cuts."* → **Copy the prompt and
+start**, paste into the AI app.
+
+**2. Looking first.** The agent's first command file:
+
+```python
+print(L.add_files(DATA))           # added, left_out, unrecognised, warnings
+print(L.rows(compact=True))        # one line per row
+```
+
+It reports what is in the folder and proposes a plan; with *step by step*
+it waits for your go-ahead.
+
+**3. The Fermi level, per row.** For each row, on its own energy axis:
+
+```python
+found = L.fermi_edge_search(row, temperature=20)   # the candidate edges
+fit = L.fermi_edge(row, found["candidates"][0]["window"], temperature=20,
+                   picture=os.path.join(HERE, "ef_" + row + ".png"))
+```
+
+![The agent's Fermi-edge fit, drawn for you to check](images/agent_fermi_fit.png)
+
+`fermi_edge_search` lists every drop of the EDC that stands above the noise,
+highest energy first, fits each and says which is the Fermi edge. When two
+fit (a weak tail above a strong drop, as on the real pass-energy-20 data),
+it says so and the agent asks you once. Each fit is drawn: grey the window,
+red the fitted edge.
+
+**4. To momentum, one row each.**
+
+```python
+k = L.map_to_k(MAP, ef=EF[MAP], normalise_axes=(1, 2), new_name="map Gamma plane k")
+L.cut_to_k("cut_GM_LH", ef=EF["cut_GM_LH"], new_name="cut GM LH k")
+```
+
+The shift to E − E_F, the normalisation of every cut of the map and the
+conversion are one call: only the final row is listed, and its history
+records the three steps.
+
+**5. The zone and the figure.**
+
+```python
+L.bz_overlay("map Gamma plane k", space_group=164, a=3.3, c=6.0, hkl=(0, 0, 1), offset=0.0)
+L.slice_series("map Gamma plane k", values=[0, -0.2, -0.4], half_width=0.02, cols=3,
+               colormap="blue", flip=True, shared=False, percentiles=(3, 99.7),
+               high_factor=1.4, zone_style="dashed", zone_color="#B8D62020",
+               title="Figure 1")
+L.figure_render("Figure 1", os.path.join(HERE, "..", "figures", "Figure1.png"), dpi=150)
+```
+
+![The figure the agent made](images/agent_figure.png)
+
+**6. Dichroism.**
+
+```python
+L.cut_arithmetic("cut GM LH k", "cut GM LV k", operation="asymmetry", normalise="total")
+```
+
+The program's own cut arithmetic, the same as the Cut arithmetic window
+([§5.5](#55-cut-arithmetic-dichroism-and-reference-division)): LV scaled to
+LH's total, (LH − LV)/(LH + LV), points of low intensity masked.
+
+**7. Watching.** Meanwhile the AI assistant lists each step
+([§7.4](#74-watching-and-stepping-in)); you can click one to read its
+output, pause to look at a row yourself, and resume. At the end the agent
+writes the report and, if you agree, removes intermediate rows; the results
+folder holds the figures, the fit pictures and every command file, which
+together record exactly what was done.
+
+## 7.8 Limitations and good practice
+
+- **Check the physics.** An agent can choose a plausible but wrong Fermi
+  edge, Γ position or inner potential. Tick *Ask me before choosing a
+  physical parameter*, and look at each fit picture.
+- **Keep the record.** The command files in `<results>/_agent/` and the rows'
+  histories show what was done; keep them with the results.
+- **Usage.** The agent cannot see its own token use; if you want a usage
+  log with numbers, give them to it.
+- **Privacy.** Only what the agent reads leaves your computer
+  ([§7.1](#71-how-it-works-and-what-leaves-your-computer)); keep anything
+  private out of the folders it can reach.
+- **Encoding.** Command files are UTF-8; the program warns when a step's
+  code holds characters garbled by a wrong encoding ("âˆ’" for "−").
+
+---
+
+# Part 8 — Housekeeping
+
+Autosave and recovery, saving your work, error logs, versions, and what to do when something goes wrong.
+
+## 8.1 Autosave, memory and recovery
+
+- **Autosave.** Every computed dataset (a k-map, a processed cut, a fit
+  result…) is written, uncompressed, to this session's folder in
+  `~/.arpes_viewer/sessions/` the moment it exists. Real-space scans are not
+  (they are the measurement itself, and large).
+- **A normal close deletes the autosaved copies.** When you close the main
+  window and confirm (everything you want is saved, or *Close anyway*), the
+  open viewers are closed and the session folder is deleted straight away.
+  A dataset's copy also goes as soon as you save it to a file of your own.
+- **Recovery after a crash.** Only if the program did not close normally (a
+  crash, a kill) is the session folder kept: the next start offers its
+  datasets back, and it is deleted after three days.
+- **Operations log.** `~/.arpes_viewer/sessions/operations.log`, one line per
+  store / save / discard — how to find what was where.
+- **Memory box** (bottom of the tool panel). This program's memory, the system's, how many viewers and
+  HDF5 files are open, and how much computed data is held. **Free RAM**
+  drops cached copies of computed data (they are re-read from their autosaved
+  file when needed); **Close all** closes every window and then frees
+  memory.
+- **Autosaves** (in the Memory box) shows the session folders
+  in the system's file browser, to delete old working copies by hand. The
+  folder of the session now running (named in the status bar) is in use.
+- **Long operations** (reading a big map, converting, de-gridding, assembling
+  a folder) run off the GUI thread with a progress bar and a working Cancel.
+- **Closing** with unsaved computed data asks first, and names the datasets:
+  **Save to a file...**, **Close anyway** (the autosaved copies are deleted)
+  or **Cancel** (nothing happens).
+
+## 8.2 Saving and reopening work
+
+- **Datasets.** Select rows → Datasets box → **Save**: one `.nxs` file in the
+  program's own format (several datasets per file, with their metadata and
+  processing history), which **Load data...** opens again; or Igor Pro text
+  (`.itx`). A viewer's panel exports what it shows
+  ([§3.8](#38-exporting-a-panel-and-saving-data)).
+- **Figures.** In the figure composer, **Save** writes an `.afig` file that
+  opens again for editing, with the data of every panel beside it ("data for
+  <name>"), so it opens even where the original files are not. Leave that
+  folder out of anything you share. **Export** writes PNG, PDF, SVG or TIFF.
+- **The experiment log** and the **session log** record what was measured
+  and what was done ([§2.3](#23-the-experiment-log)).
+- Nothing is overwritten without asking: a save to an existing file asks
+  first.
+
+## 8.3 Error logs and bug reports
+
+When something goes wrong, the program **keeps running** and saves the error
+and its traceback in **`error_logs/errors_<date>_<time>.txt` in the program's
+folder** (in `~/.arpes_viewer/error_logs/` if that folder cannot be
+written), one file per session in which an error happened. A message says
+so.
+
+To report a bug, open an issue at
+<https://github.com/DingPei1995/ARPES-viewer/issues> with:
+
+- the error log: **upload the file** (drag it into the text box) **or paste
+  its text**. The main panel's last line has **Copy the newest error log**
+  and **Open the error logs**;
+- the version, from the title bar;
+- what you did just before, and if possible the kind of file
+  (beamline, cut or map).
+
+If the program does not start at all, the launcher's log
+`~/.arpes_viewer/launcher.log` holds the reason.
+
+## 8.4 Versions and updates
+
+The title bar and the main panel's last line show the version and its date
+(`ARPES viewer v1.3.2 (updated 2026-11-04)`). What changed in each version,
+and why, is in the [CHANGELOG](../CHANGELOG.md).
+
+To update a pip installation:
+
+```bash
+pip install --upgrade arpes-viewer
+```
+
+For the latest unreleased version, `pip install
+git+https://github.com/DingPei1995/ARPES-viewer`; a downloaded copy is
+updated by downloading it again. Datasets and figures saved by an earlier
+version open in later ones.
+
+## 8.5 Tips and troubleshooting
+
+- **A greyed tool button** — hover over it: the tooltip says why (e.g. the
+  MDC fit needs a cut already in Å⁻¹, cut arithmetic two cuts). Select the
+  right rows in the list and it lights up.
+- **A tool is not in a viewer's Functions menu** — it is in the tool panel
+  (see *Where things are now* in [§2.1](#21-the-main-window-at-a-glance)); check all three tabs (Basic, Advanced, Figure).
+- **A window is taller than the screen** — it opens no taller than the
+  screen, and its contents scroll; the Apply / Close buttons stay at the
+  bottom. Every window can be resized.
+- **A k conversion is not offered** — the first axis of the map is not an
+  angle (a photon energy, temperature…). Check *First axis of a map is* in
+  the loader.
+- **Cut k conversion of an E − E_F cut** — the energy offset is filled in for
+  you from the Fermi fit; if you shifted the axis some other way, type the
+  kinetic energy of E_F (photon energy − work function) into *Energy offset*.
+- **A file is misread** — choose the reader explicitly in the loader, and see
+  *Assumptions worth knowing about* in the
+  [reading-data reference](../arpes_viewer/loader/README.md#assumptions-worth-knowing-about)
+  (axis order in SOLEIL files).
+- **Dragging the cursor on a big map is sluggish** — a map read lazily from
+  its file re-slices in about 0.1 s per window, so the other windows wait for
+  the mouse to pause. Once the map has been read into memory it follows live.
+- **Typing numbers** — every number box takes a decimal point (`0.05`),
+  whatever the system language; a comma is not accepted.
+- **The machine is paging** — watch the Memory bar (amber past a third of the
+  RAM, red past a half); use **Free RAM** or **Close all**.
+
+<!-- Generated by devtools/build_guide.py from docs/guide/en/: edit those files, not this one. -->

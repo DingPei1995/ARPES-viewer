@@ -17,6 +17,8 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# No one is there to answer "Close this window?"
+os.environ.setdefault("ARPES_VIEWER_NO_CONFIRM", "1")
 # Keep the program's config and session folders out of the real home.
 _HOME = os.path.join(tempfile.gettempdir(), "arpes_guide")
 os.makedirs(_HOME, exist_ok=True)
@@ -764,7 +766,9 @@ class Shots:
         import time as _time
         from arpes_viewer.ui.common.assistant import AssistantDialog
         main = self.av
+        import shutil
         results = os.path.join(_HOME, "results_demo")
+        shutil.rmtree(results, ignore_errors=True)       # a fresh session
         os.makedirs(results, exist_ok=True)
         dialog = AssistantDialog(main)
         dialog.data_edit.setText(self.data_dir)
@@ -772,9 +776,11 @@ class Shots:
         for key, box in dialog.option_boxes.items():
             box.setChecked(key in ("ask", "steps", "report", "clean"))
         dialog.extra_edit.setPlainText(
-            "Process the Fermi-surface map at 60 eV: fit E_F, convert to k "
-            "with \u0393 at normal emission, draw the zone, and make a slice "
-            "series at E_F, \u22120.2 and \u22120.4 eV.")
+            "Process the \u0393-plane map and the LH and LV cuts along \u0393-M: "
+            "fit E_F per row, convert to k (\u0393 at normal emission), draw "
+            "the zone (P-3m1, a = 3.3, c = 6 \u00c5), make constant-energy "
+            "slices at E_F, \u22120.2 and \u22120.4 eV, and the linear dichroism "
+            "of the two cuts.")
         dialog.mode_folders.setChecked(True)
         dialog.refresh_prompt()
         shot(dialog, "assistant_setup", (1180, 760))
@@ -782,22 +788,43 @@ class Shots:
         dialog.copy_and_start()
         folder = main._command_folder
         commands = os.path.join(folder.folder, "viewer_cmd")
+        figures = os.path.join(results, "figures")
+        os.makedirs(figures, exist_ok=True)
+        MAP = "FS_map_hv59.3_Gamma_plane"
         steps = [
             ("01_rows.py", "print(L.rows(compact=True))\n"),
             ("02_fermi_edge.py",
-             "found = L.fermi_edge_search('FS_map_hv60')\n"
-             "print(found['advice'])\n"
-             "fit = L.fermi_edge('FS_map_hv60', found['candidates'][0]['window'],"
-             " temperature=20, picture=os.path.join(HERE, 'ef_map60.png'))\n"
-             "print('E_F =', round(fit['values']['ef'], 4), 'eV')\n"),
+             f"rows = ['{MAP}', 'cut_GM_LH', 'cut_GM_LV']\n"
+             "EF = {}\n"
+             "for row in rows:\n"
+             "    found = L.fermi_edge_search(row, temperature=20)\n"
+             "    print(row, '->', found['advice'])\n"
+             "    fit = L.fermi_edge(row, found['candidates'][0]['window'], temperature=20,\n"
+             "                       picture=os.path.join(HERE, 'ef_' + row + '.png'))\n"
+             "    EF[row] = fit['values']['ef']\n"
+             "print(EF)\n"
+             "import json; json.dump(EF, open(os.path.join(HERE, 'ef.json'), 'w'))\n"),
             ("03_to_k.py",
-             "ef = L.fermi_edge('FS_map_hv60', L.fermi_edge_search('FS_map_hv60')"
-             "['candidates'][0]['window'], temperature=20)['values']['ef']\n"
-             "k = L.map_to_k('FS_map_hv60', ef=ef, normalise_axes=(1, 2))\n"
-             "print(k, L.describe(k)['axes'][0]['points'], 'kx points')\n"),
-            ("04_slices.py",
-             "print(L.slice_series('FS_map_hv60 [k]', values=[0, -0.2, -0.4],"
-             " half_width=0.02, cols=3, title='Slices 60 eV')['panels'][0]['title'])\n"),
+             "EF = json.load(open(os.path.join(HERE, 'ef.json')))\n"
+             f"k = L.map_to_k('{MAP}', ef=EF['{MAP}'], normalise_axes=(1, 2),\n"
+             "               new_name='map Gamma plane k')\n"
+             "for pol in ('LH', 'LV'):\n"
+             "    L.cut_to_k('cut_GM_' + pol, ef=EF['cut_GM_' + pol], new_name='cut GM ' + pol + ' k')\n"
+             "print(L.rows(compact=True))\n"),
+            ("04_zone.py",
+             "print(L.bz_overlay('map Gamma plane k', space_group=164, a=3.3, c=6.0,\n"
+             "                  hkl=(0, 0, 1), offset=0.0))\n"),
+            ("05_slices.py",
+             "fig = L.slice_series('map Gamma plane k', values=[0, -0.2, -0.4], half_width=0.02,\n"
+             "                     cols=3, colormap='blue', flip=True, shared=False,\n"
+             "                     percentiles=(3, 99.7), high_factor=1.4, zone_style='dashed',\n"
+             "                     zone_color='#B8D62020', title='Figure 1')\n"
+             "print(L.figure_render('Figure 1', os.path.join(HERE, '..', 'figures',\n"
+             "                      'Figure1.png'), dpi=150)['png'])\n"),
+            ("06_dichroism.py",
+             "ld = L.cut_arithmetic('cut GM LH k', 'cut GM LV k', operation='asymmetry',\n"
+             "                      normalise='total', new_name='LD GM')\n"
+             "print(ld['summary'])\n"),
         ]
         for name, code in steps:
             with open(os.path.join(commands, name), "w", encoding="utf-8") as handle:
@@ -805,8 +832,15 @@ class Shots:
             folder.poll()
             pump()
             _time.sleep(0.05)
+        for source, name in ((os.path.join(folder.folder, f"ef_{MAP}.png"), "agent_fermi_fit"),
+                             (os.path.join(figures, "Figure1.png"), "agent_figure")):
+            if os.path.exists(source):
+                shutil.copy(source, os.path.join(OUT, f"{name}.png"))
+                print("saved", name)
+            else:
+                print("FAILED", name)
         for window in QApplication.topLevelWidgets():
-            if window.isVisible() and window.windowTitle() == "Slices 60 eV":
+            if window.isVisible() and window.windowTitle() == "Figure 1":
                 window.close()
         dialog.refresh_status()
         dialog.steps.setCurrentRow(1)

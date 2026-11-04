@@ -1,83 +1,132 @@
 # ARPES viewer 用户指南
 
-*[English version / 英文版](USER_GUIDE_en.md) · [Version française / 法文版](USER_GUIDE_fr.md)*
+*[English version](USER_GUIDE_en.md) · [Version française](USER_GUIDE_fr.md)*
 
-*最后更新：2026 年 11 月 4 日——对应 ARPES viewer v1.3.2*
+*最后更新：2026 年 11 月 4 日 —— 适用于 ARPES viewer v1.3.2*
 
-程序的版本号和更新日期显示在主窗口标题栏和主窗口最下方。报告 bug、提问或获取最新版本：
+版本号及日期显示在主窗口的标题栏和最下一行。bug 报告、问题和最新版本：
 <https://github.com/DingPei1995/ARPES-viewer>（报告 bug 时请注明版本号）。
 
-本指南按照工具面板的顺序，配合截图介绍程序的功能：先是入门（安装、载入数据、
-主窗口与各查看窗口），然后依次是 **Basic**、**Advanced**、**Figure** 三个
-标签页，再是作图——最后用作图器一步步完成两张论文图。每一步背后的技术细节（公式、测试结果、
-设计取舍）见代码旁的技术参考——[读取数据](../arpes_viewer/loader/README.md)、[窗口](../arpes_viewer/ui/README.md)、
-[分析](../arpes_viewer/tools/README.md)——以及 [CHANGELOG](../CHANGELOG.md)（英文）。
+本指南按程序在屏幕上的样子组织：
 
-所有截图都来自实际运行的程序，所用数据是 `devtools/demo_data.py` 生成的模拟
-数据，因此没有实验数据也可以跟着操作一遍（见[用演示数据试用](#2-用演示数据试用)）。
+- **第一部分**入门：安装、演示数据、程序可读取的文件、配置 AI 智能体、代码结构。
+- **第二部分**主面板：数据集列表及其周围的一切。
+- **第三部分**数据查看窗口：cut、map、kz map、k-map、曲线、自旋与空间分辨扫描。
+- **第四、五、六部分**是工具面板的三个标签页（**Basic**、**Advanced**、**Figure**）；第六部分最后
+  给出一个从载入数据到成图的实例。
+- **第七部分** AI 智能体：它如何操作本程序、如何启动和监控，以及一个从配置到成图的实例。
+- **第八部分**日常维护：自动保存与恢复、保存工作、错误日志、版本与常见问题。
 
----
+所有截图都取自运行中的程序，使用 `devtools/demo_data.py` 生成的模拟数据，没有 beamtime 也能跟着
+操作（[§1.3](#13-用演示数据试用)）。**这些都不是真实的实验数据。**每一步的技术背景（公式、测试、
+设计取舍）见代码旁的参考文档：[读取数据](../arpes_viewer/loader/README.md)、
+[窗口](../arpes_viewer/ui/README.md)、[分析](../arpes_viewer/tools/README.md)，以及
+[CHANGELOG](../CHANGELOG.md)。
 
 ## 目录
 
 **[第一部分 入门](#第一部分-入门)**
 
-1. [安装与启动](#1-安装与启动)  
-2. [用演示数据试用](#2-用演示数据试用)  
-3. [主窗口](#3-主窗口)  
-4. [载入数据](#4-载入数据)  
-5. [各查看窗口的共同操作](#5-各查看窗口的共同操作)  
-6. [Map：等能面及其两个切面](#6-map等能面及其两个切面)  
-7. [任意路径切面与费米面校正](#7-任意路径切面与费米面校正)
+- [1.1 ARPES viewer 是什么](#11-arpes-viewer-是什么)
+- [1.2 安装与启动](#12-安装与启动)
+- [1.3 用演示数据试用](#13-用演示数据试用)
+- [1.4 支持的线站与文件格式](#14-支持的线站与文件格式)
+- [1.5 数据类型](#15-数据类型)
+- [1.6 配置 AI 智能体](#16-配置-ai-智能体)
+- [1.7 代码结构](#17-代码结构)
+- [1.8 程序文件的存放位置](#18-程序文件的存放位置)
 
-**[第二部分 Basic 标签页](#第二部分-basic-标签页)**
+**[第二部分 主面板](#第二部分-主面板)**
 
-8. [费米边拟合](#8-费米边拟合)  
-9. [去除探测器网格与探测器校正](#9-去除探测器网格与探测器校正)  
-10. [扣除背底](#10-扣除背底)  
-11. [把 cut 转换到动量空间](#11-把-cut-转换到动量空间)  
-12. [芯能级检查（Core-level check）](#12-芯能级检查core-level-check)  
-13. [Map 的 k 转换](#13-map-的-k-转换)  
-14. [光子能量扫描（kz）](#14-光子能量扫描kz)  
-15. [布里渊区](#15-布里渊区)
+- [2.1 主窗口概览](#21-主窗口概览)
+- [2.2 载入数据](#22-载入数据)
+- [2.3 实验记录](#23-实验记录)
+- [2.4 合并数据集：叠加、拼接与求和](#24-合并数据集叠加拼接与求和)
+- [2.5 分步窗口](#25-分步窗口)
 
-**[第三部分 Advanced 标签页](#第三部分-advanced-标签页)**
+**[第三部分 数据查看窗口](#第三部分-数据查看窗口)**
 
-16. [平滑、求导、曲率与对称化](#16-平滑求导曲率与对称化)  
-17. [脊线提取（Ridge detection）](#17-脊线提取ridge-detection)  
-18. [堆叠图](#18-堆叠图)  
-19. [MDC 拟合与 EDC 拟合](#19-mdc-拟合与-edc-拟合)  
-20. [Cut 运算：二色性与参考谱归一](#20-cut-运算二色性与参考谱归一)  
-21. [切片序列图（Slice series figure）](#21-切片序列图slice-series-figure)  
-22. [三维视图](#22-三维视图)  
-23. [曲线：EDC、MDC 与自旋分辨数据](#23-曲线edcmdc-与自旋分辨数据)  
-24. [空间分辨扫描（nano-ARPES）](#24-空间分辨扫描nano-arpes)
+- [3.1 各查看窗口的共同操作](#31-各查看窗口的共同操作)
+- [3.2 Map：等能面及其两个切面](#32-map等能面及其两个切面)
+- [3.3 任意路径切面与费米面校正](#33-任意路径切面与费米面校正)
+- [3.4 kz map 与 k-map](#34-kz-map-与-k-map)
+- [3.5 曲线：EDC、MDC 与曲线拟合](#35-曲线edcmdc-与曲线拟合)
+- [3.6 自旋分辨数据](#36-自旋分辨数据)
+- [3.7 空间分辨扫描（nano-ARPES）](#37-空间分辨扫描nano-arpes)
+- [3.8 导出单个面板与保存数据](#38-导出单个面板与保存数据)
 
-**[第四部分 Figure 标签页](#第四部分-figure-标签页)**
+**[第四部分 工具面板：Basic 标签页](#第四部分-工具面板basic-标签页)**
 
-25. [晶体结构与三维布里渊区](#25-晶体结构与三维布里渊区)  
-26. [紧束缚拟合](#26-紧束缚拟合)  
-27. [计算能带（Calculated bands）](#27-计算能带calculated-bands)
+- [4.1 工具按钮如何工作](#41-工具按钮如何工作)
+- [4.2 费米边拟合](#42-费米边拟合)
+- [4.3 去除探测器网格](#43-去除探测器网格)
+- [4.4 探测器校正](#44-探测器校正)
+- [4.5 扣除背底](#45-扣除背底)
+- [4.6 把 cut 转换到动量空间](#46-把-cut-转换到动量空间)
+- [4.7 芯能级检查（Core-level check）](#47-芯能级检查core-level-check)
+- [4.8 Map 的 k 转换](#48-map-的-k-转换)
+- [4.9 对齐 kz map 的费米能级](#49-对齐-kz-map-的费米能级)
+- [4.10 把 kz map 转换到动量空间](#410-把-kz-map-转换到动量空间)
+- [4.11 布里渊区](#411-布里渊区)
 
-**[第五部分 作图与输出](#第五部分-作图与输出)**
+**[第五部分 工具面板：Advanced 标签页](#第五部分-工具面板advanced-标签页)**
 
-28. [作图器（Figure composer）](#28-作图器figure-composer)  
-29. [导出单个面板与保存数据](#29-导出单个面板与保存数据)  
-30. [实例：用作图器完成两张图](#30-实例用作图器完成两张图)
+- [5.1 平滑、求导、曲率与对称化](#51-平滑求导曲率与对称化)
+- [5.2 脊线提取（Ridge detection）](#52-脊线提取ridge-detection)
+- [5.3 堆叠图](#53-堆叠图)
+- [5.4 MDC 拟合与 EDC 拟合](#54-mdc-拟合与-edc-拟合)
+- [5.5 Cut 运算：二色性与参考谱归一](#55-cut-运算二色性与参考谱归一)
+- [5.6 切片序列图（Slice series figure）](#56-切片序列图slice-series-figure)
+- [5.7 三维视图](#57-三维视图)
 
-**[第六部分 日常维护](#第六部分-日常维护)**
+**[第六部分 工具面板：Figure 标签页](#第六部分-工具面板figure-标签页)**
 
-31. [自动保存、内存与恢复](#31-自动保存内存与恢复)  
-32. [技巧与常见问题](#32-技巧与常见问题)  
-33. [让 AI 智能体调用本程序（MCP）](#33-让-ai-智能体调用本程序mcp)  
+- [6.1 作图器（Figure composer）](#61-作图器figure-composer)
+- [6.2 晶体结构](#62-晶体结构)
+- [6.3 3D BZ：三维布里渊区](#63-3d-bz三维布里渊区)
+- [6.4 紧束缚拟合](#64-紧束缚拟合)
+- [6.5 计算能带（Calculated bands）](#65-计算能带calculated-bands)
+- [6.6 实例：从载入数据到成图](#66-实例从载入数据到成图)
+- [6.7 实例：用作图器完成两张图](#67-实例用作图器完成两张图)
+
+**[第七部分 AI 智能体](#第七部分-ai-智能体)**
+
+- [7.1 工作原理，以及哪些内容会离开你的电脑](#71-工作原理以及哪些内容会离开你的电脑)
+- [7.2 架构：操作、参考文档与连接方式](#72-架构操作参考文档与连接方式)
+- [7.3 从 AI assistant 面板启动](#73-从-ai-assistant-面板启动)
+- [7.4 监控与介入](#74-监控与介入)
+- [7.5 其他启动方式](#75-其他启动方式)
+- [7.6 智能体遵循的工作规则](#76-智能体遵循的工作规则)
+- [7.7 实例：智能体从配置到成图](#77-实例智能体从配置到成图)
+- [7.8 局限与良好习惯](#78-局限与良好习惯)
+
+**[第八部分 日常维护](#第八部分-日常维护)**
+
+- [8.1 自动保存、内存与恢复](#81-自动保存内存与恢复)
+- [8.2 保存与重新打开工作](#82-保存与重新打开工作)
+- [8.3 错误日志与 bug 报告](#83-错误日志与-bug-报告)
+- [8.4 版本与更新](#84-版本与更新)
+- [8.5 技巧与常见问题](#85-技巧与常见问题)
 
 ---
 
 # 第一部分 入门
 
----
+本程序是什么、如何安装和启动、所有截图所用的演示数据、程序能读取哪些文件、如何连接 AI 智能体，以及代码和文件放在哪里。
 
-## 1. 安装与启动
+## 1.1 ARPES viewer 是什么
+
+ARPES viewer 是一个处理角分辨光电子能谱（ARPES）数据的 Python/PyQt5 程序。它可以浏览一次
+beamtime 的全部测量，在独立窗口中打开每个数据，转换到动量空间，切片、拟合与处理，与能带计算
+比较，并把结果排版成论文用图。每一步也都是普通的 Python 代码，脚本或 AI 智能体都可以调用。
+
+本程序可免费用于**非商业用途**（学术研究与教学），采用 PolyForm Noncommercial License 1.0.0。
+若在论文中使用，请引用：Ding Pei, *ARPES viewer*, Zenodo,
+<https://doi.org/10.5281/zenodo.23771647>。
+
+它不是采集程序，也不会修改你的数据文件：每个结果都是列表中的新数据集，或你指定的新文件。
+
+## 1.2 安装与启动
 
 需要 Python 3.9 或更高版本，以及五个依赖包：
 
@@ -123,16 +172,9 @@ map、k 转换、FS correction、任意路径 cut、数据运算、合并数据�
 - 如果程序因错误退出，对话框会显示 `~/.arpes_viewer/launcher.log` 的最后几行；
   报告 bug 时请附上该文件。
 
-支持读取的数据：
+本程序可读取的文件见 [§1.4](#14-支持的线站与文件格式)。
 
-| 线站 / 来源 | 文件 |
-|---|---|
-| SOLEIL **ANTARES** | NeXus/HDF5 `*.nxs`（cut、偏转器 map、空间扫描） |
-| SOLEIL **CASSIOPEE** | Scienta SES 文本文件——单张谱，以及按编号组成的文件夹（自动拼成 map 或光子能量扫描） |
-| CASSIOPEE **自旋端站**（MBS A-1） | `*.krx` 与 `*.txt`——cut、偏转器 map 和自旋分辨 EDC |
-| 本程序 | 本程序自己保存的 `*.nxs` 格式 |
-
-## 2. 用演示数据试用
+## 1.3 用演示数据试用
 
 ```bash
 python devtools/demo_data.py            # 写入 ./demo_data/
@@ -150,7 +192,7 @@ python devtools/demo_data.py            # 写入 ./demo_data/
 - **这个晶体的计算结果**，就像理论组发来的那样：一个 Wannier90 哈密顿量
   （`demo_calc_hr.dat` 及 `demo_calc.win`）和同一能带的网格文件（`demo_calc.bxsf`）。
   它是未经重整化的晶体——能带宽 1/0.8 倍、高 50 meV——正是与数据拟合后能找回的值
-  （[第 27 节](#27-计算能带calculated-bands)）；
+  （[第 27 节](#65-计算能带calculated-bands)）；
 - 两个 CIF 格式的晶体结构（`demo_crystal.cif`，1T 层状六角晶体；
   `demo_tetragonal_crystal.cif`，ZrSiS 型晶体）和一条 EDS 谱（`demo_eds.nxs`）。
 
@@ -162,14 +204,91 @@ python devtools/demo_data.py            # 写入 ./demo_data/
 python devtools/guide_screenshots.py    # 写入 docs/images/*.png
 ```
 
-[第 30 节](#30-实例用作图器完成两张图)的两张示例图由演示数据、用程序自身的窗口
+[第 30 节](#67-实例用作图器完成两张图)的两张示例图由演示数据、用程序自身的窗口
 重新生成：
 
 ```bash
 python devtools/figure_tests.py docs/images [存放 .afig 文件的文件夹]
 ```
 
-## 3. 主窗口
+## 1.4 支持的线站与文件格式
+
+读取器会自动识别（[§2.2](#22-载入数据)）。
+
+| 线站 | 文件 | 数据 |
+|---|---|---|
+| SOLEIL **ANTARES** | NeXus `*.nxs` | cut、偏转器 map、光子能量（PhD）扫描、空间扫描 |
+| SOLEIL **CASSIOPEE** | Scienta 文本 `*.txt` | 单张谱；按编号组成的文件夹自动拼成 map 或光子能量扫描 |
+| CASSIOPEE **自旋端站**（MBS A-1） | `*.krx`、`*.txt` | cut、偏转器 map、自旋分辨 EDC |
+| ALS **MAESTRO** | `*.h5`、`*.hdf5` | cut、map、光子能量扫描与空间扫描 |
+| ALBA **LOREA** | `*.nxs` | cut、map |
+| Diamond **I05**（HR-ARPES）与 **I05-1**（nano-ARPES） | `*.nxs` | cut、map、光子能量扫描、空间扫描 |
+| MAX IV **Bloch**（以及其他读取器都不认领的 Scienta SES 文件） | `*.ibw`、`*.zip`、`*.txt` | cut、偏转器 map、光子能量与样品架扫描 |
+| Elettra **APE**、BESSY **One Cube / One Square**、SOLARIS **URANOS** | `*.ibw`、`*.zip`、`*.txt` | 按 SES 的写法 |
+| ASTRID2 **SGM4** | `*.h5`、`*.hdf5` | cut、map、刀口扫描 |
+| 本程序 | 自己的 `*.nxs` | 它保存的任何数据，一个文件可含多个数据集 |
+
+数据集可以保存为本程序自己的 `.nxs`（可再次打开），或 Igor Pro 文本（`.itx`）。各线站文件的读法
+及其格式带来的假设见[读取器参考文档](../arpes_viewer/loader/README.md)，其中也说明了如何添加新线站。
+
+## 1.5 数据类型
+
+| 类型 | 轴 | 含义 |
+|---|---|---|
+| `cut` | 角度（或 k）× E | 一张谱 |
+| `map` | 角度 × 角度 × E | 偏转器或极角扫描 |
+| `k_map` | kx × ky × E | 已转换到动量空间的 map |
+| `kz_map` | hν × 角度 × E | 光子能量扫描 |
+| `kz_map_k` | k_z × k∥ × E | 转换到动量空间的光子能量扫描 |
+| `spem_4d`、`spem_1d` | x（× y）× 角度 × E | 实空间扫描 |
+| `edc`、`mdc`、`spin_edc` | E（或 k）× 通道 | 曲线，可带 σ 误差通道 |
+
+## 1.6 配置 AI 智能体
+
+AI 智能体可以替你操作本程序（[第七部分](#第七部分-ai-智能体)）。常用方式无需额外安装：
+
+1. 准备一个能读写本机文件的 AI 应用：Claude 桌面版、Claude Code 或类似的智能体。
+2. 在 ARPES viewer 中点击工具面板顶部的 **AI assistant...**，选择数据文件夹和结果文件夹，
+   点击 **Copy the prompt and start**（[§7.3](#73-从-ai-assistant-面板启动)）。
+3. 把提示词粘贴进 AI 应用，并允许它读取数据文件夹、读写结果文件夹。
+
+使用 MCP 工具的应用需要先添加一次本程序的 MCP 服务器，提示词中会说明方法（[§7.5](#75-其他启动方式)）。
+开始之前，请先了解哪些内容会离开你的电脑（[§7.1](#71-工作原理以及哪些内容会离开你的电脑)）。
+
+## 1.7 代码结构
+
+| 文件夹 | 内容 |
+|---|---|
+| `arpes_viewer/loader/` | 读取器：每个线站一个（`beamlines/`），通用格式（`formats/`），本程序自己的 `.nxs`，会话自动保存 |
+| `arpes_viewer/tools/` | 不依赖窗口的计算：谱（费米边、拟合、芯能级、自旋）、动量（k 与 kz 转换）、处理（平滑、求导、cut 运算……）、晶体（晶格、布里渊区、计算能带）、输出（作图、导出） |
+| `arpes_viewer/ui/` | 窗口：主面板（`launcher/`）、查看窗口（`viewers/`）、工具窗口（`panels/`）、公共部分（`common/`，包括智能体的操作 `L`，即 `common/live.py`） |
+| `arpes_viewer/agent/` | MCP 服务器、agent bridge，以及由程序自动生成的智能体参考文档 `API.md` |
+| `agentic/` | 面向智能体和脚本的示例与范例 |
+| `devtools/` | 演示数据、截图、作图测试、本指南的构建脚本 |
+| `test/` | 测试（`python -m pytest`） |
+
+`tools/` 中的计算不需要窗口，脚本可以直接调用，例如
+`arpes_viewer.tools.momentum.kspace.convert_map(...)`。每个文件夹都有 README，写明其背后的公式与测试；
+代码布局与约定见[开发者说明](DEVELOPER.md)。
+
+## 1.8 程序文件的存放位置
+
+| 位置 | 内容 |
+|---|---|
+| `~/.arpes_viewer/` | 跨会话记住的设置、启动日志、agent bridge 运行时的令牌、AI assistant 上次用的文件夹 |
+| `~/.arpes_viewer/sessions/` | 计算结果的自动保存副本（每个会话一个文件夹）以及 `operations.log`（[§8.1](#81-自动保存内存与恢复)） |
+| 程序文件夹中的 `error_logs/`（不可写时为 `~/.arpes_viewer/error_logs/`） | 发生错误的会话各一个文本文件（[§8.3](#83-错误日志与-bug-报告)） |
+| `<结果文件夹>/_agent/` | 从 AI assistant 启动时，智能体的命令文件、输出和图片（[§7.3](#73-从-ai-assistant-面板启动)） |
+
+数据文件夹只会被读取；只有你自己选择把文件保存到那里时，程序才会写入。
+
+---
+
+# 第二部分 主面板
+
+主窗口是数据集的浏览器。本部分介绍数据列表及其周围的一切，工具面板（第四至第六部分）和 AI assistant（第七部分）除外。
+
+## 2.1 主窗口概览
 
 ![主窗口](images/main_window_info.png)
 
@@ -179,24 +298,11 @@ python devtools/figure_tests.py docs/images [存放 .afig 文件的文件夹]
 
 主窗口分为三部分：
 
-- **工具面板**（左侧）——所有分析与处理工具都以按钮形式放在这里，分三个标签页。
-  **Basic**（启动时显示）包含几乎每个数据集都要经过的步骤：费米边拟合、去除探测器
-  网格、探测器校正、扣背景、三种 k 转换、芯能级检查、对齐 kz map 的费米能级以及在 k-map 上
-  叠加布里渊区（*BZ overlap*）。
-  **Advanced** 包含分析工具：平滑及突出能带的滤波、对称化、脊线提取、堆叠图、
-  MDC 与 EDC 拟合、cut 运算、切片组图以及四种三维视图。**Figure** 最上面是**作图器**，
-  其下是计算而非测量得到的内容：晶体结构、三维布里渊区（*3D BZ*）、紧束缚拟合与计算能带
-  （见[第四部分](#第四部分-figure-标签页)）。
-  每个标签页内按所接受的数据分组
-  （*2D & 3D — cuts, maps*、*2D only — cuts*、*3D only — maps* 等）。
+- **工具面板**（左侧）：顶部是 **AI assistant...** 按钮（[第七部分](#第七部分-ai-智能体)），其下是所有分析与
+  处理工具的按钮，分为 **Basic**、**Advanced**、**Figure** 三个标签页（[第四至第六部分](#第四部分-工具面板basic-标签页)）。
+  标签页下方是 **Datasets** 区。
 - **列表**（右侧）及其下方的按钮。
 - **Memory 区**（左下）和版本信息（右下）。
-
-![工具面板的 Advanced 标签页](images/main_window_advanced.png)
-
-**工具按钮随所选数据变化。** 只有当列表中选中的行符合要求时按钮才可用——
-k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，三维视图需要 map。
-灰色按钮在鼠标悬停时会说明原因。
 
 | 操作 | 方法 |
 |---|---|
@@ -221,70 +327,38 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 如 `map 80K`）；清空即恢复全部。被隐藏的行会取消选中，因此不会对看不见的数据进行操作。
 
 **Datasets 区**（工具面板中，位于工具和 Memory 之间）包含其余对行本身的操作：
-**Experiment info**、并排的 **Log format...** 与 **Auto Exp. log**（见[实验记录](#实验记录)）、
-同一行的 **Rename**、**Save**、**Remove**，以及 **Session log...**。这些按钮和工具按钮
-一样，会随选择变灰。（叠加重复测量现在是 **Combine...** 的一种方式。）
+**Experiment info**、并排的 **Log format...** 与 **Auto Exp. log**（见[实验记录](#23-实验记录)）、
+同一行的 **Rename**、**Save**、**Remove**，以及 **Session log...**。不适用于当前选择时，
+这些按钮会变灰。
 
-### v1.2.4 的变化
+## 2.2 载入数据
 
-- **k conversion (map) / (cut)**：*Energy offset* 改为勾选框控制，默认关闭（它不是费米能级，
-  只在能量轴不是真正的动能时才需要）；其上方新增一行 **Energy axis as E − E_F**（默认关闭），
-  勾选后输入 E_F 在该数据能量轴上的位置，输出数据的能量轴即为 E − E_F，动量不受影响。
-- **3D slices、Notched cube 等 3-D 视图**：对 k map 自动截掉 k_x / k_y 两侧的空白边界，
-  从第一个充满数据的平面开始显示（*Change sampling... → Whole range* 可恢复全部范围）。
-- **Slice series figure**：修复了对未打开的 map（如 k map）点击 *Make the figure* 后窗口关闭却不出图的问题。
-- **Combine...**：合并了原 Datasets 区的 *Sum repeated scans*（作为第三种方式）；
-  堆叠 cut 时，只要一个轴完全相同，另一个轴（通常是能量窗口略有差异）会先截取到共同范围再合并。
-- **数据列表**：上方新增搜索框（输入关键词，只显示匹配的行）；右键新增 **Sort by name**、**Sort by data type**。
-- **Crystal structure**：默认手动输入，先输入空间群，再按对称性限制晶格常数和角度；
-  *Read a CIF file...* 改为按钮，读取后自动刷新晶格；修复了含多个 data block 的 CIF（如 FullProf 输出）无法读取的问题；
-  取消 “From the Brillouin-zone tool”。
-- **3D BZ...**：原 Crystal structure 第 4 步的布里渊区独立成工具；可添加多个平面
-  （**Add a plane in 3D BZ**，各自 hkl、高度、颜色），**任意平面**都可以贴上实测 k-map 的等能面
-  （可从主列表中任选 k-map），以及多段不同颜色的路径（**Add path**），可输出到作图器。
-  原 **Brillouin zone...** 更名为 **BZ overlap...**。
-- **Tight-binding fit** 的 3-D 晶格：同样先输入空间群，再按对称性限制晶格参数。
-- **Calculation** 标签页更名为 **Figure**：最上面是 **Figure composer...**，其下是 Crystal
-  structure、**3D BZ...**、Tight-binding fit、Calculated bands。
-- Crystal structure 的 **Read a CIF file...** 按钮移到晶胞输入框上方。
-- **MCP 接口**：程序可作为 MCP 服务器（`arpes-viewer-mcp`）供任何模型的 AI 智能体调用，
-  见[第 33 节](#33-让-ai-智能体调用本程序mcp)。
+**Load data...** 打开载入窗口；**Quick add...** 跳过该窗口，直接以自动识别的
+设置加入所选文件。
 
-### 功能现在的位置（v1.3.2）
+![载入窗口](images/loader_dialog.png)
 
-如果你用过早期版本：工具已从右键菜单和查看窗口的 *Functions* 菜单移到了工具面板，
-每个工具只有一个入口，且始终可见。
+1. **Files**——选择一个或多个文件（*Select file(s)...*）。文件类型过滤器由已安装的
+   读取器自动生成。
+2. **Reader**——自动识别，并显示识别结果（如 *Detected: 3 × This program's own
+   format*）。只有在文件被误读时才需要手动指定。
+3. **Datasets found**——每个文件里有哪些数据集。这里只读取文件*结构*，即使是几 GB
+   的扫描也是瞬间完成；在真正打开某一行之前不会读取数据本身。
+4. **Axes**——*Axis order* 在载入时一次性调整数组维度顺序；*First axis of a map
+   is* 说明扫描的是什么：偏转器角度（默认）、**光子能量**、温度、栅压、延时……
+   这样后续每一步都使用正确的单位，也不会对非角度轴提供 k 转换。
 
-| 现在 | 以前 |
-|---|---|
-| 工具面板 → Basic → **Fermi edge fit...**（cut 和 map） | 查看窗口 *Functions → Fermi edge fit* |
-| 工具面板 → Basic → **Remove detector grid...** | 查看窗口 *Functions → Remove detector grid* |
-| 工具面板 → Basic → **k conversion (cut)** / **(map)**、**kz conversion** | 查看窗口 *Functions → Convert to momentum* |
-| 工具面板 → Basic → **Align Fermi levels (kz)...** | 查看窗口 *Functions → Align Fermi levels (kz map)* |
-| 工具面板 → Basic → **BZ overlap...** | **Brillouin zone...**（v1.2.3）；k-map 窗口 *Functions → Brillouin zone* |
-| 工具面板 → **Figure** 标签页 | **Calculation** 标签页（v1.2.3） |
-| 工具面板 → Figure → **3D BZ...** | Crystal structure 第 4 步 *Brillouin zone* |
-| **Combine...** → *Sum repeated scans* | Datasets 区 → **Sum repeated scans...**（v1.2.3） |
-| 工具面板 → Basic → **Core-level check...** | 右键 → Core-level check |
-| 工具面板 → Basic/Advanced → **Background subtraction**、**Smooth**、**Second derivative**、**Curvature**、**Symmetrise**（各自独立窗口） | **Smooth / derivative...**（一个带标签页的窗口） |
-| 列表下方的 **Truncate...**、**Compress...**、**Self-normalise...** | **Crop / bin / normalise...** |
-| 工具面板 → Advanced → **MDC fit (k-cut only)**、**EDC fit** | 查看窗口 *Functions → MDC / EDC fit* |
-| 工具面板 → Advanced → **Cut arithmetic (two cuts)** | 右键 / 查看窗口 *Functions → Cut arithmetic* |
-| 工具面板 → Advanced → **Slice series figure...** | map 窗口 *Functions → Multi-slice figure* |
-| 工具面板 → Advanced → **3D slices**、**Notched cube**、**Volume projection** | 右键 → 3D view（一个窗口三种模式） |
-| 工具面板 → Figure → **Figure composer...**（该页最上方） | 工具面板 → Advanced（v1.2.3）；右键 → Open in figure composer |
-| 右键 → **Open scan-axis cut**，查看窗口按钮 **Scan-axis cut** | Open deflector cut、Deflector cut |
-| Memory 区 → **Free RAM**、**Close all**、**Autosaves**（同一行） | 列表下方；后为 Free memory、Close all viewers、Open auto-save folder |
-| Datasets 区 → **Experiment info** | 右键 → Show information |
-| Datasets 区 → **Rename**、**Save**、**Remove**（同一行）、**Session log...** | 右键；后为 Rename...、Save datasets...、Remove from list |
-| 仅列表下方的 **Combine...** | 另有右键 → Combine N datasets |
+**CASSIOPEE 文件夹**：选中编号序列（`name_1_ROI1_.txt`、`name_2_ROI1_.txt`……）
+中的任意一个文件，整个文件夹会作为一个拼好的数据立方体列出一次。它是角度 map
+还是 kz map，由谱旁边的 `_i` 参数文件自动判断。列表中的名称带有从这些文件读出的
+光子能量和偏振——如 `FineMap 117eV LH`，光子能量扫描则为 `KzScan 40-120eV LH`——
+因此同一扫描在不同能量或偏振下的重复测量可以区分开。
 
-**Experiment info** 还会在独立窗口中显示该数据集的全部元数据，带过滤框，
-并可 **Export metadata (.csv)**：
+**ANTARES 光子能量（PhD）文件**：PhD `.nxs` 文件（每个光子能量一个 `Phd_NNNN`
+条目）作为一个 `kz map` 列出：各帧按光子能量排序，每帧的动能轴用其自身的 hν
+换算到 E_F（功函数取 4.5 eV，k_z 转换也会用到）。每一帧仍可单独作为 cut 打开。
 
-![数据集信息](images/information_window.png)
-
-### 实验记录
+## 2.3 实验记录
 
 **Datasets** 区里并排的两个按钮根据数据文件自身的元数据生成实验记录——一个 CSV
 文件，每次测量一行：左边的 **Log format...** 只需设置一次，右边的
@@ -331,7 +405,7 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 
 如果记录文件正在 Excel 中打开，Windows 不允许写入：先在 Excel 中关闭再点一次。
 
-### 合并数据集：叠加（Stack）与拼接（Join）
+## 2.4 合并数据集：叠加、拼接与求和
 
 **Combine...**（列表下方）可以做三件不同的事，并会让你选择：
 
@@ -362,7 +436,7 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 ![合并 cut](images/combine_cuts_dialog.png)
 
 由角度 cut 组成的光子能量序列会成为 `kz map`，可直接使用 *Align Fermi levels (kz
-map)* 和 *Convert to momentum (kz, k∥)*（见[第 14 节](#14-光子能量扫描kz)）；
+map)* 和 *Convert to momentum (kz, k∥)*（见[第 14 节](#49-对齐-kz-map-的费米能级)）；
 其他轴得到的是 `map`，其第一个轴被标记为非角度，因此不会提供 k 转换。
 
 **拼接分段采集的数据**
@@ -403,53 +477,20 @@ map)* 和 *Convert to momentum (kz, k∥)*（见[第 14 节](#14-光子能量扫
 3. **叠加。** 勾选要保留的扫描（标为 changed 的默认不勾选），选择是否消除能量漂移、
    **Sum** 或 **Mean**，然后 **Sum to list**。
 
-### 分步窗口
+## 2.5 分步窗口
 
 需要做几步决定的工具以**编号步骤**的形式打开（叠加重复测量、探测器校正、紧束缚
 拟合、晶体结构、计算能带）：标题显示 *Step 2 of 4: …*，蓝色提示框说明这一步的
 用途和操作，这一步完成之前 **Next →** 保持灰色（旁边写明原因），用 **← Back** 或
 左侧的步骤列表可以返回。
 
-## 4. 载入数据
+---
 
-**Load data...** 打开载入窗口；**Quick add...** 跳过该窗口，直接以自动识别的
-设置加入所选文件。
+# 第三部分 数据查看窗口
 
-![载入窗口](images/loader_dialog.png)
+每个数据集都在自己的查看窗口中打开。本部分先介绍所有查看窗口的共同操作，再逐一介绍各类数据。
 
-1. **Files**——选择一个或多个文件（*Select file(s)...*）。文件类型过滤器由已安装的
-   读取器自动生成。
-2. **Reader**——自动识别，并显示识别结果（如 *Detected: 3 × This program's own
-   format*）。只有在文件被误读时才需要手动指定。
-3. **Datasets found**——每个文件里有哪些数据集。这里只读取文件*结构*，即使是几 GB
-   的扫描也是瞬间完成；在真正打开某一行之前不会读取数据本身。
-4. **Axes**——*Axis order* 在载入时一次性调整数组维度顺序；*First axis of a map
-   is* 说明扫描的是什么：偏转器角度（默认）、**光子能量**、温度、栅压、延时……
-   这样后续每一步都使用正确的单位，也不会对非角度轴提供 k 转换。
-
-**CASSIOPEE 文件夹**：选中编号序列（`name_1_ROI1_.txt`、`name_2_ROI1_.txt`……）
-中的任意一个文件，整个文件夹会作为一个拼好的数据立方体列出一次。它是角度 map
-还是 kz map，由谱旁边的 `_i` 参数文件自动判断。列表中的名称带有从这些文件读出的
-光子能量和偏振——如 `FineMap 117eV LH`，光子能量扫描则为 `KzScan 40-120eV LH`——
-因此同一扫描在不同能量或偏振下的重复测量可以区分开。
-
-**ANTARES 光子能量（PhD）文件**：PhD `.nxs` 文件（每个光子能量一个 `Phd_NNNN`
-条目）作为一个 `kz map` 列出：各帧按光子能量排序，每帧的动能轴用其自身的 hν
-换算到 E_F（功函数取 4.5 eV，k_z 转换也会用到）。每一帧仍可单独作为 cut 打开。
-
-### 数据类型
-
-| 类型 | 轴 | 含义 |
-|---|---|---|
-| `cut` | 角度（或 k）× E | 一张谱 |
-| `map` | 角度 × 角度 × E | 偏转器或极角扫描 |
-| `k_map` | kx × ky × E | 已转换到动量空间的 map |
-| `kz_map` | hν × 角度 × E | 光子能量扫描 |
-| `kz_map_k` | k_z × k∥ × E | 转换到动量空间的光子能量扫描 |
-| `spem_4d`、`spem_1d` | x（× y）× 角度 × E | 实空间扫描 |
-| `edc`、`mdc`、`spin_edc` | E（或 k）× 通道 | 曲线，可带 σ 误差通道 |
-
-## 5. 各查看窗口的共同操作
+## 3.1 各查看窗口的共同操作
 
 每个数据集在自己的窗口中打开，因此可以把 map、它的切面以及另一个文件并排摆放。
 
@@ -468,17 +509,17 @@ map)* 和 *Convert to momentum (kz, k∥)*（见[第 14 节](#14-光子能量扫
   设置积分窗口，并在图上以半透明带显示。在 **Cursor** 行输入坐标并回车，可把
   光标精确放到该位置。
 - **EDC → list** / **MDC → list** 把当前显示的曲线作为独立数据集加入主列表
-  （见[第 23 节](#23-曲线edcmdc-与自旋分辨数据)）。
+  （见[第 23 节](#35-曲线edcmdc-与曲线拟合)）。
 - **图像右键 → Export** 导出该面板当前显示的内容——数据（`.nxs`）、图片，或
-  矢量坐标轴（`.eps`），见[第 28 节](#28-作图器figure-composer)。
+  矢量坐标轴（`.eps`），见[第 28 节](#61-作图器figure-composer)。
 - **Functions → Slice → Save slice to the main list / Freeze slice in a new
   window** 保存当前切片的副本。冻结窗口（以及空间 map 上的 *Open this position in
   a new window*）会沿用原面板的最小/最大值和 gamma，便于直接对比。它有自己的
   **Plot tools**，以及用来制作论文图的 **Figure composer...** 按钮
-  （见[第 28 节](#28-作图器figure-composer)）。
+  （见[第 28 节](#61-作图器figure-composer)）。
 
 **Functions** 菜单现在只包含作用于该窗口本身的操作——以数据集为对象的工具都在
-主窗口的工具面板中（见[第 3 节](#3-主窗口)）：
+主窗口的工具面板中（见[第 3 节](#21-主窗口概览)）：
 
 | 窗口 | Functions |
 |---|---|
@@ -489,7 +530,7 @@ map)* 和 *Convert to momentum (kz, k∥)*（见[第 14 节](#14-光子能量扫
 
 适用但暂时无法运行的条目显示为灰色，悬停提示会说明原因。
 
-**布里渊区勾选框。** 画过布里渊区（见[第 15 节](#15-布里渊区)）的 k-map 或已转换的
+**布里渊区勾选框。** 画过布里渊区（见[第 15 节](#411-布里渊区)）的 k-map 或已转换的
 kz map 会保留它：其查看窗口顶部一行有 **Brillouin zone** 勾选框，用于显示或隐藏。
 
 ### Plot tools：在图上画辅助线和文字
@@ -519,9 +560,9 @@ kz map 会保留它：其查看窗口顶部一行有 **Brillouin zone** 勾选�
   guides*）。
 
 *Plot tools* 用于看数据；要制作论文图，请使用**作图器（Figure composer）**及其
-**Figure tools**（见[第 28 节](#28-作图器figure-composer)）。
+**Figure tools**（见[第 28 节](#61-作图器figure-composer)）。
 
-## 6. Map：等能面及其两个切面
+## 3.2 Map：等能面及其两个切面
 
 map 打开时显示**等能面（constant-energy contour）**。顶部滑块选择能量（**Pos**
 以 eV 为单位，**Ind** 为序号；**±** 设置积分范围，可选 **mean** 或 **sum**）。
@@ -544,9 +585,9 @@ map 时扫描的那个量——通常是偏转器角，也可能是样品转角�
 也可以直接从列表中打开 map 的切面（右键 → **Open slit cut** / **Open scan-axis
 cut**），此时等能面窗口保持隐藏，需要时用 *Functions → Show the map* 调出。
 
-## 7. 任意路径切面与费米面校正
+## 3.3 任意路径切面与费米面校正
 
-### 7.1 任意路径切面
+### 任意路径切面
 
 在任意等能面上 *Functions → Arbitrary cut...*：点击（或输入）最多六个点，切面
 按顺序经过这些点——这里是 k-map 上的 Γ → M → K → Γ。勾选 **One dataset per
@@ -561,7 +602,7 @@ segment** 可让每一段分别成为一个数据集。
 
 ![沿 Γ–M–K–Γ 的切面](images/arbitrary_cut_result.png)
 
-### 7.2 费米面（FS）校正
+### 费米面（FS）校正
 
 在 cut（或 map 的 slit cut）上 *Functions → Straighten bands (FS correction)...*，把本应平直的特征
 拉直——通常是随分析器角度弯曲的费米边。沿该特征点击若干点，程序拟合多项式
@@ -571,15 +612,109 @@ segment** 可让每一段分别成为一个数据集。
 
 ![费米面校正](images/fs_correction_dialog.png)
 
-# 第二部分 Basic 标签页
+## 3.4 kz map 与 k-map
 
-**Basic** 标签页包含几乎每个数据集都要经过的处理，按工具接受的数据分组：
-*2D & 3D*——费米边拟合、去除探测器网格、探测器校正；*2D only*——扣除背底、cut 的
-k 转换、芯能级检查；*3D only*——map 的 k 转换、光子能量扫描的对齐与转换、布里渊区。
+**kz map**（光子能量扫描）的打开方式与角度 map 相同：等能面显示滑块所选能量处光子能量对分析器
+角度的强度，两个切面分别是某一光子能量下的谱和某一角度下随光子能量的色散。在 Basic 标签页中
+对齐其费米能级并转换到 (k_z, k∥)（[§4.9](#49-对齐-kz-map-的费米能级)、[§4.10](#410-把-kz-map-转换到动量空间)）。
+
+![kz map](images/kz_map_contour.png)
+
+**k-map**（转换到动量空间的 map，[§4.8](#48-map-的-k-转换)）和**转换后的 kz map** 在同一个等能面查看窗口中、
+以动量为坐标打开。画过布里渊区（[§4.11](#411-布里渊区)）的数据会保留它，顶栏的 **Brillouin zone** 复选框
+可显示或隐藏。切片序列图（[§5.6](#56-切片序列图slice-series-figure)）和导出也会画出它。
+
+![带布里渊区的 k-map](images/k_map_with_bz.png)
+
+## 3.5 曲线：EDC、MDC 与曲线拟合
+
+任意图像下方的 **EDC → list** / **MDC → list**，或自旋分辨文件，都会得到曲线
+数据集，在**曲线窗口**中打开：
+
+![曲线窗口](images/curve_viewer.png)
+
+可以隐藏通道、用 **Offset** 做成瀑布图、显示 **Error bars**（来自 σ 通道）；
+**Range** 标记一个 x 范围供各操作使用。*Functions → Transform* 提供
+**Crop**（裁剪）、**Bin**（合并）、**Normalise**（归一）、**Subtract a
+background**（扣背景：常数、线性、Shirley）、**Shift the axis**（平移横轴）和
+**Add counting errors (√N)**（添加计数误差）；每个操作都生成新数据集，并正确
+传播 σ。
+
+### 曲线拟合
+
+*Functions → Curve fit...*：**Peaks on a background**（Lorentzian、Gaussian 或
+Voigt 峰，点击放置或 **Find peaks** 自动寻峰；无 / 常数 / 线性 / Shirley 背景；
+仪器分辨率；可选 **× Fermi edge** 费米截断），或者直接拟合 **Fermi edge**（费米边）。
+权重可取通道自身的 σ、√N 或均匀权重。每个参数都给出误差，残差以 σ 为单位显示。
+
+![曲线拟合](images/curve_fit_dialog.png)
+
+**Fit to list** 保存数据、拟合、残差及各分量；**Copy results** 复制制表符分隔的
+结果表。费米边拟合可用 **List a copy with E_F = 0** 生成平移后的副本。
+
+## 3.6 自旋分辨数据
+
+自旋 EDC 打开时每个自旋通道一条曲线：
+
+![自旋 EDC](images/spin_edc_viewer.png)
+
+*Functions → Spin analysis...*：
+
+![自旋分析](images/spin_analysis.png)
+
+- 表格读取每个通道的标签（样品台设置、靶磁化方向、计为"上"的轴和符号）；
+  **Axis** 与 **Counts as** 可手动修改。
+- **Cross ratio**（交叉比，通道齐全时为默认）可精确消除透过率和靶反射率；也可用
+  **单对通道**，但它带有仪器不对称性，程序会测量并报告该不对称性（ε）。
+- **S_eff**（Sherman 函数，默认 0.2）、**Bin**、可选的 **Zero reference** 窗口。
+- 图：原始通道、带误差棒的极化率 P，以及带误差的 I↑ / I↓。
+- **P to list**、**I↑ / I↓ to list**、**As a figure**（打开作图器）。
+
+## 3.7 空间分辨扫描（nano-ARPES）
+
+实空间扫描打开时左侧是**空间分布图**（每个位置的总强度），右侧是**光标处的
+E-k 谱**。拖动红色靶标即可查看另一点的谱。在面板上右键可进行两种积分：
+
+- 在空间图上，**Integrate selection → E vs k panel** 把样品某一区域内的谱求和；
+- 在谱上，**Integrate selection → spatial panel** 画出所选 (k, E) 窗口内的强度
+  在样品上的分布——用于寻找畴区或样品边缘。
+
+![空间扫描](images/spatial_scan.png)
+
+## 3.8 导出单个面板与保存数据
+
+在任意图像上右键 → **Export** → **Data (.nxs, Igor)...**、**Image...** 或 **Axes only
+(.eps)...**。导出的总是该面板当前显示的内容（包括显示范围）：数据导出为本程序
+可重新读取的数据集，或导出给 Igor Pro（`.itx` 文本或 `.ibw` 二进制 wave，带坐标标度、
+单位，元数据写在 wave note 中）；图片应用当前色表（PNG、TIFF 或 JPEG，可设定尺寸和 dpi，
+可带或不带坐标轴，如有 Plot tools 辅助线或布里渊区也可一并画出）；或者把边框、刻度
+和标签导出为矢量 PostScript，便于在 Illustrator 中放入图片（可在框内画出布里渊区，
+见[第 15 节](#411-布里渊区)）。
+
+![导出](images/export_dialog.png)
+
+**Save**（工具面板 Datasets 区）把选中的数据集写入你自己的 `.nxs` 文件（选中多行时
+写入同一个文件）；也可在文件类型中选择 Igor Pro 格式：一个包含全部数据的 `.itx`，或每个
+数据集一个 `.ibw`。Igor 文件只是副本，列表中的行保持不变。
 
 ---
 
-## 8. 费米边拟合
+# 第四部分 工具面板：Basic 标签页
+
+**Basic** 标签页包含几乎每个数据集都要经过的步骤：费米能级、探测器、背底、动量转换、芯能级检查和布里渊区。
+
+## 4.1 工具按钮如何工作
+
+每个标签页把工具按所接受的数据分组：*2D & 3D — cuts, maps*、*2D only — cuts*、*3D only — maps*。
+**只有列表中选中的行符合要求时，按钮才会亮起**：cut 的 k 转换需要一个角度 cut，cut 运算需要恰好两个
+cut，三维视图需要一个 map。把鼠标停在灰色按钮上可以看到原因。
+
+![Basic 标签页](images/main_window.png)
+
+工具从不修改输入的行：结果是列表中的新行，以原名加上所做操作命名（`cut1 [k]`），其历史记录了这一步
+及其参数（*Experiment info* 可查看）。需要多个决定的工具以编号步骤的形式打开（[§2.5](#25-分步窗口)）。
+
+## 4.2 费米边拟合
 
 单张 cut 的常规流程：**费米边拟合 → 平移能量轴 → 转换到动量 → MDC/EDC 拟合**。
 每一步都是工具面板中的一个按钮：在列表中选中 cut，点击对应按钮即可。
@@ -612,9 +747,7 @@ these fits** 把校正后的 map 加入列表。
 
 ![对 map 逐张 cut 拟合 E_F](images/fermi_map_cuts.png)
 
-## 9. 去除探测器网格与探测器校正
-
-### 9.1 去除探测器网格
+## 4.3 去除探测器网格
 
 MCP（六角）和网栅（方形）图案会印在每一幅图像上。**请最先做这一步**：只有仍在
 探测器原始像素上的数据才能去网格，因此对已转换、校正或平滑过的数据，该按钮会
@@ -634,7 +767,7 @@ MCP（六角）和网栅（方形）图案会印在每一幅图像上。**请最
 - **Also list the grid pattern** 会保留一个 `[grid]` 数据集；之后用相同透镜模式和
   通能测得的 cut 会自动找到并使用它。
 
-### 9.2 探测器校正
+## 4.4 探测器校正
 
 作用于原始测量的 cut、map 或 kz map：
 
@@ -644,16 +777,16 @@ MCP（六角）和网栅（方形）图案会印在每一幅图像上。**请最
    填补方式 *smooth*（适合点状坏区）或 *linear along* 某个轴（适合条状坏区）。
 3. **应用** —— **Apply to list**。之后再对结果做去网格、费米能级和 k 转换。
 
-## 10. 扣除背底
+## 4.5 扣除背底
 
 工具面板 → Basic → **Background subtraction...**（cut）去除不属于能带的强度：
 **Shirley** 或 **Tougaard** 非弹性背底、所有角度共有的底（每一能量行的某个百分位数）、
 平滑的**多项式**——或者除去**费米截断**（按文件记录的温度和分辨率计算的
 Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度积分 EDC 下降最陡处）。
 窗口与 Advanced 页的处理窗口相同——源数据与结果并排、实时预览、**Apply** 把结果
-加入列表——见[第 16 节](#16-平滑求导曲率与对称化)。
+加入列表——见[第 16 节](#51-平滑求导曲率与对称化)。
 
-## 11. 把 cut 转换到动量空间
+## 4.6 把 cut 转换到动量空间
 
 工具面板 → Basic → **k conversion (cut)...** 把角度轴转换为 k∥（Å⁻¹）。cut 上会画出
 一条**竖直线**：把它拖到 Γ 点的狭缝角处。此时认为该 cut 经过 Γ——若 cut 并不经过 Γ
@@ -675,7 +808,7 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
 
 ![转换到动量空间的 cut](images/cut_in_k.png)
 
-## 12. 芯能级检查（Core-level check）
+## 4.7 芯能级检查（Core-level check）
 
 宽范围的芯能级扫描也以 cut 的形式列出。选中它，点工具面板 → Basic →
 **Core-level check...**，即可判断各个峰的来源。
@@ -715,7 +848,7 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
 加入列表；**Copy report** 复制全部结果文本。仍有疑问时，换一个光子能量再测：
 芯能级的结合能不变，俄歇峰和高次光会移动。
 
-## 13. Map 的 k 转换
+## 4.8 Map 的 k 转换
 
 选中角度 map，点工具面板 → Basic → **k conversion (map)...**。map 会以一个只有图像的
 等能面窗口打开——没有切面按钮和其他功能——旁边是转换窗口，两者一起关闭。把读数
@@ -740,13 +873,11 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
 
 ![转换后的 k-map](images/k_map_contour.png)
 
-## 14. 光子能量扫描（kz）
+## 4.9 对齐 kz map 的费米能级
 
 光子能量扫描在列表中显示为 `kz map`；其"等能面"是某一能量下光子能量对角度的图。
 
 ![kz map](images/kz_map_contour.png)
-
-### 14.1 对齐 kz map 的费米能级
 
 文件中并没有记录每张谱真正的费米能级位置。工具面板 → Basic → **Align Fermi levels
 (kz)...** 直接从谱本身测量它；kz map 的 slit cut 随之打开，两者一起关闭。
@@ -765,7 +896,7 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
 图中给出 E_F 随光子能量的变化。曲线平滑说明拟合可靠；拟合不可信的点会被标记，
 并用相邻点插值补上。
 
-### 14.2 把 kz map 转换到动量空间
+## 4.10 把 kz map 转换到动量空间
 
 工具面板 → Basic → **kz conversion...** 把扫描转换为 (k_z, k∥)。参数从上一次转换同样
 大小的扫描时开始。
@@ -800,10 +931,9 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
 
 ![转换后的 kz map](images/kz_map_in_k.png)
 
-## 15. 布里渊区
+## 4.11 布里渊区
 
-选中 k-map（或已转换的 kz map），点工具面板 → Basic → **BZ overlap...**（v1.2.4 之前称为
-*Brillouin zone...*）。与 map
+选中 k-map（或已转换的 kz map），点工具面板 → Basic → **BZ overlap...**。与 map
 转换一样，它会打开一个专用的等能面窗口和布里渊区窗口，两者一起关闭。
 
 ![布里渊区对话框](images/brillouin_dialog.png)
@@ -836,16 +966,13 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
 
 ![带布里渊区的导出](images/export_dialog_bz.png)
 
-# 第三部分 Advanced 标签页
-
-**Advanced** 标签页包含随后的分析：作图器（*1D & 2D*，见
-[第 28 节](#28-作图器figure-composer)）；平滑、锐化能带的滤波、对称化与脊线提取
-（*2D & 3D*）；堆叠图、MDC 与 EDC 拟合以及 cut 运算（*2D only*）；切片序列图和
-四种三维视图（*3D only*）。曲线和空间扫描在各自的查看窗口中处理。
-
 ---
 
-## 16. 平滑、求导、曲率与对称化
+# 第五部分 工具面板：Advanced 标签页
+
+**Advanced** 标签页包含后续的分析：能带锐化滤波与对称化、脊线提取、堆叠图、MDC 与 EDC 拟合、cut 运算、切片序列图和三维视图。
+
+## 5.1 平滑、求导、曲率与对称化
 
 每种滤波都有自己的窗口，在列表中选中一个或多个 cut（或 map）后从工具面板打开：
 
@@ -901,7 +1028,7 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
 
 ![自归一](images/data_operations.png)
 
-## 17. 脊线提取（Ridge detection）
+## 5.2 脊线提取（Ridge detection）
 
 工具面板 → Advanced → **Ridge detection...**（cut 或 map）把能带当作强度的脊线
 来追踪，每个点精确到亚像素，比二阶导数更锐利，也不会画出虚假的双线。
@@ -909,9 +1036,9 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
 - **Smoothing**：每个轴的平滑宽度，以该轴的单位计——约为能带宽度。
 - **Threshold**：逐渐提高，直到只剩下能带（源数据上的黄色点）。
 - **Result to list**——脊线图像（map 逐平面处理，可选平面）；**Save ridge
-  points...**——一个 CSV，紧束缚拟合（[第 26 节](#26-紧束缚拟合)）可以读取。
+  points...**——一个 CSV，紧束缚拟合（[第 26 节](#64-紧束缚拟合)）可以读取。
 
-## 18. 堆叠图
+## 5.3 堆叠图
 
 **Stack plot (EDC / MDC)...**（工具面板 → Advanced，选中一张 cut）：EDC 或 MDC 的
 瀑布图，可设置曲线条数、合并、归一化、偏移、错切与配色；**Send to figure
@@ -919,7 +1046,7 @@ composer** 把它作为一个图面板送入作图器。
 
 ![堆叠图](images/stack_plot.png)
 
-## 19. MDC 拟合与 EDC 拟合
+## 5.4 MDC 拟合与 EDC 拟合
 
 工具面板的 Advanced 页中有两个逐行拟合峰的工具：
 
@@ -961,7 +1088,7 @@ composer** 把它作为一个图面板送入作图器。
 若某个拟合点的误差坍缩（峰宽拟合到零），它不再独占色散拟合的全部权重：任何一点的
 权重都不超过十个典型点。
 
-## 20. Cut 运算：二色性与参考谱归一
+## 5.5 Cut 运算：二色性与参考谱归一
 
 把两张 cut 组合成第三张：线二色性（LH − LV）、圆二色性、除以金参考谱，或普通的
 差、比、和。在列表中选中两张 cut，点工具面板 → Advanced → **Cut arithmetic (two
@@ -981,7 +1108,7 @@ cuts)...**（先选的为 A；窗口中可交换）。只有恰好选中两张 c
   会传播泊松误差，并在图下方给出统计。
 - **Result to list**、**Uncertainty to list**、**All three as a figure**。
 
-## 21. 切片序列图（Slice series figure）
+## 5.6 切片序列图（Slice series figure）
 
 选中 map → 工具面板 → Advanced → **Slice series figure...**：把数据立方的一系列二维
 平面切片排成一页论文图——一系列能量处的等能面，或一系列角度 / 动量处的 cut——可等
@@ -1000,7 +1127,7 @@ cuts)...**（先选的为 A；窗口中可交换）。只有恰好选中两张 c
 |---|---|
 | ![切片序列图设置](images/slice_figure_dialog.png) | ![切片序列图](images/slice_figure.png) |
 
-## 22. 三维视图
+## 5.7 三维视图
 
 Advanced 页中有四个以三维方式显示 map 的工具，各自在独立窗口中打开——拖动图像即可
 旋转：
@@ -1057,75 +1184,107 @@ Advanced 页中有四个以三维方式显示 map 的工具，各自在独立窗
 - 所有三维视图的坐标轴现在都会让图像*及其标签*适应窗口或图面板（不再是固定边距），
   按每个轴的空间稀疏刻度，并在轴标题中写出上下标（`E - E_F`、`k_x`）。
 
-## 23. 曲线：EDC、MDC 与自旋分辨数据
-
-任意图像下方的 **EDC → list** / **MDC → list**，或自旋分辨文件，都会得到曲线
-数据集，在**曲线窗口**中打开：
-
-![曲线窗口](images/curve_viewer.png)
-
-可以隐藏通道、用 **Offset** 做成瀑布图、显示 **Error bars**（来自 σ 通道）；
-**Range** 标记一个 x 范围供各操作使用。*Functions → Transform* 提供
-**Crop**（裁剪）、**Bin**（合并）、**Normalise**（归一）、**Subtract a
-background**（扣背景：常数、线性、Shirley）、**Shift the axis**（平移横轴）和
-**Add counting errors (√N)**（添加计数误差）；每个操作都生成新数据集，并正确
-传播 σ。
-
-### 23.1 曲线拟合
-
-*Functions → Curve fit...*：**Peaks on a background**（Lorentzian、Gaussian 或
-Voigt 峰，点击放置或 **Find peaks** 自动寻峰；无 / 常数 / 线性 / Shirley 背景；
-仪器分辨率；可选 **× Fermi edge** 费米截断），或者直接拟合 **Fermi edge**（费米边）。
-权重可取通道自身的 σ、√N 或均匀权重。每个参数都给出误差，残差以 σ 为单位显示。
-
-![曲线拟合](images/curve_fit_dialog.png)
-
-**Fit to list** 保存数据、拟合、残差及各分量；**Copy results** 复制制表符分隔的
-结果表。费米边拟合可用 **List a copy with E_F = 0** 生成平移后的副本。
-
-### 23.2 自旋分析
-
-自旋 EDC 打开时每个自旋通道一条曲线：
-
-![自旋 EDC](images/spin_edc_viewer.png)
-
-*Functions → Spin analysis...*：
-
-![自旋分析](images/spin_analysis.png)
-
-- 表格读取每个通道的标签（样品台设置、靶磁化方向、计为"上"的轴和符号）；
-  **Axis** 与 **Counts as** 可手动修改。
-- **Cross ratio**（交叉比，通道齐全时为默认）可精确消除透过率和靶反射率；也可用
-  **单对通道**，但它带有仪器不对称性，程序会测量并报告该不对称性（ε）。
-- **S_eff**（Sherman 函数，默认 0.2）、**Bin**、可选的 **Zero reference** 窗口。
-- 图：原始通道、带误差棒的极化率 P，以及带误差的 I↑ / I↓。
-- **P to list**、**I↑ / I↓ to list**、**As a figure**（打开作图器）。
-
-## 24. 空间分辨扫描（nano-ARPES）
-
-实空间扫描打开时左侧是**空间分布图**（每个位置的总强度），右侧是**光标处的
-E-k 谱**。拖动红色靶标即可查看另一点的谱。在面板上右键可进行两种积分：
-
-- 在空间图上，**Integrate selection → E vs k panel** 把样品某一区域内的谱求和；
-- 在谱上，**Integrate selection → spatial panel** 画出所选 (k, E) 窗口内的强度
-  在样品上的分布——用于寻找畴区或样品边缘。
-
-![空间扫描](images/spatial_scan.png)
-
-# 第四部分 Figure 标签页
-
-**Figure** 标签页（v1.2.4 之前称为 *Calculation*）最上面是**作图器**（[第 28 节](#28-作图器figure-composer)），
-其下是计算而非测量得到的内容：实空间的晶体及其三维布里渊区、拟合到数据上的能带模型，以及
-别人算好的能带结构。其中大多数窗口以编号步骤打开。
-
-![工具面板的 Figure 标签页](images/main_window_calculation.png)
-
 ---
 
-## 25. 晶体结构与三维布里渊区
+# 第六部分 工具面板：Figure 标签页
+
+**Figure** 标签页包含作图器，以及计算得到（而非测量得到）的内容：晶体结构、三维布里渊区、紧束缚拟合和计算能带。最后给出一个从载入数据到成图的实例。
+
+## 6.1 作图器（Figure composer）
+
+**不选中任何数据**时，工具面板 → Figure → **Figure composer...**（该页最上方） 打开一张空白画板，
+就像论文中的一张图：按期刊栏宽排好四个空面板 (a)、(b)、(c)、(d)。选中若干 cut（或
+曲线）时，每个数据集成为一个面板（冻结切片窗口的 **Figure composer...** 按钮同理；
+堆叠图和三维视图各有自己的 **To figure composer** 按钮）。
+
+![作图器](images/figure_composer.png)
+
+- **排版。** 单击面板选中它；拖动面板移动位置，拖动其控制点调整大小（在角点按住
+  Shift 保持比例）。面板会吸附到其他面板的边缘和 0.5 mm 网格（**Snap**）；方向键
+  微调 0.5 mm（Shift：5 mm）。*Arrange as grid*（右侧 Panels 页）按行 × 列重新
+  排列；一个面板可以占多个格子（选中面板的 *Grid cells (rows / cols)*，例如一排数据面板
+  旁的示意图），图片在其中保持自身比例。手动移动面板时，页面高度随面板变化。
+  **Re-letter** 按阅读顺序重新标注 (a)、(b)……
+- **填入内容。** 双击空面板，或用左侧 **Load from list...** / **Load picture...**：
+  从主列表载入数据集，或从文件载入图片（PNG、JPEG、TIFF……——示意图或别处做的图；
+  保持原比例，没有坐标轴）。
+- **插图。** **Zoom-in inset**：在面板上拖出一个区域——角落里出现放大该区域的小图，
+  原图上用虚线框标出区域。在另一个面板内部画 **Panel** 则得到一个插图，可填入其他
+  数据。插图没有标号，随所在面板一起移动。
+- **绘图。** **Arrow**（箭头）、**Line**（辅助线）、**Box**（方框）、**Ellipse**、
+  **Text**（文字）：在画板上拖动（文字为单击）。选中的图形可以移动、拖动端点或角点，
+  并在右侧上方设置颜色、线宽、线型、填充和文字。双击文字可编辑；Del 删除选中项；
+  右键有更多选项（置于顶层、删除……）。
+- **坐标轴与字体。** 画板旁的 figure tools 作用于选中的面板（或全部面板）：范围、
+  刻度、标签、哪些边显示数字、该面板自己的字号、色图、色标、参考线。勾选
+  *Tick labels on outer edges only* 时，再勾选 *…but tick numbers on every panel* 可让内侧面板
+  保留刻度数字，只把坐标轴名称留在外侧边缘。
+- **Undo / Redo**（Ctrl+Z / Ctrl+Y）可撤销任何改动。**PDF**、**PNG**、**SVG**
+  导出，**Copy** 复制到剪贴板；空面板不会写入文件。注意作图器的 **Figure tools**
+  不是查看窗口的 **Plot tools**（后者在实时图上画辅助线）。
+
+### 排列面板
+
+单击一个面板，再 **Ctrl+单击**（或 Shift+单击）其他面板即可选中多个。然后左侧的
+**Arrange** 按钮：
+
+| 按钮 | 作用 |
+|---|---|
+| ⇤ Left、Right ⇥、⤒ Top、Bottom ⤓ | 对齐它们的左 / 右 / 上 / 下边（对齐到最外侧那条） |
+| ↔ Centres、↕ Centres | 把它们的中心放在同一条竖线 / 横线上（第一个选中面板的） |
+| Space ↔、Space ↕ | 从左到右 / 从上到下等间距（三个或以上） |
+| = Width、= Height | 都取第一个选中面板的宽度 / 高度 |
+
+![选中多个面板，以及 Arrange 按钮](images/composer_arrange.png)
+
+### 面板字母与色标
+
+- **Letters in line**（*Text* 页，默认开启）：并排面板的字母位于同一高度，上下排列
+  面板的字母位于同一左边缘，不论每个面板有怎样的标题或坐标轴。**Nudge (mm)** 移动
+  单个面板的字母（例如避开较长的轴标题）；**Re-letter** 按阅读顺序重新命名为
+  (a)、(b)……
+- **Colour bar**（*Colour* 页）：**Ends** 在两端写数值、*High* / *Low* 字样或不写；
+  **Length (%)** 为面板高度或宽度的百分比；**Position** 为 *right*（竖立在面板旁）
+  或 *below*（横躺在面板下方，居中）。三维视图的色标按实际画出的立方体确定大小，
+  而不是按其外框。
+
+![色标设置](images/composer_colour_bar.png)
+
+### 曲线：线、符号与误差棒
+
+*Overlays* 页，**Curves drawn on the panel**：在列表中选中曲线（不选则为全部），然后
+设置其**颜色**、**线宽**、**线型**（实线、虚线、点线……）、**符号**（圆、方、三角、
+菱形，可设大小）以及是否**用线连接**；**± σ as error bars** 把曲线的两条 ±σ 点线
+变成各点上的误差棒。点 **Apply to the curves** 应用。含空缺（NaN）的曲线分段画出。
+
+### 保存图以便再次编辑，连同数据
+
+**Save** / **Save as...** 以程序自己的格式 `fig1.afig` 保存：页面、其上的绘图，以及
+每个面板连同数据和设置——用 **Open...**（或在主窗口的 **Load data...** 中选中它）
+再次打开，就能从停下的地方继续编辑。三维视图保存为它所显示的图片。
+
+在它旁边，**`data for fig1/`** 中每个面板一个文件夹（`a`、`b`……）：
+
+```
+data for fig1/
+  a/  processed/  面板所显示的内容：图像存为 .nxs cut（可在查看窗口中
+                  再次打开），其中的线（计算能带、等能线、曲线）存为
+                  lines.csv，图片存为 .png
+      original/   它的来源：最初的测量文件（经 k 转换、对称化、切出的
+                  平面会追溯到最初读入的文件）、计算结果及与之一起读入的
+                  文件（.win、POSCAR……）、图片文件或 CIF
+      sources.txt 文件中的哪个条目，以及中间经过的处理
+  b/  ...
+```
+
+即使面板显示的是经过许多步计算的结果，原始文件也会被复制：每个数据集都记得它
+最初来自哪个文件。再次打开的图如果其原始文件已经移动，会使用它自己之前的数据
+文件夹中的副本。
+
+## 6.2 晶体结构
 
 工具面板 → Figure → **Crystal structure...**（无需选中数据）。共四步（布里渊区现在是独立的
-**3D BZ...** 工具，见[第 25.1 节](#251-3d-bz三维布里渊区)）：
+**3D BZ...** 工具，见[第 25.1 节](#63-3d-bz三维布里渊区)）：
 
 ![晶体结构](images/crystal_structure.png)
 
@@ -1150,9 +1309,9 @@ E-k 谱**。拖动红色靶标即可查看另一点的谱。在面板上右键�
    红圈标出。
 4. **导出**——晶体：**Save picture...**（任意尺寸的 PNG，按该尺寸重新
    绘制）或 **To figure composer...**。由 CIF 生成的图片以该 CIF 为来源，因此图的
-   数据文件夹会保存它（[第 28 节](#28-作图器figure-composer)）。
+   数据文件夹会保存它（[第 28 节](#61-作图器figure-composer)）。
 
-### 25.1 3D BZ：三维布里渊区
+## 6.3 3D BZ：三维布里渊区
 
 工具面板 → Figure → **3D BZ...**（无需选中数据）。原为晶体结构窗口的第 4 步。
 
@@ -1180,7 +1339,7 @@ E-k 谱**。拖动红色靶标即可查看另一点的谱。在面板上右键�
   width / text* 按图片在最终图中的宽度设定标注字号（例如 30 mm 面板中 8 pt），与像素尺寸
   无关；关闭时字号随图片缩放，与屏幕上一致。
 
-## 26. 紧束缚拟合
+## 6.4 紧束缚拟合
 
 > **单带，或两条杂化能带——在第 1 步（*Bands*）中选择。**
 > **单带（One band）**：Bravais 晶格上的单条能带（每个格点一个轨道）：
@@ -1220,7 +1379,7 @@ E-k 谱**。拖动红色靶标即可查看另一点的谱。在面板上右键�
 4. **使用模型** —— **Model to list**（模型的谱函数，作为 map 与数据并排查看）、
    **Save parameters...**、**Copy results**。
 
-## 27. 计算能带（Calculated bands）
+## 6.5 计算能带（Calculated bands）
 
 工具面板 → Figure → **Calculated bands...** 把能带计算结果与测量放在一起。
 选中要比较的数据——k-map、动量空间的 kz map 和动量空间的 cut——或者什么都不选，
@@ -1352,129 +1511,38 @@ E_F）。
 
 ![输出](images/bands_output.png)
 
-# 第五部分 作图与输出
+## 6.6 实例：从载入数据到成图
 
-一张图如何拼合、连同数据保存和导出——最后用两张图一步步演示。
+从演示数据（[§1.3](#13-用演示数据试用)）到一张带布里渊区的等能面图。这与 [§7.7](#77-实例智能体从配置到成图) 中智能体的实例是同一条
+路径，这里手动完成。
 
----
+1. **载入。** **Quick add...** → `demo_bulk_bands.nxs`。列表中出现 Γ 平面 map
+   `FS_map_hv59.3_Gamma_plane`、cut `cut_GM_LH`、`cut_GM_LV`、`cut_GK_LH` 和光子能量扫描。
+2. **费米能级。** 选中 map → Basic → **Fermi edge fit...**。在原始数据上、在费米边附近的窗口内拟合，
+   记下 E_F（[§4.2](#42-费米边拟合)）。
+3. **转换到动量空间。** Basic → **k conversion (map)**：Γ 在法向出射，以拟合的 E_F 为能量参考。
+   出现新行 `… [k]`（[§4.8](#48-map-的-k-转换)）。
+4. **布里渊区。** 选中 k-map → Basic → **BZ overlap...**：空间群 164（P-3m1），a = 3.3 Å，
+   c = 6 Å，过 Γ 的 (001) 面（[§4.11](#411-布里渊区)）。
+5. **切片。** Advanced → **Slice series figure...**：能量 0、−0.2、−0.4 eV，±20 meV，三列，
+   布里渊区用虚线（[§5.6](#56-切片序列图slice-series-figure)）。图在作图器中打开。
+6. **排版与导出。** 在作图器中设置页面宽度、色图和色阶、面板字母 (a)(b)(c)，然后 **Export** 为 PNG
+   和 PDF，并 **Save** 为 `.afig` 以便日后编辑（[§6.1](#61-作图器figure-composer)）。
 
-## 28. 作图器（Figure composer）
+![上述步骤得到的图](images/agent_figure.png)
 
-**不选中任何数据**时，工具面板 → Figure → **Figure composer...**（该页最上方） 打开一张空白画板，
-就像论文中的一张图：按期刊栏宽排好四个空面板 (a)、(b)、(c)、(d)。选中若干 cut（或
-曲线）时，每个数据集成为一个面板（冻结切片窗口的 **Figure composer...** 按钮同理；
-堆叠图和三维视图各有自己的 **To figure composer** 按钮）。
+下一节用同样的方法完成两张完整的论文图。
 
-![作图器](images/figure_composer.png)
+## 6.7 实例：用作图器完成两张图
 
-- **排版。** 单击面板选中它；拖动面板移动位置，拖动其控制点调整大小（在角点按住
-  Shift 保持比例）。面板会吸附到其他面板的边缘和 0.5 mm 网格（**Snap**）；方向键
-  微调 0.5 mm（Shift：5 mm）。*Arrange as grid*（右侧 Panels 页）按行 × 列重新
-  排列；一个面板可以占多个格子（选中面板的 *Grid cells (rows / cols)*，例如一排数据面板
-  旁的示意图），图片在其中保持自身比例。手动移动面板时，页面高度随面板变化。
-  **Re-letter** 按阅读顺序重新标注 (a)、(b)……
-- **填入内容。** 双击空面板，或用左侧 **Load from list...** / **Load picture...**：
-  从主列表载入数据集，或从文件载入图片（PNG、JPEG、TIFF……——示意图或别处做的图；
-  保持原比例，没有坐标轴）。
-- **插图。** **Zoom-in inset**：在面板上拖出一个区域——角落里出现放大该区域的小图，
-  原图上用虚线框标出区域。在另一个面板内部画 **Panel** 则得到一个插图，可填入其他
-  数据。插图没有标号，随所在面板一起移动。
-- **绘图。** **Arrow**（箭头）、**Line**（辅助线）、**Box**（方框）、**Ellipse**、
-  **Text**（文字）：在画板上拖动（文字为单击）。选中的图形可以移动、拖动端点或角点，
-  并在右侧上方设置颜色、线宽、线型、填充和文字。双击文字可编辑；Del 删除选中项；
-  右键有更多选项（置于顶层、删除……）。
-- **坐标轴与字体。** 画板旁的 figure tools 作用于选中的面板（或全部面板）：范围、
-  刻度、标签、哪些边显示数字、该面板自己的字号、色图、色标、参考线。勾选
-  *Tick labels on outer edges only* 时，再勾选 *…but tick numbers on every panel* 可让内侧面板
-  保留刻度数字，只把坐标轴名称留在外侧边缘。
-- **Undo / Redo**（Ctrl+Z / Ctrl+Y）可撤销任何改动。**PDF**、**PNG**、**SVG**
-  导出，**Copy** 复制到剪贴板；空面板不会写入文件。注意作图器的 **Figure tools**
-  不是查看窗口的 **Plot tools**（后者在实时图上画辅助线）。
-
-### 排列面板
-
-单击一个面板，再 **Ctrl+单击**（或 Shift+单击）其他面板即可选中多个。然后左侧的
-**Arrange** 按钮：
-
-| 按钮 | 作用 |
-|---|---|
-| ⇤ Left、Right ⇥、⤒ Top、Bottom ⤓ | 对齐它们的左 / 右 / 上 / 下边（对齐到最外侧那条） |
-| ↔ Centres、↕ Centres | 把它们的中心放在同一条竖线 / 横线上（第一个选中面板的） |
-| Space ↔、Space ↕ | 从左到右 / 从上到下等间距（三个或以上） |
-| = Width、= Height | 都取第一个选中面板的宽度 / 高度 |
-
-![选中多个面板，以及 Arrange 按钮](images/composer_arrange.png)
-
-### 面板字母与色标
-
-- **Letters in line**（*Text* 页，默认开启）：并排面板的字母位于同一高度，上下排列
-  面板的字母位于同一左边缘，不论每个面板有怎样的标题或坐标轴。**Nudge (mm)** 移动
-  单个面板的字母（例如避开较长的轴标题）；**Re-letter** 按阅读顺序重新命名为
-  (a)、(b)……
-- **Colour bar**（*Colour* 页）：**Ends** 在两端写数值、*High* / *Low* 字样或不写；
-  **Length (%)** 为面板高度或宽度的百分比；**Position** 为 *right*（竖立在面板旁）
-  或 *below*（横躺在面板下方，居中）。三维视图的色标按实际画出的立方体确定大小，
-  而不是按其外框。
-
-![色标设置](images/composer_colour_bar.png)
-
-### 曲线：线、符号与误差棒
-
-*Overlays* 页，**Curves drawn on the panel**：在列表中选中曲线（不选则为全部），然后
-设置其**颜色**、**线宽**、**线型**（实线、虚线、点线……）、**符号**（圆、方、三角、
-菱形，可设大小）以及是否**用线连接**；**± σ as error bars** 把曲线的两条 ±σ 点线
-变成各点上的误差棒。点 **Apply to the curves** 应用。含空缺（NaN）的曲线分段画出。
-
-### 保存图以便再次编辑，连同数据
-
-**Save** / **Save as...** 以程序自己的格式 `fig1.afig` 保存：页面、其上的绘图，以及
-每个面板连同数据和设置——用 **Open...**（或在主窗口的 **Load data...** 中选中它）
-再次打开，就能从停下的地方继续编辑。三维视图保存为它所显示的图片。
-
-在它旁边，**`data for fig1/`** 中每个面板一个文件夹（`a`、`b`……）：
-
-```
-data for fig1/
-  a/  processed/  面板所显示的内容：图像存为 .nxs cut（可在查看窗口中
-                  再次打开），其中的线（计算能带、等能线、曲线）存为
-                  lines.csv，图片存为 .png
-      original/   它的来源：最初的测量文件（经 k 转换、对称化、切出的
-                  平面会追溯到最初读入的文件）、计算结果及与之一起读入的
-                  文件（.win、POSCAR……）、图片文件或 CIF
-      sources.txt 文件中的哪个条目，以及中间经过的处理
-  b/  ...
-```
-
-即使面板显示的是经过许多步计算的结果，原始文件也会被复制：每个数据集都记得它
-最初来自哪个文件。再次打开的图如果其原始文件已经移动，会使用它自己之前的数据
-文件夹中的副本。
-
-## 29. 导出单个面板与保存数据
-
-在任意图像上右键 → **Export** → **Data (.nxs, Igor)...**、**Image...** 或 **Axes only
-(.eps)...**。导出的总是该面板当前显示的内容（包括显示范围）：数据导出为本程序
-可重新读取的数据集，或导出给 Igor Pro（`.itx` 文本或 `.ibw` 二进制 wave，带坐标标度、
-单位，元数据写在 wave note 中）；图片应用当前色表（PNG、TIFF 或 JPEG，可设定尺寸和 dpi，
-可带或不带坐标轴，如有 Plot tools 辅助线或布里渊区也可一并画出）；或者把边框、刻度
-和标签导出为矢量 PostScript，便于在 Illustrator 中放入图片（可在框内画出布里渊区，
-见[第 15 节](#15-布里渊区)）。
-
-![导出](images/export_dialog.png)
-
-**Save**（工具面板 Datasets 区）把选中的数据集写入你自己的 `.nxs` 文件（选中多行时
-写入同一个文件）；也可在文件类型中选择 Igor Pro 格式：一个包含全部数据的 `.itx`，或每个
-数据集一个 `.ibw`。Igor 文件只是副本，列表中的行保持不变。
-
-## 30. 实例：用作图器完成两张图
-
-下面两张图由演示数据（[第 2 节](#2-用演示数据试用)）用程序的窗口生成，并在作图器
+下面两张图由演示数据（[第 2 节](#13-用演示数据试用)）用程序的窗口生成，并在作图器
 中拼合。`devtools/figure_tests.py` 执行的正是这些步骤，可以与本节对照阅读。
 
 ### 图 1：等能面
 
 ![示例图 1](images/example_figure_1.png)
 
-**(a) 切角立方体。** 把 Γ 平面 map 转换到动量空间（[第 13 节](#13-map-的-k-转换)）；
+**(a) 切角立方体。** 把 Γ 平面 map 转换到动量空间（[第 13 节](#48-map-的-k-转换)）；
 选中 k-map → Advanced → **Notched cube...**。用 *Change sampling...* 把 k_x、k_y
 限制在 ±1.25 Å⁻¹ 内、E 到 E_F 为止；切口放在 k_x = k_y = 0、一直到最低能量，角为
 **+ − +**；色图 *blue*，反转；方位角 −52°，仰角 24°。**To figure composer...**：
@@ -1521,7 +1589,7 @@ k-map，或点 **↻ Maps from the list**）。*Path* 填 `K-H`（两条能带�
 left* 填 `L, M`。**To figure composer...** → (a) 所在的图。
 
 **(c) 沿 k_z 层叠的 cut。** 把光子能量扫描转换到动量空间
-（[第 14 节](#14-光子能量扫描kz)），选中它 → Advanced → **Stacked slices...**：
+（[第 14 节](#49-对齐-kz-map-的费米能级)），选中它 → Advanced → **Stacked slices...**：
 *Layers* 沿 k_z，位于各 cut 的四个 k_z（8.0、8.3、8.6 和 9.0 π/c），*Fade* 30 %，
 **Spread** 3，方位角 40°，仰角 12°。在 **Mark a curve through the layers** 中加入
 每张 cut 上的交叉点（k_z, k_∥, E）——取自 (d)——红色。**To figure composer...**。
@@ -1549,71 +1617,111 @@ left* 填 `L, M`。**To figure composer...** → (a) 所在的图。
 两张图的每个面板之后都可以修改——打开 `.afig`，选中面板，使用图工具即可；数据
 文件夹既保存了图中显示的数据，也保存了它所来自的测量。
 
-# 第六部分 日常维护
-
 ---
 
-## 31. 自动保存、内存与恢复
+# 第七部分 AI 智能体
 
-- **自动保存**：每个计算得到的数据集（k-map、处理后的 cut、拟合结果……）一经生成，
-  就以**不压缩**的方式写入本次会话的文件夹 `~/.arpes_viewer/sessions/`。实空间
-  扫描除外（它们就是测量数据本身，而且很大）。
-- **正常关闭即删除自动保存文件**：关闭主窗口并确认后（所需数据已保存，或选择
-  *Close anyway*），程序会关闭所有查看窗口，并立即删除本次会话的文件夹。某个数据集
-  一旦被保存到你自己的文件，它的自动保存副本也会立即删除。
-- **崩溃后的恢复**：只有程序没有正常关闭（崩溃、被强制结束）时，会话文件夹才会
-  保留：下次启动时会提示恢复其中的数据集，三天后自动删除。
-- **操作日志**：`~/.arpes_viewer/sessions/operations.log`，每次存储 / 保存 /
-  丢弃记录一行——用来查找数据的去向。
-- **Memory 区**（工具面板底部）：显示本程序与系统的内存占用、打开的窗口数与 HDF5 文件数，以及
-  内存中的计算数据量。**Free RAM** 丢弃计算数据的缓存副本（需要时从自动保存的
-  文件重新读取）；**Close all** 关闭所有窗口并释放内存。
-- **Autosaves**（Memory 区内）在系统文件管理器中打开自动保存文件夹，
-  可以手动删除旧的临时副本。当前会话的文件夹（状态栏中显示其名称）正在使用，请勿删除。
-- **耗时操作**（读取大 map、转换、去网格、拼接文件夹）在后台线程运行，带进度条，
-  且可以真正取消。
-- **关闭程序**时如有未保存的计算数据，会先询问，并列出这些数据集的名字：
-  **Save to a file...**（保存）、**Close anyway**（不保存直接关闭，自动保存副本
-  随之删除）或 **Cancel**（取消关闭）。
+AI 智能体（Claude，或任何能读写文件、能调用 MCP 工具的应用）可以在你的屏幕上一步步操作本程序，你在一旁观看并可随时接手。本部分介绍其工作原理、如何启动和监控智能体，并给出一个从配置到成图的实例。
 
-## 32. 技巧与常见问题
+## 7.1 工作原理，以及哪些内容会离开你的电脑
 
-- **工具按钮是灰色的**——把鼠标悬停在按钮上，提示会说明原因（例如 MDC 拟合要求 cut
-  已经是 Å⁻¹ 单位，cut 运算需要两张 cut）。在列表中选中合适的行，按钮就会亮起。
-- **查看窗口的 Functions 菜单里找不到某个工具**——它在工具面板中（见[第 3 节](#3-主窗口)
-  的“功能现在的位置”），三个标签页（Basic、Advanced、Figure）都看一看。
-- **窗口比屏幕还高**——窗口打开时不会超过屏幕高度，内容可以滚动，Apply / Close 按钮
-  始终在底部。所有窗口都可以调整大小。
-- **没有提供 k 转换**——该 map 的第一个轴不是角度（而是光子能量、温度等）。请在
-  载入窗口检查 *First axis of a map is*。
-- **对 E − E_F 的 cut 做 k 转换**——能量偏移会根据费米拟合自动填好；如果是用其他
-  方式平移的能量轴，请在 *Energy offset* 中填入 E_F 对应的动能（光子能量 − 功函数）。
-- **文件被误读**——在载入窗口中手动指定读取器，并参阅
-  [读取数据技术参考](../arpes_viewer/loader/README.md#assumptions-worth-knowing-about)中的
-  *Assumptions worth knowing about*（SOLEIL 文件的轴顺序）。
-- **在大 map 上拖动光标卡顿**——从文件惰性读取的 map 每个窗口重新切片约需 0.1 s，
-  因此其他窗口会等鼠标停下再更新；map 读入内存后即可实时跟随。
-- **输入数字**——无论系统语言如何，所有数字框都使用小数点（`0.05`），不接受逗号。
-- **系统开始使用交换内存**——留意 Memory 进度条（超过内存三分之一变为琥珀色，
-  超过一半变为红色），使用 **Free RAM** 或 **Close all**。
+本程序没有自己的聊天界面。你用自然语言与 AI 应用（Claude 桌面版、Claude Code 或其他智能体）对话，
+本程序是这个智能体的工具。智能体给程序发送一个个小步骤：列出数据、拟合费米边、转换到动量空间、
+作图。程序在你的屏幕上执行每一步，每个结果都以列表中的新行或新窗口出现，你可以随时暂停智能体、
+手动操作。
 
-## 33. 让 AI 智能体调用本程序（MCP）
+**哪些内容留在你的电脑上，哪些不是：**
 
-**最简单的方式：AI assistant... 与命令文件夹（推荐）。** 用自然语言对你的 AI 应用（Claude
-桌面应用、Claude Code，或任何能读写文件的智能体）说话，它会在你眼前操作本程序的窗口。点击工具面板
-顶部的 **AI assistant...**，选择数据文件夹和结果文件夹，勾选需要的选项（参数先问我、逐步确认、记录
-用量、隐藏样品信息、生成报告、生成幻灯片），并可手写其他要求；**Copy the prompt and start** 让程序
-开始监听（文件夹方式：智能体把 Python 文件写入 `<results>/_agent/viewer_cmd/`，程序逐个运行；MCP
-方式：开启 agent bridge），并复制一段提示词，粘贴给 AI 应用即可开始。窗口右侧列出智能体执行的每一步，
-**Pause the agent** 可随时暂停、改为手动操作。**AI assistant** 按钮本身是状态灯，关闭该窗口后依然显示（关闭窗口不会
-停止智能体）：灰色未运行，绿色运行中，黄色已暂停（人工操作），红色出错。智能体运行时你仍可在主窗口查看数据，
-智能体的操作不会改动你在列表中的选择。提示词会让智能体读取程序安装位置中的 `API.md`（位于 `arpes_viewer`
-包内，pip 安装和下载安装都一样，不会复制到你的文件夹），其中列出程序约 50 个有说明
-的操作（`L.rows()`、`L.fermi_edge(...)`、`L.cut_to_k(...)`、`L.kz_to_k(...)`、`L.bz_overlay(...)`、
-`L.slice_series(...)`、`L.figure_render(...)` 等），智能体读这一个文件即可，不必读源码。每个操作都生成新的行而不改
-动原有数据，不覆盖文件，也不会等待点击。完整说明见 `agentic/README.md`。
+- 原始数据文件留在原处，由程序在本地读取和处理。程序本身不上传任何东西。
+- **智能体读到的内容**会作为对话的一部分发送给 AI 服务商：每一步打印的文字（行名、拟合值、轴范围），
+  以及智能体为判断结果而查看的图片。要求精简输出时，对话中只有数字和少量图片，没有你的数据数组。
+- 服务商能否把对话内容用于训练，取决于服务商和你的账户设置。开始前请先确认。
+- 私有代码、未发表的稿件以及任何不想被读取的内容，请不要放在智能体能访问的文件夹中。只给它数据文件夹
+  （只读）和结果文件夹。
 
-本节其余部分介绍另一种方式：MCP 服务器。
+和任何分析一样，使用智能体的结果之前请先检查。
+
+## 7.2 架构：操作、参考文档与连接方式
+
+```
+ 你  ⇄  AI 应用（对话）                      ARPES viewer（在你的屏幕上）
+            │                                 ┌──────────────────────────┐
+            │  写入 <results>/_agent/          │  逐个运行命令文件，或     │
+            ├──── viewer_cmd/01_….py  ───────▶ │  逐个 MCP 调用，          │
+            │                                 │  L = 程序的操作           │
+            │  读取 out/cmd_01_….log  ◀─────── │  新行、新窗口、新文件     │
+            │  （或 MCP 工具的返回）            └──────────────────────────┘
+```
+
+- **操作 `L`。** 约五十个有文档说明的操作，作用于主列表中按名称指定的行
+  （`arpes_viewer/ui/common/live.py`）：`L.rows()`、`L.add_files(...)`、`L.fermi_edge_search(...)`、
+  `L.fermi_edge(...)`、`L.map_to_k(...)`、`L.kz_to_k(...)`、`L.bz_overlay(...)`、
+  `L.cut_arithmetic(...)`、`L.slice_series(...)`、`L.figure_render(...)` …… 每个操作都添加新行而不修改
+  旧行，从不覆盖文件，也从不等待点击。行可以用名称、在 `L.rows()` 中的序号或其文件路径指定。
+- **参考文档 `API.md`**（`arpes_viewer/agent/API.md`，在已安装的程序内）列出全部操作、工具面板按钮、
+  MCP 工具和 `tools/` 中的计算函数及其参数。它由程序自动生成，因此始终是最新的；智能体读它而不读
+  源代码。`L.help()` 打印同样的列表。
+- **三种连接方式**，调用同一套操作：
+  1. **命令文件夹**（推荐）：智能体每一步写一个小 Python 文件到 `<results>/_agent/viewer_cmd/`，
+     程序运行它并把输出写到 `<results>/_agent/out/`。任何能读写文件的 AI 应用都可以，每一步都以文件
+     形式保留。
+  2. **MCP**：AI 应用通过本程序的 MCP 服务器（`arpes-viewer-mcp`）调用；程序以 agent bridge 启动时，
+     `viewer_api` 调用的就是同一套操作。
+  3. **无界面脚本**：`arpes_viewer/tools/` 中的计算和无界面工作区，适合留存的脚本。
+- **窗口。** 操作中仅为驱动而打开的窗口（转换对话框、临时图）不会出现在屏幕上；一步结束时仍打开的窗口
+  （图、查看窗口、等你输入的工具）出现在主面板所在的屏幕上，不会打扰你正在使用的另一块屏幕。
+
+## 7.3 从 AI assistant 面板启动
+
+![AI assistant 按钮：一个状态灯](images/assistant_button.png)
+
+点击工具面板顶部的 **AI assistant...**。
+
+![启动前的 AI assistant 窗口](images/assistant_setup.png)
+
+1. **文件夹。** **数据**文件夹（智能体只读）和**结果**文件夹（智能体写的一切都在这里；命令在
+   `<结果文件夹>/_agent` 中）。
+2. **需求。** 勾选适用的选项：
+   - *Ask me before choosing a physical parameter*：选择 Γ 位置、能量窗口、内势、阈值之前先问你；
+   - *Show me each step and wait for my go-ahead*：每一步等你确认；
+   - *Record token / plan usage per step*：每一步一行的使用记录；
+   - *Hide the sample's real identity*：在所有输出中隐藏样品真实身份；
+   - *Write a report*、*Make slides*：写报告、做幻灯片；
+   - *Keep the list tidy*：最后建议移除中间结果行。
+
+   然后用自己的话写下需求：哪些数据、哪些步骤、哪些图。
+3. **AI 应用。** *Works in folders*（推荐，无需配置）或 *Uses MCP tools*（提示词会说明如何连接一次）。
+4. 点击 **Copy the prompt and start**。程序开始监听，提示词已在剪贴板中。**Show the prompt** 可查看
+   全文：文件夹、`API.md` 的位置、如何发送步骤，以及工作规则（[§7.6](#76-智能体遵循的工作规则)）。
+5. 把提示词粘贴进 AI 应用并发送。应用请求权限时，允许它读取数据文件夹、读写结果文件夹。
+
+## 7.4 监控与介入
+
+![智能体工作时的 AI assistant 窗口](images/assistant_running.png)
+
+- **步骤列表**（右侧）：智能体运行的每一步，带时间和 ✓，失败则显示红色 ✗。点击某一步可查看它的输出。
+- **状态灯**在 **AI assistant** 按钮上，关闭窗口后依然有效：灰色未运行，绿色运行中，黄色已暂停，
+  红色某步失败或命令不再被执行。关闭窗口不会停止智能体。
+- **Pause the agent** 暂缓执行智能体后续的命令（灯变黄），你可以手动操作；**Resume** 恢复执行。
+  智能体被告知：命令被暂缓时要等待并询问你。
+- **你的工作不受影响。** 智能体的步骤不会改变你在列表中的选择，你可以在它工作时查看数据；它仅为驱动而
+  打开的窗口不会出现在你的屏幕上。
+- **Open results** 打开结果文件夹：`_agent` 中有智能体的命令文件和日志，以及它写出的图片和图。
+
+## 7.5 其他启动方式
+
+- **Claude Code 或其他 MCP 应用。** 在 AI assistant 中选择 *Uses MCP tools*：程序打开 agent bridge，
+  提示词中包含添加服务器的命令，对 Claude Code 是
+  `claude mcp add arpes-viewer -- python -m arpes_viewer.agent`。如果你的应用按需加载工具定义，
+  让它一次性加载全部 arpes-viewer 工具。
+- **手动。** 以 agent bridge 启动程序（`arpes-viewer --agent-bridge`），把 `arpes-viewer-mcp`
+  加入应用的 MCP 服务器，并告诉智能体 `API.md` 的位置。
+- **不用面板的命令文件夹。** `agentic/launch_viewer.py` 让程序监听你指定的文件夹；
+  `agentic/README.md` 是分步指南，`agentic/PROMPTS.md` 中有可复制的请求，`agentic/examples/` 中有可运行的示例。
+- **需要留存的脚本。** `arpes_viewer/tools/` 中的计算不需要窗口；`devtools/figure_tests.py`
+  就是这样从演示数据生成两张完整的图。
+
+以下是 MCP 服务器的详细说明，供参考：
 
 ARPES viewer 同时是一个 **MCP 服务器**（Model Context Protocol，模型上下文协议），因此任何模型的
 AI 智能体——Claude、GPT、Gemini，或在支持 MCP 的客户端（Claude Desktop / Claude Code、Cursor、
@@ -1674,5 +1782,195 @@ PNG）、`viewer_close_window` 和
 `viewer_python` 会在程序中执行代码——请像允许智能体在你电脑的 Python 控制台中输入命令那样
 谨慎授权。
 
-[docs/AGENTIC_WORKFLOW_en.md](AGENTIC_WORKFLOW_en.md) 中基于命令文件夹的工作流仍然可用；MCP
-服务器是同样的思路，但不需要文件夹，且适用于任何智能体。
+命令文件夹方式的详细说明见 [docs/AGENTIC_WORKFLOW_en.md](AGENTIC_WORKFLOW_en.md)；MCP
+服务器是同样的思路，只是不需要文件夹。
+
+## 7.6 智能体遵循的工作规则
+
+提示词给智能体的规则来自真实的数据处理会话；`API.md` 中也写有这些规则。你可以在需求中添加自己的规则，
+或覆盖其中某一条。
+
+| 规则 | 原因 |
+|---|---|
+| 添加数据后，把行与文件夹对照，报告漏加、未识别或有警告的文件 | map 文件夹里混入的单张谱、读取器不认识的文件不能悄悄漏过 |
+| 说明行名中哪些部分来自文件名、哪些来自记录的元数据；标出推测的部分 | 之后所有人都读这些名称 |
+| 自己计算之前先查找操作（`L.help()`、`L.tools()`、`L.functions()`）；绝不直接修改程序的内部数据表；缺少某个操作时说明是哪个，并先询问 | 结果可复现，并带有处理历史 |
+| 费米能级：在原始数据上、逐行、在该行自己的能量轴上拟合（`L.fermi_edge_search`），每次拟合都出图；相同光子能量和通能的行必须一致；数据无法判断时询问一次 | 最陡的下降不一定是费米边；一个窗口不适用于所有能量轴 |
+| 把多个步骤合并为一次调用（`L.map_to_k(row, ef=…, normalise_axes=(1, 2))`），列表中只保留最终结果；只有你同意时才移除行 | 列表保持可读 |
+| 先在 `check/` 中试做图，每张图只在 `figures/FigureN/` 中发布一个版本，被替换的版本移到一旁 | 每张图只有一个最终文件 |
+| 有正负号的量（二色性、差值）用发散色图和对称色阶 | 正负必须一目了然 |
+| 精简输出：`L.rows(compact=True)`、`L.profile(..., summary=True)`，大数组写入文件 | 更少的 token，发送给服务商的内容更少 |
+| 绝不删除或覆盖；（若勾选）选择任何物理参数前先询问 | 你的数据和你的决定始终属于你 |
+
+## 7.7 实例：智能体从配置到成图
+
+这个实例沿用了一次用智能体处理 CASSIOPEE 真实数据的过程（多种偏振下的费米面 map 和 cut，一直做到
+二色性图），这里在演示数据上重做，方便你重复。那次会话促成的程序改进见
+[CHANGELOG](../CHANGELOG.md)（1.3.2）。
+
+**1. 配置。** AI assistant：数据 `demo_data`，结果 `results_demo`；勾选 *ask before a physical
+parameter*、*step by step*、*report* 和 *tidy list*；需求：*"Process the Γ-plane map and the LH and
+LV cuts along Γ-M: fit E_F per row, convert to k (Γ at normal emission), draw the zone (P-3m1,
+a = 3.3, c = 6 Å), make constant-energy slices at E_F, −0.2 and −0.4 eV, and the linear dichroism
+of the two cuts."* → **Copy the prompt and start**，粘贴进 AI 应用。
+
+**2. 先看数据。** 智能体的第一个命令文件：
+
+```python
+print(L.add_files(DATA))           # added, left_out, unrecognised, warnings
+print(L.rows(compact=True))        # 每行一句
+```
+
+它报告文件夹里有什么并提出计划；勾选了 *step by step* 时，它会等你确认。
+
+**3. 逐行确定费米能级**，每行在自己的能量轴上：
+
+```python
+found = L.fermi_edge_search(row, temperature=20)   # 候选费米边
+fit = L.fermi_edge(row, found["candidates"][0]["window"], temperature=20,
+                   picture=os.path.join(HERE, "ef_" + row + ".png"))
+```
+
+![智能体的费米边拟合，画出来供你检查](images/agent_fermi_fit.png)
+
+`fermi_edge_search` 列出 EDC 中所有高于噪声的下降，按能量从高到低，逐个拟合并指出哪一个是费米边。
+当两个都拟合得好时（例如真实的通能 20 数据中，强下降之上还有一段弱尾巴），它会明确说出来，智能体
+就问你一次。每次拟合都会出图：灰色为拟合窗口，红色为拟合的费米边。
+
+**4. 转换到动量空间，每个数据一行。**
+
+```python
+k = L.map_to_k(MAP, ef=EF[MAP], normalise_axes=(1, 2), new_name="map Gamma plane k")
+L.cut_to_k("cut_GM_LH", ef=EF["cut_GM_LH"], new_name="cut GM LH k")
+```
+
+平移到 E − E_F、对 map 的每个 cut 归一化、动量转换在一次调用中完成：列表中只出现最终结果，其历史
+记录了这三步。
+
+**5. 布里渊区与作图。**
+
+```python
+L.bz_overlay("map Gamma plane k", space_group=164, a=3.3, c=6.0, hkl=(0, 0, 1), offset=0.0)
+L.slice_series("map Gamma plane k", values=[0, -0.2, -0.4], half_width=0.02, cols=3,
+               colormap="blue", flip=True, shared=False, percentiles=(3, 99.7),
+               high_factor=1.4, zone_style="dashed", zone_color="#B8D62020",
+               title="Figure 1")
+L.figure_render("Figure 1", os.path.join(HERE, "..", "figures", "Figure1.png"), dpi=150)
+```
+
+![智能体做出的图](images/agent_figure.png)
+
+**6. 二色性。**
+
+```python
+L.cut_arithmetic("cut GM LH k", "cut GM LV k", operation="asymmetry", normalise="total")
+```
+
+这是程序自己的 cut 运算，与 Cut arithmetic 窗口相同（[§5.5](#55-cut-运算二色性与参考谱归一)）：LV 按 LH 的总强度缩放，
+计算 (LH − LV)/(LH + LV)，低强度的点被屏蔽。
+
+**7. 监控。** 期间 AI assistant 列出每一步（[§7.4](#74-监控与介入)）；你可以点击某一步阅读输出，暂停后自己查看
+某个数据，再恢复。最后智能体写出报告，并在你同意后移除中间结果行；结果文件夹中有图、拟合图片和每一个
+命令文件，完整记录了做过的事。
+
+## 7.8 局限与良好习惯
+
+- **检查物理结果。** 智能体可能选出看似合理但错误的费米边、Γ 位置或内势。请勾选 *Ask me before
+  choosing a physical parameter*，并查看每张拟合图。
+- **保留记录。** `<结果文件夹>/_agent/` 中的命令文件和各行的历史说明了做过什么；请与结果一起保存。
+- **用量。** 智能体看不到自己的 token 用量；如果想在使用记录中写入数字，请提供给它。
+- **隐私。** 只有智能体读到的内容会离开你的电脑（[§7.1](#71-工作原理以及哪些内容会离开你的电脑)）；私密内容不要放在它能访问的文件夹中。
+- **编码。** 命令文件使用 UTF-8；当某一步的代码中有因编码错误而乱码的字符（如把 "−" 写成 "âˆ’"）时，
+  程序会给出警告。
+
+---
+
+# 第八部分 日常维护
+
+自动保存与恢复、保存工作、错误日志、版本，以及出问题时怎么办。
+
+## 8.1 自动保存、内存与恢复
+
+- **自动保存**：每个计算得到的数据集（k-map、处理后的 cut、拟合结果……）一经生成，
+  就以**不压缩**的方式写入本次会话的文件夹 `~/.arpes_viewer/sessions/`。实空间
+  扫描除外（它们就是测量数据本身，而且很大）。
+- **正常关闭即删除自动保存文件**：关闭主窗口并确认后（所需数据已保存，或选择
+  *Close anyway*），程序会关闭所有查看窗口，并立即删除本次会话的文件夹。某个数据集
+  一旦被保存到你自己的文件，它的自动保存副本也会立即删除。
+- **崩溃后的恢复**：只有程序没有正常关闭（崩溃、被强制结束）时，会话文件夹才会
+  保留：下次启动时会提示恢复其中的数据集，三天后自动删除。
+- **操作日志**：`~/.arpes_viewer/sessions/operations.log`，每次存储 / 保存 /
+  丢弃记录一行——用来查找数据的去向。
+- **Memory 区**（工具面板底部）：显示本程序与系统的内存占用、打开的窗口数与 HDF5 文件数，以及
+  内存中的计算数据量。**Free RAM** 丢弃计算数据的缓存副本（需要时从自动保存的
+  文件重新读取）；**Close all** 关闭所有窗口并释放内存。
+- **Autosaves**（Memory 区内）在系统文件管理器中打开自动保存文件夹，
+  可以手动删除旧的临时副本。当前会话的文件夹（状态栏中显示其名称）正在使用，请勿删除。
+- **耗时操作**（读取大 map、转换、去网格、拼接文件夹）在后台线程运行，带进度条，
+  且可以真正取消。
+- **关闭程序**时如有未保存的计算数据，会先询问，并列出这些数据集的名字：
+  **Save to a file...**（保存）、**Close anyway**（不保存直接关闭，自动保存副本
+  随之删除）或 **Cancel**（取消关闭）。
+
+## 8.2 保存与重新打开工作
+
+- **数据集。** 选中行 → Datasets 框 → **Save**：保存为一个本程序格式的 `.nxs` 文件（一个文件可含多个
+  数据集，连同元数据和处理历史），可用 **Load data...** 再次打开；或保存为 Igor Pro 文本（`.itx`）。
+  查看窗口的面板可导出其所显示的内容（[§3.8](#38-导出单个面板与保存数据)）。
+- **图。** 在作图器中，**Save** 写出 `.afig` 文件，可再次打开编辑，各面板的数据保存在旁边的
+  "data for <名称>" 文件夹中，因此原始文件不在时也能打开。分享时请不要附上这个文件夹。**Export**
+  写出 PNG、PDF、SVG 或 TIFF。
+- **实验记录**和**会话日志**记录测量了什么、做了什么（[§2.3](#23-实验记录)）。
+- 不会在未询问的情况下覆盖任何文件：保存到已有文件前会先询问。
+
+## 8.3 错误日志与 bug 报告
+
+出错时程序**会继续运行**，并把错误及其 traceback 保存在**程序文件夹中的
+`error_logs/errors_<日期>_<时间>.txt`**（该文件夹不可写时保存在 `~/.arpes_viewer/error_logs/`），
+每个出错的会话一个文件，并弹出提示。
+
+报告 bug 请在 <https://github.com/DingPei1995/ARPES-viewer/issues> 提交 issue，并附上：
+
+- 错误日志：**上传该文件**（拖进文本框）**或粘贴其内容**。主面板最下一行有
+  **Copy the newest error log** 和 **Open the error logs**；
+- 版本号（见标题栏）；
+- 出错前做了什么，如有可能说明文件类型（线站、cut 或 map）。
+
+如果程序根本无法启动，原因在启动日志 `~/.arpes_viewer/launcher.log` 中。
+
+## 8.4 版本与更新
+
+标题栏和主面板最下一行显示版本及日期（`ARPES viewer v1.3.2 (updated 2026-11-04)`）。每个版本改了
+什么、为什么改，见 [CHANGELOG](../CHANGELOG.md)。
+
+更新 pip 安装的版本：
+
+```bash
+pip install --upgrade arpes-viewer
+```
+
+最新的未发布版本：`pip install git+https://github.com/DingPei1995/ARPES-viewer`；下载的副本重新下载
+即可更新。旧版本保存的数据集和图可以在新版本中打开。
+
+## 8.5 技巧与常见问题
+
+- **工具按钮是灰色的**——把鼠标悬停在按钮上，提示会说明原因（例如 MDC 拟合要求 cut
+  已经是 Å⁻¹ 单位，cut 运算需要两张 cut）。在列表中选中合适的行，按钮就会亮起。
+- **查看窗口的 Functions 菜单里找不到某个工具**——它在工具面板中（见[第 3 节](#21-主窗口概览)
+  的“功能现在的位置”），三个标签页（Basic、Advanced、Figure）都看一看。
+- **窗口比屏幕还高**——窗口打开时不会超过屏幕高度，内容可以滚动，Apply / Close 按钮
+  始终在底部。所有窗口都可以调整大小。
+- **没有提供 k 转换**——该 map 的第一个轴不是角度（而是光子能量、温度等）。请在
+  载入窗口检查 *First axis of a map is*。
+- **对 E − E_F 的 cut 做 k 转换**——能量偏移会根据费米拟合自动填好；如果是用其他
+  方式平移的能量轴，请在 *Energy offset* 中填入 E_F 对应的动能（光子能量 − 功函数）。
+- **文件被误读**——在载入窗口中手动指定读取器，并参阅
+  [读取数据技术参考](../arpes_viewer/loader/README.md#assumptions-worth-knowing-about)中的
+  *Assumptions worth knowing about*（SOLEIL 文件的轴顺序）。
+- **在大 map 上拖动光标卡顿**——从文件惰性读取的 map 每个窗口重新切片约需 0.1 s，
+  因此其他窗口会等鼠标停下再更新；map 读入内存后即可实时跟随。
+- **输入数字**——无论系统语言如何，所有数字框都使用小数点（`0.05`），不接受逗号。
+- **系统开始使用交换内存**——留意 Memory 进度条（超过内存三分之一变为琥珀色，
+  超过一半变为红色），使用 **Free RAM** 或 **Close all**。
+
+<!-- Generated by devtools/build_guide.py from docs/guide/zh/: edit those files, not this one. -->

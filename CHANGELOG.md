@@ -123,6 +123,16 @@ scripts it had to write).
   and work function.
 - **README**: how to start and watch an agent from the AI assistant
   panel, with screenshots (`devtools/guide_screenshots.py assistant`).
+- **The user guides rewritten** (English, Chinese, French, and their PDFs)
+  in eight parts that follow the screen: getting started (installing, the
+  file formats, setting up an agent, the code's layout), the main panel,
+  the data viewers, the Basic, Advanced and Figure tabs (ending with an
+  example from loading data to a figure), AI agents (how they work, what
+  leaves the computer, the AI assistant, an example from set-up to figure
+  on the demo data) and housekeeping. Every screenshot re-taken. Each part
+  is its own file in `docs/guide/<lang>/`, assembled with its table of
+  contents by `devtools/build_guide.py`; a test checks that the guides are
+  up to date and that every link and picture in them exists.
 
 ## 1.3.1 — 2026-11-03
 

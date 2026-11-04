@@ -30,7 +30,7 @@ arpes_viewer/        the package itself
     panels/          the tool windows a viewer opens
     common/          long jobs, messages, the GC guard
 devtools/            one-off generators, run by hand
-docs/                the user guides (en, zh, fr), their screenshots and PDFs
+docs/                the user guides (en, zh, fr; assembled from docs/guide/), their screenshots and PDFs
 test/                the tests: loaders/, tools/, ui/ and the code checks
 ```
 
@@ -116,7 +116,7 @@ subpackages group modules by what they are for.
 | `common/notify.py` | The message boxes. |
 | **`devtools/`, `test/`** | |
 | `devtools/gen_colormaps.py`, `devtools/gen_spacegroups.py`, `devtools/gen_corelevels.py` | Generate the tables in `tools/`; need scipy + the lab's `.mat`, `spglib`, and poppler's `pdftotext` with `Table_1-1.pdf`, none of which the program itself does. |
-| `devtools/demo_data.py`, `devtools/guide_screenshots.py`, `devtools/build_guide_pdfs.py` | Synthetic data to try the program on, the script that re-takes the user guides' screenshots from it (offscreen), and the one that prints the guides to PDF (pandoc + Playwright). |
+| `devtools/demo_data.py`, `devtools/guide_screenshots.py`, `devtools/build_guide.py`, `devtools/build_guide_pdfs.py` | Synthetic data to try the program on, the script that re-takes the user guides' screenshots from it (offscreen), the one that assembles each guide from its parts in `docs/guide/<lang>/` (see `docs/guide/README.md`), and the one that prints the guides to PDF (pandoc + Playwright). |
 | `test/loaders/`, `test/tools/`, `test/ui/` | The tests of each package. |
 | `test/test_imports.py` | Checks on the shape of the code: that no local shadows an imported module, that no package is referenced by its bare name, that everything imports, that every package has a docstring, and that `loader/` and `tools/` stay Qt-free. |
 

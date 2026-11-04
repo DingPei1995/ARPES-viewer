@@ -20,7 +20,7 @@
 > MCP-capable agent, of any model, can call the program's tools directly --
 > headless, or driving the window on screen when it is started with
 > `arpes-viewer --agent-bridge` -- without the command folders below. See
-> [the user guide, §33](USER_GUIDE_en.md#33-driving-the-program-from-an-ai-agent-mcp).
+> [the user guide, Part 7](USER_GUIDE_en.md#part-7--ai-agents).
 > The file-based workflow described here keeps working.
 >
 > **New to this?** Start with [`agentic/README.md`](../agentic/README.md):

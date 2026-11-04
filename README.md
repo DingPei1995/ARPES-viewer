@@ -40,30 +40,30 @@ as a publication figure.
 
 - **Reads** SOLEIL ANTARES and CASSIOPEE, ALS MAESTRO, ALBA LOREA, Diamond I05 and I05-1, MAX IV
   Bloch, Elettra APE, BESSY One Cube / One Square, SOLARIS URANOS, ASTRID2
-  SGM4, and its own saved format ([loading data](docs/USER_GUIDE_en.md#4-loading-data)).
+  SGM4, and its own saved format ([loading data](docs/USER_GUIDE_en.md#22-loading-data)).
 - **Shows** cuts, Fermi-surface maps, photon-energy scans, spatially resolved
   scans and spin-resolved curves, each in its own window with linked cursors
-  ([the viewers](docs/USER_GUIDE_en.md#5-what-the-viewers-have-in-common)).
+  ([the viewers](docs/USER_GUIDE_en.md#31-what-the-viewers-have-in-common)).
 - **Converts** maps and cuts to momentum, photon-energy scans to k_z, with the
   Brillouin zone drawn over them
-  ([§13](docs/USER_GUIDE_en.md#13-converting-a-map-to-momentum),
-  [§14](docs/USER_GUIDE_en.md#14-photon-energy-scans-kz),
-  [§15](docs/USER_GUIDE_en.md#15-brillouin-zone)).
+  ([§4.8](docs/USER_GUIDE_en.md#48-converting-a-map-to-momentum),
+  [§4.9–4.10](docs/USER_GUIDE_en.md#49-aligning-the-fermi-levels-of-a-kz-map),
+  [§4.11](docs/USER_GUIDE_en.md#411-brillouin-zone)).
 - **Analyses**: Fermi-edge fits, Fermi-surface correction, MDC / EDC fits,
   ridge detection, curvature and second derivatives, dichroism, core levels,
   spin, de-gridding, detector corrections
-  ([§7–§24](docs/USER_GUIDE_en.md#7-arbitrary-cuts-and-fermi-surface-correction)).
+  ([Parts 3–5](docs/USER_GUIDE_en.md#part-3--the-data-viewers)).
 - **Compares with theory**: crystal structures, tight-binding fits, and
   calculated bands from Wien2k, VASP, Quantum ESPRESSO, Wannier90 and the
   FPLO + Wannier tools -- along a path, as constant-energy contours on any
   (hkl) plane, or as a 3-D Fermi surface
-  ([§25–§27](docs/USER_GUIDE_en.md#27-calculated-bands)).
+  ([§6.2–6.5](docs/USER_GUIDE_en.md#65-calculated-bands)).
 - **Makes figures**: the figure composer, laid out like a manuscript page,
   exported as PNG, PDF or SVG, and saved with its data
-  ([§28–§30](docs/USER_GUIDE_en.md#28-the-figure-composer)).
+  ([§6.1, 6.6](docs/USER_GUIDE_en.md#61-the-figure-composer)).
 - **Loses nothing**: every derived dataset is autosaved, a crash is recovered
   from, and long steps show a progress bar
-  ([§31](docs/USER_GUIDE_en.md#31-autosave-memory-and-recovery)).
+  ([§8.1](docs/USER_GUIDE_en.md#81-autosave-memory-and-recovery)).
 
 ---
 
@@ -96,7 +96,7 @@ python ARPES_viewer.py
   Anyway**.
 - **No beamtime at hand?** `python devtools/demo_data.py` writes the
   synthetic demo data of the example figures below to `demo_data/`
-  ([trying it with demo data](docs/USER_GUIDE_en.md#2-trying-it-with-demo-data)).
+  ([trying it with demo data](docs/USER_GUIDE_en.md#13-trying-it-with-demo-data)).
 
 ---
 
@@ -263,7 +263,7 @@ title bar.
   [English](docs/pdf/ARPES_viewer_user_guide_en.pdf) ·
   [中文](docs/pdf/ARPES_viewer_user_guide_zh.pdf) ·
   [Français](docs/pdf/ARPES_viewer_user_guide_fr.pdf).
-- **AI agents**: start with the beginner's guide [`agentic/README.md`](agentic/README.md) -- connecting an agent step by step, runnable examples and [requests to copy](agentic/PROMPTS.md); then the MCP server ([user guide §33](docs/USER_GUIDE_en.md#33-driving-the-program-from-an-ai-agent-mcp)) and the file-based [agentic workflow](docs/AGENTIC_WORKFLOW_en.md).
+- **AI agents**: start with the beginner's guide [`agentic/README.md`](agentic/README.md) -- connecting an agent step by step, runnable examples and [requests to copy](agentic/PROMPTS.md); then the MCP server ([user guide, Part 7](docs/USER_GUIDE_en.md#part-7--ai-agents)) and the file-based [agentic workflow](docs/AGENTIC_WORKFLOW_en.md).
 - **What changed, and why**: [CHANGELOG.md](CHANGELOG.md).
 - **Technical references**, beside the code they describe -- the formulas,
   the file layouts, the assumptions and the tests behind each step:
