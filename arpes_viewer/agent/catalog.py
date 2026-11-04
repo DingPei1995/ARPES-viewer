@@ -1,7 +1,10 @@
 """
 agent/catalog.py
 ================
-The reference an agent reads instead of the source: ``agentic/API.md``.
+The reference an agent reads instead of the source: ``API.md``, beside this
+module -- part of the package, so it is the same file whether the program
+was installed with pip or downloaded, and nothing has to be written into a
+user's folders for an agent to read it.
 
 Generated, never written by hand, from the program itself:
 
@@ -34,13 +37,14 @@ import sys
 __all__ = ["live_reference", "functions_reference", "tool_actions",
            "build", "path", "main"]
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-#: where the reference is written, in the repository
-PATH = os.path.join(ROOT, "agentic", "API.md")
+#: where the reference is: beside this module, in the package (shipped as
+#: package data, see pyproject.toml)
+PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "API.md")
 
 
 def path() -> str:
-    return PATH
+    """The reference's full path, as the system writes it."""
+    return os.path.normpath(PATH)
 
 
 def _doc(obj, whole: bool = True) -> str:
@@ -260,7 +264,7 @@ did.
 
 
 def build() -> str:
-    """The whole reference, as written to ``agentic/API.md``."""
+    """The whole reference, as written to ``API.md``."""
     parts = [HEADER]
 
     parts.append("## 1. Operations: `L.<name>(...)`\n")
@@ -319,7 +323,7 @@ def functions_index() -> str:
 
 
 def main(argv=None) -> int:
-    """``--write`` updates ``agentic/API.md``; ``--check`` exits 1 if it is
+    """``--write`` updates ``API.md``; ``--check`` exits 1 if it is
     out of date; no argument prints the reference."""
     argv = list(sys.argv[1:] if argv is None else argv)
     text = build()

@@ -10,7 +10,8 @@
   `test/test_version_consistency.py` checks together.
 - **Tests.** `python -m pytest` from the repository root, before pushing.
 - **The agent's reference (maintenance after every UI or tool change).**
-  `agentic/API.md` is generated from the program: the live operations
+  `arpes_viewer/agent/API.md` (package data, read in place by agents) is
+  generated from the program: the live operations
   (`arpes_viewer/ui/common/live.py`, `L.<name>`), the tool-panel buttons
   (`ui/launcher/main_window.py` `TOOLS`), the MCP tools and the public
   functions under `arpes_viewer/tools/`. After changing any of them:
@@ -22,3 +23,7 @@
   3. say in your reply to the user that the reference was updated (or that
      an operation is still missing for a new UI feature).
   `test/agent/test_catalog.py` fails while the file is out of date.
+- **Paths.** A path shown to a person or an agent, or passed on, is written
+  the system's way: `ui.common.paths.native(path)` in the GUI (file dialogs
+  already return native paths), `os.path.normpath` in Qt-free code. Never
+  build one with `"/"` by hand.

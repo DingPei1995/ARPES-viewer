@@ -75,7 +75,7 @@ class Workspace:
         import glob
         from arpes_viewer.loader import registry
 
-        folder = os.path.expanduser(folder)
+        folder = os.path.normpath(os.path.expanduser(folder))
         if not os.path.isdir(folder):
             raise ValueError(f"no folder {folder}")
         spec = os.path.join(folder, "**", pattern) if recursive \
@@ -107,7 +107,7 @@ class Workspace:
              name: str = None) -> dict:
         from arpes_viewer.loader import registry
 
-        path = os.path.expanduser(path)
+        path = os.path.normpath(os.path.expanduser(path))
         options = registry.LoadOptions(loader=loader) if loader else None
         scan = registry.load(path, entry, options)
         base = os.path.splitext(os.path.basename(path.rstrip(os.sep)))[0]
@@ -256,7 +256,7 @@ class Workspace:
         values, (axis,) = self._window(ident, (i,), ranges)
         label = self.axes(ident)[i][1]
         if path:
-            path = os.path.expanduser(path)
+            path = os.path.normpath(os.path.expanduser(path))
             np.savetxt(path, np.column_stack([axis, values]), delimiter=",",
                        header=f"{label},intensity", comments="")
         step = max(1, int(np.ceil(axis.size / max(int(max_points), 2))))
@@ -292,11 +292,11 @@ class Workspace:
                            width=int(width), height=int(height))
         png = png_bytes(rgba)
         if path:
-            path = os.path.expanduser(path)
+            path = os.path.normpath(os.path.expanduser(path))
             with open(path, "wb") as handle:
                 handle.write(png)
         if csv_path:
-            csv_path = os.path.expanduser(csv_path)
+            csv_path = os.path.normpath(os.path.expanduser(csv_path))
             table = np.vstack([np.concatenate([[np.nan], ay]),
                                np.column_stack([ax, values])])
             np.savetxt(csv_path, table, delimiter=",")
@@ -453,7 +453,7 @@ class Workspace:
         from arpes_viewer.tools.output import igor
 
         ids = [ids] if isinstance(ids, str) else list(ids)
-        path = os.path.expanduser(path)
+        path = os.path.normpath(os.path.expanduser(path))
         fmt = (fmt or os.path.splitext(path)[1].lstrip(".") or "nxs").lower()
         items = [self.as_dict(i) for i in ids]
         for item in items:
@@ -521,7 +521,7 @@ class Workspace:
     @staticmethod
     def read_cif(path: str) -> dict:
         from arpes_viewer.tools.crystal.structure import read_cif
-        structure = read_cif(os.path.expanduser(path))
+        structure = read_cif(os.path.normpath(os.path.expanduser(path)))
         return {"name": structure.name, "formula": structure.formula(),
                 "space_group": structure.space_group,
                 "space_group_number": structure.space_group_number,

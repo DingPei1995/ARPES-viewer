@@ -12,6 +12,57 @@ file is the record of how it got that way.
 
 ---
 
+## 1.3.2 — 2026-11-04
+
+An AI agent started in one step, and driven through documented operations
+instead of the program's internals.
+
+- **`L`: the program's documented operations, for every agent route.**
+  About fifty operations on the named rows of the main list
+  (`arpes_viewer/ui/common/live.py`): the list, looking at data without the
+  screen, the Fermi edge and kz alignment, cropping, binning, normalising,
+  smoothing, derivatives, curvature, background, symmetrising, cut, map and
+  kz conversion (V0 from Γ at hν, hν calibration), the Brillouin zone on a
+  map and as a 3-D picture, slice series and every figure step, the tool
+  windows by action, and a way to compute with the program's own functions
+  and list the result. Each adds new rows with their history, never
+  overwrites, never waits for a click. Command files (route 3), the bridge's
+  `viewer_python` and the new MCP tools `viewer_api_help` / `viewer_api`
+  (route 1) all reach it.
+- **`API.md`**, in the package (`arpes_viewer/agent/API.md`, shipped as
+  package data, so pip installs and downloads read the same file in place;
+  nothing is copied into the user's folders), generated from the program
+  (`python -m arpes_viewer.agent.catalog --write`): the operations, a
+  step-to-operation table, the tool-panel buttons, the MCP tools and the
+  Qt-free computations, so an agent reads one file instead of the source.
+  A test fails when it falls behind; CLAUDE.md says to regenerate it after
+  every UI or tool change.
+- **AI assistant...** at the top of the tool panel: the data and results
+  folders, a few options (ask before each physical parameter, step by step,
+  a usage log, hiding the sample's identity, a report, slides, a tidy list)
+  and requests in one's own words make one prompt; **Copy the prompt and
+  start** starts the command folder in `<results>/_agent` or, for an MCP
+  app, the agent bridge (on as soon as MCP
+  is chosen), and copies the prompt. The window then lists each step the
+  agent ran, with its output, and **Pause the agent** holds its commands
+  while the person works by hand. The button itself is a status light,
+  with or without the window open (closing it does not stop the agent):
+  grey not running, green running, yellow paused, red a failed step or
+  commands no longer run. The agent's operations put the person's
+  selection in the list back as it was, so the data can be looked at
+  while it works. The command folder
+  (`ui/common/agentfolder.py`) is the same one `launch_viewer.py` starts.
+- **Paths written the system's way.** Qt's file dialogs give forward
+  slashes on every system and `os.path.join` adds the system's own, so a
+  prompt read `D:/Data/LHhv\_agent\...`. The file dialogs now return
+  native paths (`ui/common/paths.py`, installed at start, for all of them);
+  the AI assistant, the command folder, the agent's operations and the
+  headless workspace normalise every path they take or return, and paths in
+  the MCP prompt's JSON are escaped.
+- `agentic/README.md`, `PROMPTS.md`, the README and the user guides put
+  route 3 first, then MCP, then scripts, and explain how the agent learns
+  what the program can do.
+
 ## 1.3.1 — 2026-11-03
 
 From a day of real data processed by an agent (the session's own review of
@@ -71,42 +122,6 @@ what the program got in its way).
   diagonal). Both were handed to the row-major image item untransposed.
 - `agentic/config.json` and `config.example.json` hold a placeholder, not a
   local data path; the live viewer says so when `data_dir` is not a folder.
-- **`L`: the program's documented operations, for every agent route.**
-  About fifty operations on the named rows of the main list
-  (`arpes_viewer/ui/common/live.py`): the list, looking at data without the
-  screen, the Fermi edge and kz alignment, cropping, binning, normalising,
-  smoothing, derivatives, curvature, background, symmetrising, cut, map and
-  kz conversion (V0 from Γ at hν, hν calibration), the Brillouin zone on a
-  map and as a 3-D picture, slice series and every figure step, the tool
-  windows by action, and a way to compute with the program's own functions
-  and list the result. Each adds new rows with their history, never
-  overwrites, never waits for a click. Command files (route 3), the bridge's
-  `viewer_python` and the new MCP tools `viewer_api_help` / `viewer_api`
-  (route 1) all reach it.
-- **`agentic/API.md`**, generated from the program
-  (`python -m arpes_viewer.agent.catalog --write`): the operations, a
-  step-to-operation table, the tool-panel buttons, the MCP tools and the
-  Qt-free computations, so an agent reads one file instead of the source.
-  A test fails when it falls behind; CLAUDE.md says to regenerate it after
-  every UI or tool change.
-- **AI assistant...** at the top of the tool panel: the data and results
-  folders, a few options (ask before each physical parameter, step by step,
-  a usage log, hiding the sample's identity, a report, slides, a tidy list)
-  and requests in one's own words make one prompt; **Copy the prompt and
-  start** starts the command folder in `<results>/_agent` (writing
-  `API.md` into it) or, for an MCP app, the agent bridge (on as soon as MCP
-  is chosen), and copies the prompt. The window then lists each step the
-  agent ran, with its output, and **Pause the agent** holds its commands
-  while the person works by hand. The button itself is a status light,
-  with or without the window open (closing it does not stop the agent):
-  grey not running, green running, yellow paused, red a failed step or
-  commands no longer run. The agent's operations put the person's
-  selection in the list back as it was, so the data can be looked at
-  while it works. The command folder
-  (`ui/common/agentfolder.py`) is the same one `launch_viewer.py` starts.
-- `agentic/README.md`, `PROMPTS.md`, the README and the user guides put
-  route 3 first, then MCP, then scripts, and explain how the agent learns
-  what the program can do.
 - **For agents**: a modal dialog opened from `viewer_python` or a live-viewer
   command raises `ModalDialogBlocked` instead of freezing it (warnings are
   printed and answered); `FigureWindow.describe()` / `render(path)` and the

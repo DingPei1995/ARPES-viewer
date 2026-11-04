@@ -18,7 +18,8 @@ ticked options and your own words (*Copy the prompt and start*). In short:
 > You are helping me analyse ARPES data with ARPES viewer, open on my
 > screen. Write one Python file per step into `<command folder>/viewer_cmd`
 > and wait for `<command folder>/out/cmd_<name>.log`. In those files `L` is
-> the program. First read `<command folder>/API.md`: it lists every
+> the program. First read `<the program's arpes_viewer/agent/API.md>` (the
+> AI assistant fills in its full path): it lists every
 > operation; use those, not the program's source. Today's data are in
 > `<data folder>`.
 > Rules: (1) everything stays on my computer; (2) ask me before choosing
@@ -116,7 +117,7 @@ ticked options and your own words (*Copy the prompt and start*). In short:
 
 ## 7. A script to keep (route 2, coding agents)
 
-> Read `agentic/README.md`, `agentic/API.md` and the scripts in
+> Read `agentic/README.md`, `arpes_viewer/agent/API.md` and the scripts in
 > `agentic/examples/`. Write `<my_analysis.py>` that `<describe the
 > steps>`, with every physical parameter as a named constant at the top.
 > Ask me for their values. Run it on one dataset, show me the pictures,

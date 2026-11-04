@@ -138,7 +138,8 @@ program through: `L.<name>(...)` operations on the rows of the main list,
 each documented, each adding new rows rather than changing old ones, none
 waiting on a modal dialog. The command folder (`ui/common/agentfolder.py`,
 route 3), the bridge's `viewer_python` and the MCP tool `viewer_api` (route
-1) all reach the same object. `agentic/API.md` is generated from it, the
+1) all reach the same object. `arpes_viewer/agent/API.md` (package data,
+so pip installs and downloads read the same file in place) is generated from it, the
 tool panel, the MCP tools and the public functions under `tools/` by
 `python -m arpes_viewer.agent.catalog --write`; `test/agent/test_catalog.py`
 fails while it is out of date. A new tool or a changed dialog therefore

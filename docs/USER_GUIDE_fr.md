@@ -2,7 +2,7 @@
 
 *[English version](USER_GUIDE_en.md) · [中文版](USER_GUIDE_zh.md)*
 
-*Dernière mise à jour : 3 novembre 2026 — pour ARPES viewer v1.3.1*
+*Dernière mise à jour : 4 novembre 2026 — pour ARPES viewer v1.3.2*
 
 La version et sa date figurent dans la barre de titre et en bas de la fenêtre
 principale. Signaler un bogue, poser une question, obtenir la dernière version :
@@ -319,7 +319,7 @@ désormais l'une des façons de **Combine...**.)
   que les agents IA de tout modèle peuvent appeler, voir
   [§33](#33-piloter-le-programme-depuis-un-agent-ia-mcp).
 
-### Où se trouvent les choses maintenant (v1.3.1)
+### Où se trouvent les choses maintenant (v1.3.2)
 
 Pour qui a utilisé une version antérieure : les outils ont quitté le menu
 contextuel et les menus *Functions* des fenêtres pour le panneau d'outils ;
@@ -2064,7 +2064,9 @@ n'arrête pas l'agent) : gris à l'arrêt, vert en marche, jaune en pause,
 rouge en erreur. Pendant ce temps, vous pouvez consulter les données dans
 la fenêtre principale ; les étapes de l'agent ne touchent pas votre
 sélection.
-En mode dossiers, elle écrit aussi `API.md`, la liste des quelque 50 opérations documentées du
+Le message renvoie l'agent à `API.md`, lu là où le programme est installé
+(dans le paquet `arpes_viewer`, installation pip ou téléchargement ; rien
+n'est copié dans vos dossiers) : la liste des quelque 50 opérations documentées du
 programme (`L.rows()`, `L.fermi_edge(...)`, `L.cut_to_k(...)`,
 `L.kz_to_k(...)`, `L.bz_overlay(...)`, `L.slice_series(...)`,
 `L.figure_render(...)` …) : l'agent lit ce seul fichier au lieu du code

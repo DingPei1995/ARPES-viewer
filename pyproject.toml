@@ -50,3 +50,5 @@ include = ["arpes_viewer*"]
 
 [tool.setuptools.package-data]
 "*" = ["README.md"]
+# the agent's reference, read in place by agents (agent/catalog.py)
+"arpes_viewer.agent" = ["API.md"]

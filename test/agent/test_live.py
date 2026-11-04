@@ -295,12 +295,13 @@ def test_the_assistant_starts_the_agent_from_two_folders(program, tmp_path, monk
         assert QApplication.clipboard().text() == text
         commands = assistant.command_folder_of(str(results))
         assert os.path.join(commands, "viewer_cmd") in text
-        assert str(data) in text and "API.md" in text and "read only" in text
+        assert str(data) in text and "read only" in text
+        from arpes_viewer.agent.catalog import path as reference
+        assert reference() in text                       # read in place
+        assert not os.path.exists(os.path.join(commands, "API.md"))
         assert "sample A" in text and "report" in text
         assert "Make Fig. 1 at E_F" in text
         assert "usage_log" not in text                    # not ticked
-        with open(os.path.join(commands, "API.md"), encoding="utf-8") as handle:
-            assert "L.kz_to_k(" in handle.read()
         running = program._command_folder
         assert running.running and running.folder == os.path.abspath(commands)
         assert "Ready" in dialog.status.text()            # before the first step
@@ -456,3 +457,39 @@ def test_the_agent_leaves_the_persons_selection_alone(program):
     assert after == before and "map1" in after[0]
     assert "map1" in widget.currentItem().text()
     L.close(title)
+
+
+def test_paths_are_written_the_systems_way(monkeypatch):
+    """A folder from a Qt dialog (forward slashes) joined with file names
+    must not give D:/Data\\_agent on Windows: the prompt, its JSON and the
+    dialogs all use the system's separators."""
+    import ntpath
+    import os as _os
+    from arpes_viewer.ui.common import assistant, paths
+    monkeypatch.setattr(_os, "path", ntpath)            # as on Windows
+    assert paths.native("D:/Data/LHhv/") == "D:\\Data\\LHhv"
+    text = assistant.build_prompt("folders", "D:/Data/LHhv", "D:/Data/LHhv_out",
+                                  options=["usage", "report", "slides"])
+    assert "D:\\Data\\LHhv_out\\_agent\\viewer_cmd" in text
+    assert "D:\\Data\\LHhv_out\\_agent\\out\\cmd_<name>.log" in text
+    assert "D:\\Data\\LHhv_out\\usage_log.md" in text
+    assert "D:\\Data\\LHhv_out\\slides\\summary.pptx" in text
+    assert "D:/" not in text
+    mcp = assistant.build_prompt("mcp", "D:/Data/LHhv", "D:/Data/out")
+    assert '{"paths": "D:\\\\Data\\\\LHhv"}' in mcp     # valid JSON
+
+
+def test_file_dialogs_return_native_paths(monkeypatch):
+    from PyQt5.QtWidgets import QApplication, QFileDialog
+    from arpes_viewer.ui.common import paths
+    QApplication.instance() or QApplication([])
+    monkeypatch.setattr(QFileDialog, "_native_paths", False, raising=False)
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory",
+                        staticmethod(lambda *a, **k: "/tmp//data/../results/"))
+    monkeypatch.setattr(QFileDialog, "getOpenFileNames",
+                        staticmethod(lambda *a, **k: (["/tmp//a.nxs"], "*.nxs")))
+    paths.install_native_dialogs()
+    assert QFileDialog.getExistingDirectory() == paths.native("/tmp/results")
+    assert QFileDialog.getOpenFileNames()[0] == [paths.native("/tmp/a.nxs")]
+    paths.install_native_dialogs()                          # once only
+    assert QFileDialog.getExistingDirectory() == paths.native("/tmp/results")

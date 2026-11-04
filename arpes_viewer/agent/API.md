@@ -55,7 +55,7 @@ did.
 
 Every operation, grouped, one line each; ``help("name")`` gives
 one operation in full, ``help("group")`` one group. Read this (or
-``agentic/API.md``) before anything else: it is the program's own
+``arpes_viewer/agent/API.md``) before anything else: it is the program's own
 list of what it can do, so nothing has to be found in the source.
 
 #### `L.status()`

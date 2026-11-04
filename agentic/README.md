@@ -94,7 +94,7 @@ Press **AI assistant...** (top of the tool panel). On the left:
 3. **Your AI app**: *works in folders* (the Claude desktop app, Claude
    Code, Cursor — recommended) or *uses MCP tools*.
 4. **Copy the prompt and start**: the program starts listening (folders:
-   in `<results>/_agent`, with `API.md` written there; MCP: the agent
+   in `<results>/_agent`; MCP: the agent
    bridge, which is on as soon as MCP is chosen) and puts one prompt on the
    clipboard. Paste it into your AI app and send.
 
@@ -174,7 +174,7 @@ describes itself:
 
 | Where | What |
 |---|---|
-| **[`API.md`](API.md)** (here, and written into every command folder) | Everything, in one file: about 50 operations `L.<name>(...)` with their parameters and what they return, a table of which operation for which step, the tool-panel windows, the MCP tools, and the program's computations |
+| **[`API.md`](../arpes_viewer/agent/API.md)** (in the program's package, `arpes_viewer/agent/API.md`: the same file for a pip install and a download, read in place; the prompt gives its full path) | Everything, in one file: about 50 operations `L.<name>(...)` with their parameters and what they return, a table of which operation for which step, the tool-panel windows, the MCP tools, and the program's computations |
 | `L.help()` | The same operations, one line each, inside the program; `L.help("kz_to_k")` one in full; `L.help("Figures")` one group |
 | `L.tools()` | The tool windows, for what has no operation (MDC/EDC fits, core levels, tight-binding, calculated bands, 3-D views): `L.run_tool("mdcfit", "cut1")` opens one |
 | `L.functions("spectra.peaks")` | The program's own computations in a module, for a calculation of the agent's own on `L.data(row)`; the result goes back to the list with `L.add(...)` |
@@ -250,7 +250,7 @@ repository) writes it with the headless workspace
 python agentic/examples/02_cut_to_momentum.py  D:/data/my_beamtime  D:/results
 ```
 
-> Read `agentic/README.md`, `agentic/API.md` and
+> Read `agentic/README.md`, `arpes_viewer/agent/API.md` and
 > `agentic/examples/02_cut_to_momentum.py`. Then write `my_analysis.py`
 > that does the same for every cut in `D:/data/my_beamtime` whose name
 > contains `LH`. Ask me for the Γ angle and the temperature before running
@@ -311,7 +311,6 @@ python agentic/examples/02_cut_to_momentum.py  D:/data/my_beamtime  D:/results
 | File | For |
 |---|---|
 | `README.md` | This guide |
-| `API.md` | The agent's reference: every operation (generated from the program) |
 | `PROMPTS.md` | Requests to copy into the chat, from the first message to a figure |
 | `launch_viewer.py`, `viewer_live.py` | Route 3 from a script: the window, with this folder listening |
 | `config.example.json` | Route 3 from a script: copy to `config.json` and edit |

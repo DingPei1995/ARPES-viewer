@@ -9,7 +9,9 @@ into ``<folder>/viewer_cmd/``. The program runs each between events, as a
 click, with ``L`` (:class:`ui.common.live.Live`, the documented operations) in
 reach, writes what it printed to ``<folder>/out/cmd_<name>.log`` and moves
 the file to ``<folder>/viewer_done/`` -- which leaves a record of every step.
-``<folder>/heartbeat.txt`` says the program is listening.
+``<folder>/heartbeat.txt`` says the program is listening. The operations'
+reference, ``API.md``, is read where the program is installed
+(:func:`agent.catalog.path`), not copied here.
 
 Started from the program's *AI assistant* window (Help menu), or by
 ``agentic/launch_viewer.py``. A modal dialog asked for by a command raises
@@ -23,6 +25,8 @@ import io
 import os
 import time
 import traceback
+
+from arpes_viewer.ui.common.paths import native
 
 __all__ = ["CommandFolder", "FOLDERS", "default_folder"]
 
@@ -47,8 +51,8 @@ class CommandFolder:
     def __init__(self, app, folder: str, data_dir: str = "", interval_ms: int = 700):
         from arpes_viewer.ui.common.live import Live
         self.app = app
-        self.folder = os.path.abspath(os.path.expanduser(folder))
-        self.data_dir = data_dir
+        self.folder = os.path.abspath(native(folder))
+        self.data_dir = native(data_dir) or ""
         self.interval_ms = int(interval_ms)
         self.live = Live(app)
         self.timer = None

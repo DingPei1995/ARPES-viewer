@@ -2,7 +2,7 @@
 
 *[English version / 英文版](USER_GUIDE_en.md) · [Version française / 法文版](USER_GUIDE_fr.md)*
 
-*最后更新：2026 年 11 月 3 日——对应 ARPES viewer v1.3.1*
+*最后更新：2026 年 11 月 4 日——对应 ARPES viewer v1.3.2*
 
 程序的版本号和更新日期显示在主窗口标题栏和主窗口最下方。报告 bug、提问或获取最新版本：
 <https://github.com/DingPei1995/ARPES-viewer>（报告 bug 时请注明版本号）。
@@ -250,7 +250,7 @@ k conversion (cut) 需要一张角度 cut，cut 运算需要恰好两张 cut，�
 - **MCP 接口**：程序可作为 MCP 服务器（`arpes-viewer-mcp`）供任何模型的 AI 智能体调用，
   见[第 33 节](#33-让-ai-智能体调用本程序mcp)。
 
-### 功能现在的位置（v1.3.1）
+### 功能现在的位置（v1.3.2）
 
 如果你用过早期版本：工具已从右键菜单和查看窗口的 *Functions* 菜单移到了工具面板，
 每个工具只有一个入口，且始终可见。
@@ -1607,7 +1607,8 @@ left* 填 `L, M`。**To figure composer...** → (a) 所在的图。
 方式：开启 agent bridge），并复制一段提示词，粘贴给 AI 应用即可开始。窗口右侧列出智能体执行的每一步，
 **Pause the agent** 可随时暂停、改为手动操作。**AI assistant** 按钮本身是状态灯，关闭该窗口后依然显示（关闭窗口不会
 停止智能体）：灰色未运行，绿色运行中，黄色已暂停（人工操作），红色出错。智能体运行时你仍可在主窗口查看数据，
-智能体的操作不会改动你在列表中的选择。文件夹方式下还会写入 `API.md`，列出程序约 50 个有说明
+智能体的操作不会改动你在列表中的选择。提示词会让智能体读取程序安装位置中的 `API.md`（位于 `arpes_viewer`
+包内，pip 安装和下载安装都一样，不会复制到你的文件夹），其中列出程序约 50 个有说明
 的操作（`L.rows()`、`L.fermi_edge(...)`、`L.cut_to_k(...)`、`L.kz_to_k(...)`、`L.bz_overlay(...)`、
 `L.slice_series(...)`、`L.figure_render(...)` 等），智能体读这一个文件即可，不必读源码。每个操作都生成新的行而不改
 动原有数据，不覆盖文件，也不会等待点击。完整说明见 `agentic/README.md`。

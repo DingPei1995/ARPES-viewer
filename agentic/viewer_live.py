@@ -6,7 +6,7 @@ Start with launch_viewer.py. Reads agentic/config.json (copy config.example.json
             and <scan folder>/*_roi1_.txt maps)
   screen    1-based monitor number for the window (default: 2)
 Every *.py dropped into agentic/viewer_cmd/ is executed inside this running GUI process
-(globals: L = the program's documented operations -- see agentic/API.md or L.help() --,
+(globals: L = the program's documented operations -- see arpes_viewer/agent/API.md or L.help() --,
 A = arpes_viewer.app, HERE, DATA, QtCore, QtWidgets, np); its printed output goes to
 agentic/out/cmd_<name>.log and the file is moved to agentic/viewer_done/. A modal dialog
 opened by a command raises ModalDialogBlocked instead of freezing the poller.
@@ -20,7 +20,7 @@ ROOT = os.path.dirname(HERE)                       # the repository
 for _folder in ("out", "viewer_cmd", "viewer_done", "shots", "figures"):
     os.makedirs(os.path.join(HERE, _folder), exist_ok=True)
 CFG = json.load(open(os.path.join(HERE, "config.json"), encoding="utf-8"))
-DATA = CFG["data_dir"]; PATTERNS = CFG.get("patterns", ["*.txt", "*/*_roi1_.txt"])
+DATA = os.path.normpath(os.path.expanduser(CFG["data_dir"])); PATTERNS = CFG.get("patterns", ["*.txt", "*/*_roi1_.txt"])
 if not os.path.isdir(DATA):
     sys.exit(f"data_dir in {os.path.join(HERE, 'config.json')} is not a folder: {DATA!r}. "
              "Set it to your data folder.")

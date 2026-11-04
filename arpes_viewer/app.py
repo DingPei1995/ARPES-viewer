@@ -172,6 +172,8 @@ def add_files(paths, options=None, background: bool = True):
     (loader.beamlines.antares.list_datasets), so adding a folder of multi-GB scans is
     instant.
     """
+    from arpes_viewer.ui.common.paths import native
+    paths = [native(p) for p in paths]
     figures = [p for p in paths if str(p).lower().endswith(".afig")]
     if figures:
         for path in figures:
@@ -3002,6 +3004,9 @@ def main() -> int:
     bridge_wanted = agentbridge.wanted(sys.argv)
     argv = [a for a in sys.argv if a != agentbridge.FLAG]
     app = QApplication(argv)
+    # file dialogs give native paths (D:\Data, not D:/Data) everywhere
+    from arpes_viewer.ui.common.paths import install_native_dialogs
+    install_native_dialogs()
     # errors are kept in error_logs/ (the program's folder, or
     # ~/.arpes_viewer for an installed copy) and do not close the program --
     # see ui/common/crashguard.py

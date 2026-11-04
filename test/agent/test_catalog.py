@@ -1,4 +1,5 @@
-"""``agentic/API.md`` is generated from the program and must match it.
+"""``arpes_viewer/agent/API.md`` is generated from the program and must
+match it.
 
 When this fails, the operations, the tool panel, the MCP tools or a public
 function under ``tools/`` changed without the agent's reference following.
@@ -16,7 +17,7 @@ def test_the_agent_reference_is_up_to_date():
     with open(catalog.path(), encoding="utf-8") as handle:
         current = handle.read()
     assert current == catalog.build(), (
-        "agentic/API.md is out of date with the program: run "
+        "arpes_viewer/agent/API.md is out of date with the program: run "
         "python -m arpes_viewer.agent.catalog --write")
 
 
@@ -35,3 +36,16 @@ def test_every_tool_button_is_in_the_reference():
     from arpes_viewer.ui.launcher.main_window import TOOLS
     actions = {t["action"] for t in catalog.tool_actions()}
     assert set(TOOLS) <= actions
+
+
+def test_the_reference_ships_with_the_package():
+    """Read in place by agents, whichever way the program was installed: it
+    sits in the package and pyproject lists it as package data."""
+    import os
+    import arpes_viewer.agent as agent
+    from arpes_viewer.agent import catalog
+    assert os.path.dirname(catalog.path()) == os.path.dirname(os.path.abspath(agent.__file__))
+    assert os.path.isfile(catalog.path())
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(catalog.__file__))))
+    with open(os.path.join(root, "pyproject.toml"), encoding="utf-8") as handle:
+        assert '"arpes_viewer.agent" = ["API.md"]' in handle.read()

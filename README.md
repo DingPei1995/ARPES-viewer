@@ -5,7 +5,7 @@
 [![User Guide](https://img.shields.io/badge/📖_User_Guide-English-blue?style=flat-square)](https://github.com/DingPei1995/ARPES-viewer/blob/main/docs/USER_GUIDE_en.md)
 [![Local Agent Settings](https://img.shields.io/badge/🤖_Local_Agent_Settings-blue?style=flat-square)](https://github.com/DingPei1995/ARPES-viewer/blob/main/docs/AGENTIC_WORKFLOW_en.md)
 
-**Version 1.3.1** (last modified 3 November 2026) -- what changed is in
+**Version 1.3.2** (last modified 4 November 2026) -- what changed is in
 [CHANGELOG.md](CHANGELOG.md). For non-commercial use only; see the
 [terms of use](#terms-of-use-citation-and-licence).
 
@@ -154,7 +154,7 @@ on your computer.
   a report, slides, hiding the sample's identity ...), and press **Copy the
   prompt and start**; paste the prompt into your AI app. The window then
   lists each step the agent runs, and **Pause** hands you the controls. The
-  agent reads `API.md`, the program's ~50 documented operations
+  agent reads `arpes_viewer/agent/API.md`, the program's ~50 documented operations
   (`L.fermi_edge`, `L.kz_to_k`, `L.bz_overlay`, `L.slice_series`,
   `L.figure_render` ...), instead of the source.
 - **Other routes**: an MCP app (`arpes-viewer-mcp`; with the program

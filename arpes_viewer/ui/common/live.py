@@ -31,7 +31,7 @@ Rules every operation keeps:
   stand), so the same operations serve the bridge and MCP.
 
 The list of operations, with their full descriptions, is generated into
-``agentic/API.md`` by :mod:`agent.catalog`; a test fails when the two
+``arpes_viewer/agent/API.md`` by :mod:`agent.catalog`; a test fails when the two
 drift apart, so the reference an agent reads is always the program's own.
 """
 from __future__ import annotations
@@ -40,6 +40,8 @@ import inspect
 import os
 
 import numpy as np
+
+from arpes_viewer.ui.common.paths import native
 
 __all__ = ["Live", "operation", "GROUPS"]
 
@@ -145,7 +147,7 @@ class Live:
     def help(self, topic: str = "") -> str:
         """Every operation, grouped, one line each; ``help("name")`` gives
         one operation in full, ``help("group")`` one group. Read this (or
-        ``agentic/API.md``) before anything else: it is the program's own
+        ``arpes_viewer/agent/API.md``) before anything else: it is the program's own
         list of what it can do, so nothing has to be found in the source."""
         from arpes_viewer.agent.catalog import live_reference
         text = live_reference(topic)
@@ -215,7 +217,7 @@ class Live:
             paths = [paths]
         files = []
         for path in paths:
-            files += self._expand(os.path.expanduser(path))
+            files += self._expand(native(path))
         before = set(self.A.loaded_items)
         self.A.add_files(files, background=False)
         added = [self._name(k) for k in self.A.loaded_items if k not in before]
@@ -285,7 +287,7 @@ class Live:
         refused."""
         if isinstance(names, str):
             names = [names]
-        path = os.path.expanduser(path)
+        path = native(path)
         if os.path.exists(path):
             raise FileExistsError(f"{path} exists; give a new name")
         from arpes_viewer.agent.workspace import Workspace
@@ -359,10 +361,11 @@ class Live:
         "energy") to the PNG ``path``, integrating the other axes over
         ``ranges`` ({axis: (lo, hi)}); for looking at data without reading
         the screen. Returns what was drawn."""
-        path = os.path.expanduser(path)
+        path = native(path)
         workspace, (ident,) = self._workspace(name)
         _png, summary = workspace.image(ident, x, y, ranges, colormap, flip,
                                         width, height, levels, gamma, path, None)
+        summary["saved_png"] = native(summary.get("saved_png")) or ""
         return _plain(summary)
 
     @operation("Looking at data")
@@ -747,7 +750,7 @@ class Live:
     def read_cif(self, path: str) -> dict:
         """A CIF file's cell, space group and atom sites."""
         from arpes_viewer.agent.workspace import Workspace
-        return _plain(Workspace.read_cif(os.path.expanduser(path)))
+        return _plain(Workspace.read_cif(native(path)))
 
     @operation("Crystal and Brillouin zone")
     @_keeps_selection
@@ -820,7 +823,7 @@ class Live:
         ``surface_hkl``, k_x turned by ``azimuth_deg``); ``view`` "oblique",
         an axis name or a vector; labels sized for a ``panel_mm`` wide panel
         at ``text_pt`` if given. Never overwrites ``path``."""
-        path = os.path.expanduser(path)
+        path = native(path)
         if os.path.exists(path):
             raise FileExistsError(f"{path} exists; give a new name")
         from arpes_viewer.ui.panels.bz3d import BrillouinZone3DDialog
@@ -964,7 +967,7 @@ class Live:
         several grid cells at the next arrange."""
         window = self._figure(title)
         panel = window.figure.panels[int(index)]
-        window.load_picture(panel, os.path.expanduser(path))
+        window.load_picture(panel, native(path))
         if span is not None:
             panel.span = tuple(int(v) for v in span)
         return window.describe()
@@ -983,21 +986,23 @@ class Live:
     def figure_render(self, title: str = "", path: str = "", dpi: int = 0) -> dict:
         """Write the figure as a PNG, as it will print (not a screenshot),
         and return its numbers. Never overwrites ``path``."""
-        path = os.path.expanduser(path)
+        path = native(path)
         if os.path.exists(path):
             raise FileExistsError(f"{path} exists; give a new name")
-        return self._figure(title).render(path, dpi=int(dpi) or None)
+        out = self._figure(title).render(path, dpi=int(dpi) or None)
+        out["png"] = native(out.get("png"))
+        return out
 
     @operation("Figures")
     def figure_export(self, title: str = "", path: str = "") -> list:
         """Write the figure as PDF, SVG, PNG or TIFF (from the extension).
         Never overwrites. Returns the files written."""
-        path = os.path.expanduser(path)
+        path = native(path)
         if os.path.exists(path):
             raise FileExistsError(f"{path} exists; give a new name")
         fmt = os.path.splitext(path)[1].lstrip(".").lower()
         fmt = {"tiff": "tif"}.get(fmt, fmt)
-        return list(self._figure(title).write(path, fmt))
+        return [native(p) for p in self._figure(title).write(path, fmt)]
 
     @operation("Figures")
     def figure_save(self, title: str = "", path: str = "",
@@ -1005,7 +1010,7 @@ class Live:
         """Save the figure as an .afig file to open and edit again, with
         (``with_data``) the data of each panel in "data for <name>" beside
         it -- leave that out of anything shared. Never overwrites."""
-        path = os.path.expanduser(path)
+        path = native(path)
         if os.path.exists(path):
             raise FileExistsError(f"{path} exists; give a new name")
         return self._figure(title).save_file(path, with_data=bool(with_data))

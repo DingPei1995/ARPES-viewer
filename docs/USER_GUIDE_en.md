@@ -2,7 +2,7 @@
 
 *[中文版 / Chinese version](USER_GUIDE_zh.md) · [Version française](USER_GUIDE_fr.md)*
 
-*Last updated: 3 November 2026 — for ARPES viewer v1.3.1*
+*Last updated: 4 November 2026 — for ARPES viewer v1.3.2*
 
 The version and its date are in the main window's title bar and at the bottom of
 the main window. Bug reports, questions and the latest version:
@@ -260,7 +260,7 @@ see them all. Hidden rows are deselected, so nothing out of sight is acted
 on. Right-click the list → **Sort by name** (`Cut_9` before `Cut_10`) or
 **Sort by data type** (cuts, maps, k-maps… each group by name).
 
-### Where things are now (v1.3.1)
+### Where things are now (v1.3.2)
 
 If you used an earlier version: the tools moved out of the right-click menu
 and the viewers' *Functions* menus into the tool panel, so each has one way
@@ -1951,7 +1951,10 @@ lists each step the agent ran, and **Pause the agent** lets you work by
 hand. The **AI assistant** button is a status light, also with the window
 closed (closing it does not stop the agent): grey not running, green
 running, yellow paused, red an error. Meanwhile you can look at the data in
-the main window; the agent's steps leave your selection alone. In folders it also writes `API.md`, the list of the program's ~50
+the main window; the agent's steps leave your selection alone. The prompt
+points the agent to `API.md`, read where the program is installed (inside
+the `arpes_viewer` package, for a pip install and a download alike; nothing
+is copied into your folders): the list of the program's ~50
 documented operations (`L.rows()`, `L.fermi_edge(...)`, `L.cut_to_k(...)`,
 `L.kz_to_k(...)`, `L.bz_overlay(...)`, `L.slice_series(...)`,
 `L.figure_render(...)` …), so the agent reads one file instead of the

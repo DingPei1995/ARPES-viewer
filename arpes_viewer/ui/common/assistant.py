@@ -16,7 +16,7 @@ agent's tool. All this window asks for is what a person knows anyway --
   or as an MCP app (route 1);
 
 -- and **Copy the prompt and start** does the rest: it starts the command
-folder (writing the operations' reference ``API.md`` into it) or the agent
+folder or the agent
 bridge, and puts on the clipboard one prompt that tells the agent where
 everything is, what to read first and how to work. Pasted into the AI app,
 it starts.
@@ -31,6 +31,8 @@ import json
 import os
 import sys
 import time
+
+from arpes_viewer.ui.common.paths import native
 
 from PyQt5.QtCore import Qt, QTimer, QUrl
 from PyQt5.QtGui import QDesktopServices
@@ -53,7 +55,7 @@ OPTIONS = (
      "After each step give me the numbers and the picture's file, and wait "
      "for my go-ahead before the next."),
     ("usage", "Record token / plan usage per step", False,
-     "Keep a usage log in {results}/usage_log.md: one line per step with the "
+     "Keep a usage log in {usage_log}: one line per step with the "
      "time, the step, and any token count or plan-usage figure you can see "
      "or that I give you."),
     ("hide", "Hide the sample's real identity", False,
@@ -62,11 +64,11 @@ OPTIONS = (
      "constants only as a, b, c, and leave out the compound, the proposal "
      "and the beamtime names."),
     ("report", "Write a report at the end", False,
-     "At the end write a report in {results}/report/ (Markdown, and PDF if "
+     "At the end write a report in the folder {report} (Markdown, and PDF if "
      "you can): the data, each step with its parameters and where each came "
      "from, the figures, and what is uncertain."),
     ("slides", "Make slides (PPTX) of the key figures", False,
-     "At the end make a slide deck {results}/slides/summary.pptx: one slide "
+     "At the end make a slide deck {slides}: one slide "
      "per key figure with a two-line caption."),
     ("clean", "Keep the list tidy (offer to remove intermediate rows)", False,
      "At the end, list the intermediate rows and offer to remove them from "
@@ -93,11 +95,22 @@ def build_prompt(mode: str, data: str, results: str, options=(),
     """The prompt to paste into the AI app. ``mode`` is ``"folders"``
     (route 3) or ``"mcp"`` (route 1); ``options`` the keys of
     :data:`OPTIONS` ticked; ``extra`` the person's own requests."""
-    data = data or "<the data folder>"
-    results = results or "<the results folder>"
+    from arpes_viewer.agent.catalog import path as reference_path
+    from arpes_viewer.ui.common.paths import native
+    # the system's own separators throughout: a folder from a dialog (or
+    # typed) joined with a file name must not come out as D:/Data\_agent
+    data = native(data) or "<the data folder>"
+    results = native(results) or "<the results folder>"
     commands = command_folder_of(results)
-    chosen = [text.format(results=results) for key, _label, _on, text in OPTIONS
+    reference = reference_path()
+    places = {"usage_log": os.path.join(results, "usage_log.md"),
+              "report": os.path.join(results, "report"),
+              "slides": os.path.join(results, "slides", "summary.pptx")}
+    chosen = [text.format(**places) for key, _label, _on, text in OPTIONS
               if key in set(options)]
+    read_first = (f"Before anything else read {reference}: it lists every "
+                  "operation the program has (it is part of the program's "
+                  "installation; if you cannot open it, ")
     lines = ["You are helping me process ARPES data with the program ARPES "
              "viewer, which is open on my screen; I watch every step there "
              "and may step in.", ""]
@@ -115,25 +128,26 @@ def build_prompt(mode: str, data: str, results: str, options=(),
                   mcp_settings(),
                   "Then call viewer_status (it must show the program and its "
                   "rows) and viewer_api_help: it lists every operation the "
-                  "program has. Call them with viewer_api(operation, args). "
-                  "Use these operations, not viewer_python, wherever one "
-                  "exists; viewer_api_help(\"name\") explains one.",
-                  "", f"Start: viewer_api(\"add_files\", {{\"paths\": \"{data}\"}}), "
-                  "then viewer_api(\"rows\"); tell me what is there and propose "
-                  "a plan."]
+                  "program has (the same list as " + reference + "). Call them "
+                  "with viewer_api(operation, args). Use these operations, not "
+                  "viewer_python, wherever one exists; "
+                  "viewer_api_help(\"name\") explains one.",
+                  "", "Start: viewer_api(\"add_files\", "
+                  + json.dumps({"paths": data}, ensure_ascii=False)
+                  + "), then viewer_api(\"rows\"); tell me what is there and "
+                  "propose a plan."]
     else:
         lines += [f"- Commands: {commands}", "",
                   "How to drive the program: write one small Python file per "
                   f"step into {os.path.join(commands, 'viewer_cmd')} (named "
                   "01_..., 02_...). The program runs it and writes what it "
-                  f"printed to {os.path.join(commands, 'out')}/cmd_<name>.log; "
+                  f"printed to {os.path.join(commands, 'out', 'cmd_<name>.log')}; "
                   "wait for that log before the next step. In these files `L` "
                   "is the program.",
-                  f"Before anything else read {os.path.join(commands, 'API.md')}: "
-                  "it lists every operation the program has. Use those "
-                  "operations (L.add_files, L.fermi_edge, L.kz_to_k, "
-                  "L.slice_series ...), not the program's source; "
-                  "L.help(\"name\") explains one.",
+                  read_first + "run a first command file with print(L.help()) "
+                  "and read its log: the same list). Use those operations "
+                  "(L.add_files, L.fermi_edge, L.kz_to_k, L.slice_series ...), "
+                  "not the program's source; L.help(\"name\") explains one.",
                   "", f"Start: L.add_files(r\"{data}\") and L.rows(); tell me "
                   "what is there and propose a plan.",
                   "", "If a command file stays unrun for more than a minute, I "
@@ -302,9 +316,9 @@ class AssistantDialog(QDialog):
         # -- the folders ----------------------------------------------------
         box = QGroupBox("1. Folders")
         grid = QGridLayout(box)
-        self.data_edit = QLineEdit(saved.get("data") or self._data_folder())
+        self.data_edit = QLineEdit(native(saved.get("data") or self._data_folder()) or "")
         self.data_edit.setPlaceholderText("the data to process (read only)")
-        self.results_edit = QLineEdit(saved.get("results", ""))
+        self.results_edit = QLineEdit(native(saved.get("results", "")) or "")
         self.results_edit.setPlaceholderText("where figures, files and the "
                                              "report go")
         for row, (label, edit) in enumerate((("Data", self.data_edit),
@@ -447,6 +461,7 @@ class AssistantDialog(QDialog):
 
         for edit in (self.data_edit, self.results_edit):
             edit.textChanged.connect(self.refresh_prompt)
+            edit.editingFinished.connect(lambda e=edit: self._tidy_folder(e))
         self.extra_edit.textChanged.connect(self.refresh_prompt)
         for check in self.option_boxes.values():
             check.toggled.connect(self.refresh_prompt)
@@ -473,8 +488,8 @@ class AssistantDialog(QDialog):
             return {}
 
     def _save(self):
-        values = {"data": self.data_edit.text().strip(),
-                  "results": self.results_edit.text().strip(),
+        data, results = self.folders()
+        values = {"data": data, "results": results,
                   "options": self.options(), "mode": self.mode(),
                   "extra": self.extra_edit.toPlainText()}
         try:
@@ -490,6 +505,17 @@ class AssistantDialog(QDialog):
         return text
 
     # -- what is asked for -------------------------------------------------------
+    def folders(self):
+        """``(data, results)`` as the system writes paths (D:\\Data on
+        Windows, whichever slashes were typed or a dialog gave)."""
+        return (native(self.data_edit.text().strip()) or "",
+                native(self.results_edit.text().strip()) or "")
+
+    def _tidy_folder(self, edit):
+        text = edit.text().strip()
+        if text and native(text) != text:
+            edit.setText(native(text))
+
     def mode(self) -> str:
         return "mcp" if self.mode_mcp.isChecked() else "folders"
 
@@ -497,8 +523,8 @@ class AssistantDialog(QDialog):
         return [key for key, box in self.option_boxes.items() if box.isChecked()]
 
     def prompt(self) -> str:
-        return build_prompt(self.mode(), self.data_edit.text().strip(),
-                            self.results_edit.text().strip(), self.options(),
+        data, results = self.folders()
+        return build_prompt(self.mode(), data, results, self.options(),
                             self.extra_edit.toPlainText())
 
     def refresh_prompt(self, *_):
@@ -513,14 +539,15 @@ class AssistantDialog(QDialog):
             self.permissions.setText(
                 "Your AI app will ask for access: give it the results folder "
                 "(read and write; the commands go in its _agent folder) and "
-                "the data folder (read only). Nothing else is needed.")
+                "the data folder (read only). Reading the program's own "
+                "reference (API.md, in its installation) helps; without it "
+                "the agent prints the same list with L.help().")
 
     # -- starting -------------------------------------------------------------------
     def copy_and_start(self):
         """Check the folders, start the command folder (route 3) or the
         bridge (MCP), copy the prompt. Returns the prompt, or None."""
-        data = self.data_edit.text().strip()
-        results = self.results_edit.text().strip()
+        data, results = self.folders()
         if not data or not os.path.isdir(data):
             self.message.setText("<span style='color:#c00'>Choose the data "
                                  "folder first (an existing folder).</span>")
@@ -548,7 +575,6 @@ class AssistantDialog(QDialog):
         return text
 
     def _start_folder(self, results: str, data: str):
-        from arpes_viewer.agent.catalog import build
         from arpes_viewer.ui.common.agentfolder import CommandFolder
         folder = command_folder_of(results)
         running = getattr(self.app, "_command_folder", None)
@@ -557,12 +583,6 @@ class AssistantDialog(QDialog):
         if running is not None:
             running.stop()
         started = CommandFolder(self.app, folder, data).start()
-        try:
-            with open(os.path.join(started.folder, "API.md"), "w",
-                      encoding="utf-8", newline="\n") as handle:
-                handle.write(build())
-        except Exception as exc:                            # noqa: BLE001
-            self.message.setText(f"API.md not written: {exc}")
         self.app._command_folder = started
         return started
 
@@ -677,10 +697,10 @@ class AssistantDialog(QDialog):
         path = QFileDialog.getExistingDirectory(self, "Choose a folder",
                                                 edit.text())
         if path:
-            edit.setText(path)
+            edit.setText(native(path))
 
     def _open_results(self):
-        folder = self.results_edit.text().strip()
+        folder = self.folders()[1]
         if folder:
             os.makedirs(folder, exist_ok=True)
             QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
