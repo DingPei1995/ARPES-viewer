@@ -142,35 +142,27 @@ In the step 3 fit it recovers what was built into the demo calculation
 
 ## An AI agent can drive it
 
-The computations live in `arpes_viewer/tools/`, free of any user interface;
-the windows can run off-screen (`QT_QPA_PLATFORM=offscreen`) and be driven
-call by call as a user drives them; each step is documented in the
-[user guide](docs/USER_GUIDE_en.md) and in the technical references beside
-the code; and a saved figure records the data and the original files behind
-every panel. So a coding agent given this repository and a folder of data
-can be asked in plain words -- *"convert the Γ-plane map to momentum,
-compare it with the Wannier calculation in `calc/`, and make a figure like
-example figure 1, with constant-energy maps at E_F, −0.3, −0.6 and
-−0.9 eV"* -- write and run the script, look at the PNG it made, and refine
-it, through to a figure ready for a manuscript. The user guide's
-[worked example](docs/USER_GUIDE_en.md#30-worked-example-two-figures-in-the-figure-composer)
-does the same by hand.
+Talk to your AI app (the Claude desktop app, Claude Code, any agent that can
+read and write files) in plain words -- *"today I process the kz maps in
+this folder: align the Fermi levels, convert to momentum with Γ at 80 eV,
+draw the zone, and make a slice-series figure"* -- and it drives the program
+on your screen, step by step, while you watch and can take over. Data stay
+on your computer.
 
-**The MCP server.** The program is also an MCP server, so an agent of any
-model (Claude, GPT, Gemini, a local model in an MCP-capable client) can call
-it: open and describe data files, read EDCs, MDCs and pictures out of them,
-fit the Fermi edge, convert to momentum, save -- and, with the program
-started as `arpes-viewer --agent-bridge`, drive the window on screen (run
-any tool, take screenshots). Add to the client's MCP configuration:
+- **Start**: press **AI assistant...** in the main window. It starts the
+  command folder the agent works through, writes `API.md` into it -- the
+  program's ~50 documented operations (`L.fermi_edge`, `L.kz_to_k`,
+  `L.bz_overlay`, `L.slice_series`, `L.figure_render` ...) -- and gives a
+  first message to paste into your AI app. The agent reads that one file
+  instead of the source.
+- **Other routes**: an MCP app (`arpes-viewer-mcp`; with the program
+  started as `arpes-viewer --agent-bridge` it calls the same operations), or
+  a coding agent writing a script to keep, on the headless workspace and the
+  Qt-free computations in `arpes_viewer/tools/`.
 
-```json
-{"mcpServers": {"arpes-viewer": {"command": "arpes-viewer-mcp"}}}
-```
-
-(from a checkout: `"command": "python", "args": ["-m", "arpes_viewer.agent"]`).
-Data stay on the machine; see
-[the user guide, §33](docs/USER_GUIDE_en.md#33-driving-the-program-from-an-ai-agent-mcp). New to agents? The step-by-step guide is
-[`agentic/README.md`](agentic/README.md).
+The step-by-step guide is [`agentic/README.md`](agentic/README.md), with
+requests to copy in [`agentic/PROMPTS.md`](agentic/PROMPTS.md); a real session
+by Sonnet 5.5 is in [`Reports/`](Reports).
 
 As with any analysis, check what an agent produced before you publish it.
 

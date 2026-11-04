@@ -278,6 +278,34 @@ class AgentBridge(QTcpServer):
                 "height": image.height(),
                 "png": base64.b64encode(bytes(data)).decode("ascii")}
 
+    def live(self):
+        """The documented operations (:class:`ui.common.live.Live`)."""
+        if getattr(self, "_live", None) is None:
+            from arpes_viewer.ui.common.live import Live
+            self._live = Live(self.app)
+        return self._live
+
+    def op_api(self, operation: str, args: dict = None):
+        """Call one documented operation, ``L.<operation>(**args)``."""
+        from arpes_viewer.ui.common.live import _plain, operations
+        names = {name for _group, name, _m in operations()}
+        if operation not in names:
+            raise ValueError(f"no operation {operation!r}; see viewer_api_help")
+        args = dict(args or {})
+        positional = args.pop("_args", [])
+        with modal_guard():
+            result = getattr(self.live(), operation)(*positional, **args)
+        if hasattr(result, "values") and hasattr(result, "axes"):
+            result = {"name": result.name, "kind": result.kind,
+                      "labels": result.labels,
+                      "shape": list(getattr(result.values, "shape", ()))}
+        return _plain(result)
+
+    def op_api_help(self, topic: str = ""):
+        """The operations' reference (all, a group, or one in full)."""
+        from arpes_viewer.agent.catalog import live_reference
+        return {"reference": live_reference(topic)}
+
     def _figure_window(self, window: str = ""):
         from arpes_viewer.ui.panels.figure import FigureWindow
         figures = [w for w in QApplication.topLevelWidgets()
@@ -318,7 +346,8 @@ class AgentBridge(QTcpServer):
         import numpy as np
         from PyQt5 import QtCore, QtWidgets
         buffer = io.StringIO()
-        scope = {"A": self.app, "QtCore": QtCore, "QtWidgets": QtWidgets, "np": np}
+        scope = {"A": self.app, "L": self.live(), "QtCore": QtCore,
+                 "QtWidgets": QtWidgets, "np": np}
         with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
             try:
                 with modal_guard():

@@ -2902,8 +2902,25 @@ class _MainWindow(QMainWindow):
             event.ignore()
 
 
+def open_assistant():
+    """The AI assistant window (ui.common.assistant): whom to talk to, the
+    command folder an agent drives this window through, a first message to
+    paste into the AI app, and the MCP settings. One window, raised if open."""
+    from arpes_viewer.ui.common.assistant import AssistantDialog
+    global _assistant
+    existing = globals().get("_assistant")
+    if existing is not None and existing.isVisible():
+        existing.raise_()
+        existing.activateWindow()
+        return existing
+    _assistant = AssistantDialog(sys.modules[__name__], win)
+    _assistant.show()
+    return _assistant
+
+
 def SetConnect():
     ui.BrowseFolderButton.clicked.connect(BrowseFolder)
+    ui.AssistantButton.clicked.connect(open_assistant)
     ui.LoadDataButton.clicked.connect(open_loader)
     ui.PickFilesButton.clicked.connect(PickFiles)
     ui.ClearListButton.clicked.connect(ClearList)
@@ -3028,6 +3045,7 @@ def main() -> int:
     bridge = None
     if bridge_wanted:
         bridge = agentbridge.start(sys.modules[__name__], win)
+        globals()["_agent_bridge"] = bridge
         ui.statusbar.showMessage(
             f"Agent bridge on 127.0.0.1:{bridge.serverPort()} -- an MCP client "
             f"can drive this window (arpes-viewer-mcp)" if bridge else
@@ -3037,6 +3055,7 @@ def main() -> int:
     except Exception:                                      # noqa: BLE001
         traceback.print_exc()
     error = app.exec_()
+    bridge = globals().get("_agent_bridge") or bridge
     if bridge is not None:
         bridge.stop()
     finish_session()

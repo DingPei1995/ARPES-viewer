@@ -2,6 +2,19 @@
 
 *Version of 30 October 2026. Written from a working deployment: Claude Sonnet 5.5 (medium effort) driving the open-source ARPES viewer v1.2.3 (PyQt5 / pyqtgraph) on a Windows workstation with two monitors. All paths below are placeholders; replace them with your own.*
 
+> **Since v1.3.1: `L` and `API.md`.** Command files see **`L`**, the
+> program's documented operations (`L.fermi_edge`, `L.cut_to_k`,
+> `L.kz_to_k`, `L.bz_overlay`, `L.slice_series`, `L.figure_render` ...,
+> about fifty), and the command folder holds **`API.md`**, generated from
+> the program, which lists them all. Tell the agent to read `API.md` first
+> and to use `L` rather than the program's internals: it no longer has to
+> read the source or press dialogs' buttons by their text, which was most
+> of the cost and most of the mistakes of the session described below. The
+> program's **AI assistant...** button starts the command folder without
+> `launch_viewer.py`, writes `API.md` into it and gives a first message to
+> paste. The recipes and calls in §6 are from before `L`; they still run,
+> but `L` is the stable way.
+>
 > **Since v1.2.4 there is also an MCP server** (`arpes-viewer-mcp`): any
 > MCP-capable agent, of any model, can call the program's tools directly --
 > headless, or driving the window on screen when it is started with
@@ -80,7 +93,8 @@ The repository ships an `agentic/` folder (this guide lives in `docs/AGENTIC_WOR
 | File | Purpose |
 |---|---|
 | `agentic/agent_runner.pyw` | Local job runner: runs `queue/*.py` with your Python (offscreen Qt), logs to `out/`, writes `heartbeat.txt`. Standard library only, no network. Stop it by creating a file named `STOP` next to it. Double-click to start (associate `.pyw` with your Python once). |
-| `agentic/viewer_live.py` + `launch_viewer.py` | The real viewer window on screen 2. It lists your data files, then polls `viewer_cmd/` every 0.7 s and executes every `*.py` found there **inside the running GUI** (globals `A`, `HERE`, `DATA`, `QtCore`, `QtWidgets`); output goes to `out/cmd_<name>.log`. |
+| `agentic/viewer_live.py` + `launch_viewer.py` | The real viewer window on screen 2. It lists your data files, then polls `viewer_cmd/` every 0.7 s and executes every `*.py` found there **inside the running GUI** (globals `L` -- the documented operations, see `agentic/API.md` --, `A`, `HERE`, `DATA`, `QtCore`, `QtWidgets`, `np`); output goes to `out/cmd_<name>.log`. The program's **AI assistant...** window starts the same polling without this script. |
+| `agentic/API.md` | The agent's reference: every operation of `L`, the tool windows, the MCP tools and the program's computations, generated from the program. |
 | `agentic/config.example.json` | Copy to `config.json` and set `data_dir`, file `patterns` and the monitor number. `config.json` is git-ignored. |
 | `agentic/recipes/` | Building blocks adapted from scripts used in a real session; test each on one dataset first (normalise, cut k conversion + Fermi fit + offset, arbitrary cut from a map, two-peak MDC fit). |
 | `agentic/.gitignore` | Keeps the working folders (`queue`, `out`, `shots`, `figures`, ...) out of commits. |
@@ -112,10 +126,13 @@ Ask Claude to confirm that (1) `heartbeat.txt` is recent and (2) a screenshot of
 6. Screenshot every key step for the report.
 7. Reports in English; hide sample name and lattice constants (use a, b, c); polarisation
    labels (LH, LV, CR, CL) may stay.
+0. Read API.md in the command folder first. Use the operations of `L` (L.help() lists
+   them); reach into the program's internals (A, dialogs' widgets) only for what no
+   operation does, and say so.
 8. Never read the screen (no screenshots of the desktop, no computer-use) for processing
-   or figure work. Everything the viewer does is available through its own API: the
-   command files, the dialogs' widgets, the slice series figure and the figure composer
-   (panel.colormap / flip / levels / gamma / smooth / title / texts / overlays). Look at
+   or figure work. Everything the viewer does is available through `L` (L.picture,
+   L.figure_describe, L.figure_render, L.panel_set ...) and, beyond it, the program's own
+   API. Look at
    an image only through the viewer's own widget.grab() when a visual judgement of a
    finished figure is needed. The only exception: a command file has stalled and nothing
    else can tell why.

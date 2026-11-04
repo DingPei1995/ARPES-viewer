@@ -1599,6 +1599,17 @@ left* 填 `L, M`。**To figure composer...** → (a) 所在的图。
 
 ## 33. 让 AI 智能体调用本程序（MCP）
 
+**最简单的方式：AI assistant... 与命令文件夹（推荐）。** 用自然语言对你的 AI 应用（Claude
+桌面应用、Claude Code，或任何能读写文件的智能体）说话，它会在你眼前操作本程序的窗口。点击主窗口
+顶部的 **AI assistant...**：**Start** 让程序监视一个命令文件夹——智能体把小的 Python 文件写入其中的
+`viewer_cmd/`，程序逐个运行并把输出写到 `out/`——并在文件夹里写入 `API.md`，列出程序约 50 个有说明
+的操作（`L.rows()`、`L.fermi_edge(...)`、`L.cut_to_k(...)`、`L.kz_to_k(...)`、`L.bz_overlay(...)`、
+`L.slice_series(...)`、`L.figure_render(...)` 等），智能体读这一个文件即可，不必读源码。**Copy the
+message** 给出可直接粘贴到 AI 应用的第一条消息，已填好文件夹和工作规则。每个操作都生成新的行而不改
+动原有数据，不覆盖文件，也不会等待点击。完整说明见 `agentic/README.md`。
+
+本节其余部分介绍另一种方式：MCP 服务器。
+
 ARPES viewer 同时是一个 **MCP 服务器**（Model Context Protocol，模型上下文协议），因此任何模型的
 AI 智能体——Claude、GPT、Gemini，或在支持 MCP 的客户端（Claude Desktop / Claude Code、Cursor、
 VS Code、Cline、LM Studio 等）中运行的本地模型——都可以把它当作一组工具来调用。所有操作都在本机

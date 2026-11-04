@@ -2047,6 +2047,24 @@ qu'affichées et la mesure dont elles proviennent.
 
 ## 33. Piloter le programme depuis un agent IA (MCP)
 
+**Le plus simple : AI assistant... et le dossier de commandes (recommandé).**
+Parlez à votre application d'IA (l'application de bureau Claude, Claude
+Code, tout agent qui sait lire et écrire des fichiers) en langage courant ;
+elle pilote cette fenêtre sous vos yeux. Cliquez sur **AI assistant...**
+(en haut de la fenêtre principale) : **Start** fait surveiller au programme
+un dossier de commandes — l'agent écrit de petits fichiers Python dans son
+`viewer_cmd/`, le programme les exécute et écrit leur sortie dans `out/` —
+et y écrit `API.md`, la liste des quelque 50 opérations documentées du
+programme (`L.rows()`, `L.fermi_edge(...)`, `L.cut_to_k(...)`,
+`L.kz_to_k(...)`, `L.bz_overlay(...)`, `L.slice_series(...)`,
+`L.figure_render(...)` …) : l'agent lit ce seul fichier au lieu du code
+source. **Copy the message** donne le premier message à coller dans
+l'application, avec vos dossiers et les règles de travail. Chaque opération
+ajoute de nouvelles lignes sans modifier les anciennes, n'écrase aucun
+fichier et n'attend aucun clic. Le guide complet est `agentic/README.md`.
+
+La suite de cette section décrit l'autre voie : le serveur MCP.
+
 ARPES viewer est aussi un **serveur MCP** (Model Context Protocol) : un
 agent IA de n'importe quel modèle — Claude, GPT, Gemini, ou un modèle local
 dans un client compatible MCP (Claude Desktop / Claude Code, Cursor,

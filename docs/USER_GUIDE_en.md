@@ -1937,6 +1937,23 @@ data as shown and the measurement it came from.
 
 ## 33. Driving the program from an AI agent (MCP)
 
+**The easiest way: AI assistant... and the command folder (recommended).**
+Talk to your AI app (the Claude desktop app, Claude Code, any agent that can
+read and write files) in plain words; it drives this window while you
+watch. Press **AI assistant...** (top of the main window): **Start** makes
+the program watch a command folder — the agent writes small Python files
+into its `viewer_cmd/`, the program runs them and writes what they printed
+to `out/` — and writes `API.md` into it, the list of the program's ~50
+documented operations (`L.rows()`, `L.fermi_edge(...)`, `L.cut_to_k(...)`,
+`L.kz_to_k(...)`, `L.bz_overlay(...)`, `L.slice_series(...)`,
+`L.figure_render(...)` …), so the agent reads one file instead of the
+source. **Copy the message** gives the first message to paste into the AI
+app, with your folders and the working rules. Every operation adds new rows
+rather than changing old ones, never overwrites a file and never waits for a
+click. The full guide is `agentic/README.md`.
+
+The rest of this section is the other route: the MCP server.
+
 ARPES viewer is also an **MCP server** (Model Context Protocol), so an AI
 agent of any model — Claude, GPT, Gemini, or a local model in an
 MCP-capable client (Claude Desktop / Claude Code, Cursor, VS Code, Cline,
@@ -1994,7 +2011,8 @@ arpes-viewer --agent-bridge
 tool-panel button for the selection — `fermi`, `kcut`, `kmap`, `bz3d`,
 `figure`, `notch3d`, `combine`…), `viewer_windows`, `viewer_screenshot`
 (a picture of any of its windows, so the agent can check what it did),
-`viewer_figure` and `viewer_render_figure` (a figure window in numbers —
+`viewer_api_help` and `viewer_api` (the documented operations above: list
+them, call one), `viewer_figure` and `viewer_render_figure` (a figure window in numbers —
 page, frames, titles, levels, text sizes — and written as the PNG it will
 print as), `viewer_close_window` and `viewer_python` (Python run inside the program,
 with `A` = the program's main module — for setting a dialog's fields and

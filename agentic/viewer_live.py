@@ -6,9 +6,12 @@ Start with launch_viewer.py. Reads agentic/config.json (copy config.example.json
             and <scan folder>/*_roi1_.txt maps)
   screen    1-based monitor number for the window (default: 2)
 Every *.py dropped into agentic/viewer_cmd/ is executed inside this running GUI process
-(globals: A = arpes_viewer.app, HERE, DATA, QtCore, QtWidgets); its printed output goes to
+(globals: L = the program's documented operations -- see agentic/API.md or L.help() --,
+A = arpes_viewer.app, HERE, DATA, QtCore, QtWidgets, np); its printed output goes to
 agentic/out/cmd_<name>.log and the file is moved to agentic/viewer_done/. A modal dialog
 opened by a command raises ModalDialogBlocked instead of freezing the poller.
+(arpes_viewer.ui.common.agentfolder does the polling; the program's Help -> AI assistant
+window starts the same thing without this script.)
 Nothing here uses the network.
 """
 import os, sys, glob, json, time, io, contextlib, traceback
@@ -25,7 +28,7 @@ sys.path.insert(0, ROOT)
 if sys.platform == "win32":
     os.environ["QT_QPA_PLATFORM"] = "windows"
 import arpes_viewer.app as A
-from arpes_viewer.ui.common.agentbridge import modal_guard
+from arpes_viewer.ui.common.agentfolder import CommandFolder
 from PyQt5 import QtCore, QtWidgets
 
 paths = []
@@ -55,29 +58,11 @@ def setup():
     except Exception:
         traceback.print_exc(); sys.stdout.flush()
 
-def poll():
-    qd, dd = os.path.join(HERE, "viewer_cmd"), os.path.join(HERE, "viewer_done")
-    for n in sorted(os.listdir(qd)):
-        if not n.endswith(".py"): continue
-        src = os.path.join(qd, n); time.sleep(0.2)
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-            try:
-                # a modal dialog would wait for a click and stop the poller:
-                # it raises ModalDialogBlocked instead (call the tool's own
-                # function, e.g. contour.slice_figure(values=[...]))
-                with modal_guard():
-                    exec(compile(open(src, encoding="utf-8").read(), src, "exec"),
-                         {"A": A, "HERE": HERE, "DATA": DATA, "QtCore": QtCore,
-                          "QtWidgets": QtWidgets})
-            except Exception:
-                traceback.print_exc()
-        open(os.path.join(HERE, "out", "cmd_" + n[:-3] + ".log"), "w", encoding="utf-8").write(buf.getvalue())
-        os.replace(src, os.path.join(dd, n))
-
 _orig = A.offer_recovery
 def patched():
     QtCore.QTimer.singleShot(300, setup)
-    t = QtCore.QTimer(A.win); t.timeout.connect(poll); t.start(700); A._poll_timer = t
+    # the program's own command folder (also started from Help -> AI assistant):
+    # command files see A, L (the documented operations: L.help()), HERE, DATA
+    A._command_folder = CommandFolder(A, HERE, DATA).start()
 A.offer_recovery = patched
 sys.exit(A.main())

@@ -131,6 +131,20 @@ project root on `sys.path` and pins `QT_QPA_PLATFORM=offscreen`, and
 `test/conftest.py` runs garbage collection only between tests, the rule
 `ui/common/gcguard.py` applies in the program.
 
+## The agent's operations and their reference
+
+`arpes_viewer/ui/common/live.py` is the layer an AI agent drives the running
+program through: `L.<name>(...)` operations on the rows of the main list,
+each documented, each adding new rows rather than changing old ones, none
+waiting on a modal dialog. The command folder (`ui/common/agentfolder.py`,
+route 3), the bridge's `viewer_python` and the MCP tool `viewer_api` (route
+1) all reach the same object. `agentic/API.md` is generated from it, the
+tool panel, the MCP tools and the public functions under `tools/` by
+`python -m arpes_viewer.agent.catalog --write`; `test/agent/test_catalog.py`
+fails while it is out of date. A new tool or a changed dialog therefore
+needs (1) an operation in `live.py` when an agent should be able to do it
+without the window, (2) the reference regenerated.
+
 ## Versions and the changelog
 
 The number and its date are in `arpes_viewer/version.py`, and repeated in

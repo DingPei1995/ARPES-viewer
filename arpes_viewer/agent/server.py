@@ -44,7 +44,9 @@ viewer_* tools drive the program on screen when it was started with
 `arpes-viewer --agent-bridge`: viewer_status, viewer_rows, viewer_add_files,
 viewer_select, viewer_run_tool (any tool-panel button, e.g. "fermi", "kmap",
 "bz3d", "figure"), viewer_screenshot, viewer_figure, viewer_render_figure,
-viewer_python. Check a figure with viewer_figure (numbers) and
+viewer_python. With the program on screen, viewer_api_help lists its documented
+operations and viewer_api calls them (the same as L in viewer_python); use them
+before anything else. Check a figure with viewer_figure (numbers) and
 viewer_render_figure (the PNG as printed) rather than a screenshot. In
 viewer_python a modal dialog raises ModalDialogBlocked instead of waiting:
 call the tool's function (e.g. a ContourWindow's slice_figure(values=...)). save_datasets(..., ".nxs") then viewer_add_files puts a headless
@@ -276,6 +278,23 @@ def build_server(workspace: Workspace = None) -> Server:
              viewer_screenshot,
              {"window": _str("Part of the window's title."),
               "save_png": _str("Also save it here.")}, read_only=True),
+        Tool("viewer_api_help", "The program's documented operations "
+             "(L.<name>): all of them one line each, one group, or one in "
+             "full. Read this before driving the program: it replaces "
+             "reading the source.",
+             lambda topic="": bridge.request("api_help", topic=topic),
+             {"topic": _str("An operation's or group's name (empty: all).")},
+             read_only=True),
+        Tool("viewer_api", "Call one documented operation of the running "
+             "program on the rows of its list, e.g. operation='fermi_edge', "
+             "args={'name': 'cut1', 'energy_window': [-0.15, 0.1]}. Every "
+             "operation that makes data adds a new row and returns its name.",
+             lambda operation, args=None: bridge.request(
+                 "api", operation=operation, args=dict(args or {}), timeout=600),
+             {"operation": _str("The operation's name (viewer_api_help)."),
+              "args": {"type": "object",
+                       "description": "Its arguments by name."}},
+             ("operation",)),
         Tool("viewer_figure", "A figure window in numbers, without a "
              "picture: page size, each panel's frame (mm), title, axis names, "
              "colour scale and text sizes. Check a layout with this.",
