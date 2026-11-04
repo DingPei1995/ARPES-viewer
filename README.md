@@ -14,6 +14,26 @@ beamtime, open them in their own windows, convert to momentum, cut, fit,
 process, compare with a band-structure calculation, and lay the results out
 as a publication figure.
 
+> **A note from the author on AI agents.** Talking with beamline users, I
+> heard two concerns again and again: running an AI agent on local data
+> is unfamiliar, and the data might end up with an AI company and be used
+> for training. The **AI assistant** panel (top of the tool panel) is my
+> answer to the first. Choose the data folder and the results folder,
+> tick a few options, and it writes the prompt to paste into your AI app.
+> No configuration and no manual to read first. Every step the agent runs
+> is listed with its code and output, a status light shows its state, and
+> **Pause** hands the controls back to you at any time
+> ([how it works](#starting-and-watching-an-agent-from-the-ai-assistant-panel)).
+> On the second concern: the raw data files stay on your computer and are
+> processed there. What the agent *reads* is sent to the AI provider as
+> part of the conversation: printed results, fitted values, and the
+> pictures it inspects to judge a step. Whether that is used for training
+> depends on your provider and your account settings, so check them.
+> Keep private code out of any folder the agent can reach. In my view, AI
+> in ARPES experiments and analysis is here to stay. An experiment update
+> prepared by the agent, which you check step by step, is a low-risk way
+> to get familiar with it.
+
 ---
 
 ## What it does
