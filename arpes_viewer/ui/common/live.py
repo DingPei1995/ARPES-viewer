@@ -60,6 +60,44 @@ def operation(group: str):
     return mark
 
 
+def _keeps_selection(method):
+    """Run an operation and put the main list's selection back as it was.
+
+    Several operations select rows to reach a tool (the kz conversion, the
+    BZ overlay, a slice series ...), and listing a result selects the new
+    row. While the agent works, the person may be looking at data in the
+    same list; their selection is theirs, so it is restored after each such
+    operation. (``L.select`` is the one operation that changes it, when the
+    agent is asked to.)"""
+    import functools
+
+    @functools.wraps(method)
+    def kept(self, *args, **kwargs):
+        widget = self.A.ui.FilePathListWidget
+        chosen = [widget.item(i).data(0x0100) for i in range(widget.count())
+                  if widget.item(i).isSelected()]
+        current = widget.currentItem()
+        current = current.data(0x0100) if current is not None else None
+        try:
+            return method(self, *args, **kwargs)
+        finally:
+            widget.blockSignals(True)
+            try:
+                widget.clearSelection()
+                for i in range(widget.count()):
+                    item = widget.item(i)
+                    key = item.data(0x0100)
+                    if key == current:
+                        widget.setCurrentItem(item)
+                    item.setSelected(key in chosen)
+            finally:
+                widget.blockSignals(False)
+            update = getattr(self.A, "update_tool_buttons", None)
+            if callable(update):
+                update()
+    return kept
+
+
 def _plain(value):
     """``value`` with numpy scalars and arrays turned into JSON types."""
     if isinstance(value, dict):
@@ -167,6 +205,7 @@ class Live:
         return out
 
     @operation("The list")
+    @_keeps_selection
     def add_files(self, paths) -> dict:
         """Add files to the list, the reader detected as by Quick add.
         ``paths`` is one path or a list; a folder adds every file in it a
@@ -334,6 +373,7 @@ class Live:
         return _plain(workspace.profile(ident, along, ranges))
 
     @operation("Looking at data")
+    @_keeps_selection
     def open(self, name: str) -> str:
         """Open the row's viewer window on screen (as a double-click does).
         Returns the window's title."""
@@ -360,6 +400,7 @@ class Live:
                                            ranges, fit_temperature))
 
     @operation("Energy")
+    @_keeps_selection
     def shift_energy(self, name: str, ef: float, new_name: str = "") -> str:
         """A copy on E - E_F: ``ef`` (on the row's own energy axis) is
         subtracted. Returns the new row's name."""
@@ -369,6 +410,7 @@ class Live:
         return self._list_scan(record["scan"], record["name"])
 
     @operation("Energy")
+    @_keeps_selection
     def kz_align_fermi(self, name: str, angle_range, energy_range,
                        temperature: float = 30.0, hold_temperature: bool = True,
                        normalise: bool = True) -> dict:
@@ -432,6 +474,7 @@ class Live:
                                f"{self._name(self._key(name))} [{step}]")
 
     @operation("Processing")
+    @_keeps_selection
     def crop(self, name: str, bounds, new_name: str = "") -> str:
         """Cut out a box: ``bounds`` is one (lo, hi) per axis in the axes'
         own units, None for "to the end". Returns the new row."""
@@ -442,6 +485,7 @@ class Live:
                             {"bounds": bounds}, new_name)
 
     @operation("Processing")
+    @_keeps_selection
     def bin(self, name: str, factors, new_name: str = "") -> str:
         """Sum blocks of neighbouring points: one factor per axis (1 keeps
         it). Counts are preserved. Returns the new row."""
@@ -452,6 +496,7 @@ class Live:
                             {"factors": factors}, new_name)
 
     @operation("Processing")
+    @_keeps_selection
     def normalise(self, name: str, axes=1, window=None,
                   to_peak: bool = False, new_name: str = "") -> str:
         """Divide the data by its own intensity: every line along axis
@@ -470,6 +515,7 @@ class Live:
                              "to_peak": to_peak}, new_name)
 
     @operation("Processing")
+    @_keeps_selection
     def smooth(self, name: str, widths, new_name: str = "") -> str:
         """Gaussian smoothing, NaN-aware; ``widths`` one sigma per axis in
         the axis's units (0 leaves it). Returns the new row (tagged
@@ -481,6 +527,7 @@ class Live:
                             {"sigmas": widths}, new_name)
 
     @operation("Processing")
+    @_keeps_selection
     def derivative(self, name: str, axis: int = 1, order: int = 2,
                    window: float = None, new_name: str = "") -> str:
         """The (negated) ``order``-th derivative along ``axis`` (index), by
@@ -495,6 +542,7 @@ class Live:
                             new_name)
 
     @operation("Processing")
+    @_keeps_selection
     def curvature(self, name: str, mode: str = "2d", a0: float = 1.0,
                   new_name: str = "") -> str:
         """Curvature of a 2-D cut or map plane: ``mode`` "2d" (isotropic),
@@ -513,6 +561,7 @@ class Live:
                             {"mode": mode, "a0": a0}, new_name)
 
     @operation("Processing")
+    @_keeps_selection
     def background(self, name: str, method: str = "percentile", axis: int = 1,
                    new_name: str = "", **options) -> str:
         """Subtract a background from a cut: ``method`` "percentile",
@@ -527,6 +576,7 @@ class Live:
                             dict(options, method=method, dim=axis), new_name)
 
     @operation("Processing")
+    @_keeps_selection
     def symmetrise(self, name: str, fold: int = 1, centre=(0.0, 0.0),
                    mirror_angles=(), inversion: bool = False,
                    new_name: str = "") -> dict:
@@ -555,6 +605,7 @@ class Live:
     # Momentum
     # ==================================================================
     @operation("Momentum")
+    @_keeps_selection
     def cut_to_k(self, name: str, gamma_slit_deg: float = 0.0,
                  deflector_deg: float = 0.0, gamma_deflector_deg: float = None,
                  azimuth_deg: float = 0.0, n_k: int = None,
@@ -572,6 +623,7 @@ class Live:
         return self._list_scan(record["scan"], record["name"])
 
     @operation("Momentum")
+    @_keeps_selection
     def map_to_k(self, name: str, gamma_deflector_deg: float = 0.0,
                  gamma_slit_deg: float = 0.0, azimuth_deg: float = 0.0,
                  n_kx: int = None, n_ky: int = None, new_name: str = "") -> str:
@@ -588,6 +640,7 @@ class Live:
         return self._list_scan(record["scan"], record["name"])
 
     @operation("Momentum")
+    @_keeps_selection
     def kz_to_k(self, name: str, *, space_group: int, a: float, b: float = None,
                 c: float = None, alpha: float = None, beta: float = None,
                 gamma: float = None, surface_hkl=(0, 0, 1),
@@ -697,6 +750,7 @@ class Live:
         return _plain(Workspace.read_cif(os.path.expanduser(path)))
 
     @operation("Crystal and Brillouin zone")
+    @_keeps_selection
     def bz_overlay(self, name: str, *, space_group: int, a: float,
                    b: float = None, c: float = None, alpha: float = None,
                    beta: float = None, gamma: float = None, hkl=(0, 0, 1),
@@ -822,6 +876,7 @@ class Live:
         return window.describe()
 
     @operation("Figures")
+    @_keeps_selection
     def slice_series(self, name: str, values, *, axis: int = 2,
                      half_width: float = 0.0, cols: int = 3,
                      nominal_titles: bool = True, shared: bool = True,
@@ -844,6 +899,7 @@ class Live:
         return self._figure_made(window, title)
 
     @operation("Figures")
+    @_keeps_selection
     def figure_from(self, *names, title: str = "") -> dict:
         """A figure composer with these rows as panels (as "Plot as
         figure"). Returns the figure in numbers."""
@@ -967,6 +1023,7 @@ class Live:
         return tool_actions()
 
     @operation("Tool windows")
+    @_keeps_selection
     def run_tool(self, action: str, *names) -> str:
         """Select ``names`` and open the tool ``action`` (see ``tools()``)
         on them, on screen. Returns the title of the window it opened. Its
@@ -1019,6 +1076,7 @@ class Live:
                        np.asarray(scan.array()), dict(scan.info or {}))
 
     @operation("Your own computation")
+    @_keeps_selection
     def add(self, name: str, kind: str, axes, values, labels=None, info=None,
             made_from: str = "", step: str = "computed",
             parameters: dict = None) -> str:

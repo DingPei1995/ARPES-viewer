@@ -149,12 +149,14 @@ draw the zone, and make a slice-series figure"* -- and it drives the program
 on your screen, step by step, while you watch and can take over. Data stay
 on your computer.
 
-- **Start**: press **AI assistant...** in the main window. It starts the
-  command folder the agent works through, writes `API.md` into it -- the
-  program's ~50 documented operations (`L.fermi_edge`, `L.kz_to_k`,
-  `L.bz_overlay`, `L.slice_series`, `L.figure_render` ...) -- and gives a
-  first message to paste into your AI app. The agent reads that one file
-  instead of the source.
+- **Start**: press **AI assistant...** (top of the tool panel), choose the
+  data and results folders, tick what you want (step by step, a usage log,
+  a report, slides, hiding the sample's identity ...), and press **Copy the
+  prompt and start**; paste the prompt into your AI app. The window then
+  lists each step the agent runs, and **Pause** hands you the controls. The
+  agent reads `API.md`, the program's ~50 documented operations
+  (`L.fermi_edge`, `L.kz_to_k`, `L.bz_overlay`, `L.slice_series`,
+  `L.figure_render` ...), instead of the source.
 - **Other routes**: an MCP app (`arpes-viewer-mcp`; with the program
   started as `arpes-viewer --agent-bridge` it calls the same operations), or
   a coding agent writing a script to keep, on the headless workspace and the

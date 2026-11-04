@@ -269,40 +269,97 @@ def test_a_kz_scan_is_aligned_then_converted_with_its_own_calibration(program):
     assert L.metadata(result["row"], "hv_calibrated")
 
 
-def test_the_assistant_window_starts_the_folder_and_writes_the_reference(program, tmp_path, monkeypatch):
-    """Whom to talk to, the command folder started with API.md in it, the
-    first message with the folders filled in, the MCP settings."""
+def test_the_assistant_starts_the_agent_from_two_folders(program, tmp_path, monkeypatch):
+    """Two folders, a few options, one prompt: the command folder started in
+    the results folder with API.md in it, the prompt on the clipboard with
+    the folders, the rules and the options; then the steps watched, and a
+    pause that stops the agent's commands."""
     from PyQt5.QtWidgets import QApplication
     from arpes_viewer.ui.common import assistant
-    program.ui.FilePathLE.setText(str(tmp_path / "beamtime"))
+    monkeypatch.setenv("ARPES_VIEWER_CONFIG_DIR", str(tmp_path / "config"))
+    data = tmp_path / "beamtime"
+    data.mkdir()
+    results = tmp_path / "results"
     dialog = program.open_assistant()
     assert program.open_assistant() is dialog            # one window
-    folder = str(tmp_path / "agent")
-    dialog.folder_edit.setText(folder)
-    dialog.toggle_folder()
+    assert dialog.copy_and_start() is None               # no folders yet
+    dialog.data_edit.setText(str(data))
+    dialog.results_edit.setText(str(data))
+    assert dialog.copy_and_start() is None               # results != data
+    dialog.results_edit.setText(str(results))
+    dialog.option_boxes["hide"].setChecked(True)
+    dialog.option_boxes["report"].setChecked(True)
+    dialog.extra_edit.setPlainText("Make Fig. 1 at E_F and -0.2 eV.")
+    text = dialog.copy_and_start()
     try:
-        running = program._command_folder
-        assert running.running and running.folder == folder
-        with open(os.path.join(folder, "API.md"), encoding="utf-8") as handle:
+        assert QApplication.clipboard().text() == text
+        commands = assistant.command_folder_of(str(results))
+        assert os.path.join(commands, "viewer_cmd") in text
+        assert str(data) in text and "API.md" in text and "read only" in text
+        assert "sample A" in text and "report" in text
+        assert "Make Fig. 1 at E_F" in text
+        assert "usage_log" not in text                    # not ticked
+        with open(os.path.join(commands, "API.md"), encoding="utf-8") as handle:
             assert "L.kz_to_k(" in handle.read()
-        text = dialog.prompt.toPlainText()
-        assert os.path.join(folder, "viewer_cmd") in text
-        assert str(tmp_path / "beamtime") in text and "API.md" in text
-        assert "Listening" in dialog.folder_status.text()
-    finally:
-        dialog.toggle_folder()
-    assert program._command_folder is None
-    settings = json.loads(assistant.mcp_settings())
-    assert settings["mcpServers"]["arpes-viewer"]["args"] == ["-m", "arpes_viewer.agent"]
-    dialog.toggle_bridge()
-    try:
-        assert program._agent_bridge is not None
-        assert "On" in dialog.bridge_status.text()
-    finally:
-        dialog.toggle_bridge()
-    assert program._agent_bridge is None
-    dialog.close()
+        running = program._command_folder
+        assert running.running and running.folder == os.path.abspath(commands)
+        assert "Ready" in dialog.status.text()            # before the first step
 
+        # a step, watched
+        with open(os.path.join(commands, "viewer_cmd", "01_rows.py"), "w") as f:
+            f.write("print(L.rows()[0]['name'])\n")
+        running.poll()
+        dialog.refresh_status()
+        assert dialog.steps.count() == 1 and "01_rows.py" in dialog.steps.item(0).text()
+        assert dialog.step_log.toPlainText().strip() == "cut1"
+
+        # paused: the agent's next command waits
+        dialog.toggle_pause()
+        assert "Paused" in dialog.status.text() and not running.timer.isActive()
+        dialog.toggle_pause()
+        assert running.timer.isActive()
+    finally:
+        program._command_folder.stop()
+        program._command_folder = None
+    dialog.close()
+    again = assistant.AssistantDialog(program)          # the choices are kept
+    assert again.results_edit.text() == str(results)
+    assert again.option_boxes["hide"].isChecked()
+    again.close()
+
+
+def test_the_assistant_for_an_mcp_app_turns_the_bridge_on(program, tmp_path, monkeypatch):
+    from arpes_viewer.ui.common import assistant
+    monkeypatch.setenv("ARPES_VIEWER_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setattr(program, "_agent_bridge", None, raising=False)
+    dialog = assistant.AssistantDialog(program)
+    dialog.mode_mcp.setChecked(True)
+    bridge = program._agent_bridge
+    try:
+        assert bridge is not None                         # on when chosen
+        data = tmp_path / "data"
+        data.mkdir()
+        dialog.data_edit.setText(str(data))
+        dialog.results_edit.setText(str(tmp_path / "out"))
+        text = dialog.copy_and_start()
+        assert "claude mcp add arpes-viewer" in text and "viewer_api_help" in text
+        assert '"mcpServers"' in text
+        ask = lambda op, **args: bridge.answer(json.dumps(
+            {"token": bridge.token, "op": op, "args": args}))[0]
+        assert ask("api", operation="rows")["ok"]
+        dialog.refresh_status()
+        assert any("api" in dialog.steps.item(i).text() for i in range(dialog.steps.count()))
+        dialog.toggle_pause()
+        refused = ask("api", operation="rows")
+        assert not refused["ok"] and "paused" in refused["error"]
+        assert ask("status")["ok"]                         # looking is allowed
+        dialog.toggle_pause()
+        assert ask("api", operation="rows")["ok"]
+    finally:
+        bridge.stop()
+        program._agent_bridge = None
+        program._agent_paused = False
+    dialog.close()
 
 def test_add_files_takes_a_folder(program, tmp_path):
     from arpes_viewer.ui.common.live import Live
@@ -318,3 +375,84 @@ def test_add_files_takes_a_folder(program, tmp_path):
     L = Live(program)
     added = L.add_files(str(folder))["added"]
     assert sorted(added) == ["cutA", "cutB"]
+
+
+def test_the_status_light_follows_the_agent_with_the_window_closed(program, tmp_path, monkeypatch):
+    """Grey not running, green running, yellow paused, red on a failed or
+    stalled step -- on the main window's button, whether or not the AI
+    assistant window is open; closing it does not stop the agent."""
+    from arpes_viewer.ui.common import assistant
+    monkeypatch.setenv("ARPES_VIEWER_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setattr(program, "_command_folder", None, raising=False)
+    monkeypatch.setattr(program, "_agent_bridge", None, raising=False)
+    monkeypatch.setattr(program, "_agent_paused", False, raising=False)
+    light = program._status_light
+    button = program.ui.AssistantButton
+    assert light.update() == "idle" and assistant.LIGHTS["idle"][0] in button.styleSheet()
+
+    data = tmp_path / "data"
+    data.mkdir()
+    dialog = assistant.AssistantDialog(program)
+    dialog.data_edit.setText(str(data))
+    dialog.results_edit.setText(str(tmp_path / "results"))
+    dialog.copy_and_start()
+    dialog.close()                                       # the agent goes on
+    folder = program._command_folder
+    try:
+        assert folder.running
+        commands = os.path.join(folder.folder, "viewer_cmd")
+        with open(os.path.join(commands, "01.py"), "w") as handle:
+            handle.write("print(L.rows()[0]['name'])\n")
+        folder.poll()
+        assert light.update() == "running"
+        assert assistant.LIGHTS["running"][0] in button.styleSheet()
+        assert "running" in button.toolTip().lower()
+
+        program._agent_paused = True                     # paused by the person
+        assert light.update() == "paused"
+        program._agent_paused = False
+
+        with open(os.path.join(commands, "02.py"), "w") as handle:
+            handle.write("L.describe('no such row')\n")
+        folder.poll()
+        assert light.update() == "error"                 # a failed step
+        assert assistant.LIGHTS["error"][0] in button.styleSheet()
+        with open(os.path.join(commands, "03.py"), "w") as handle:
+            handle.write("print('ok')\n")
+        folder.poll()
+        assert light.update() == "running"               # a good step clears it
+
+        # a command left unrun: the commands stopped being run
+        with open(os.path.join(commands, "04.py"), "w") as handle:
+            handle.write("print('late')\n")
+        stale = os.path.getmtime(os.path.join(commands, "04.py")) - 120
+        os.utime(os.path.join(commands, "04.py"), (stale, stale))
+        assert light.update() == "error"
+        folder.poll()
+        # quiet for long enough: not running
+        state, _words = assistant.agent_state(program, now=folder.last_run + 3600)
+        assert state == "idle"
+        folder.timer.stop()                              # stopped unexpectedly
+        assert light.update() == "error"
+    finally:
+        folder.stop()
+        program._command_folder = None
+    assert light.update() == "idle"
+
+
+def test_the_agent_leaves_the_persons_selection_alone(program):
+    """The person looks at map1 while the agent works on cut1."""
+    from arpes_viewer.ui.common.live import Live
+    L = Live(program)
+    widget = program.ui.FilePathListWidget
+    L.select("map1")                                     # the person's choice
+    before = [widget.item(i).text() for i in range(widget.count())
+              if widget.item(i).isSelected()]
+    shifted = L.shift_energy("cut1", ef=16.45)           # lists a new row
+    L.cut_to_k(shifted)
+    title = L.run_tool("edcfit", "cut1")
+    after = [widget.item(i).text() for i in range(widget.count())
+             if widget.item(i).isSelected()]
+    assert after == before and "map1" in after[0]
+    assert "map1" in widget.currentItem().text()
+    L.close(title)

@@ -53,6 +53,12 @@ class CommandFolder:
         self.live = Live(app)
         self.timer = None
         self.ran = 0
+        #: when the last command ran, and whether it failed (a traceback in
+        #: what it printed) -- what the status light shows
+        self.last_run = 0.0
+        self.last_failed = False
+        #: an error of the polling itself (the folder unreadable ...)
+        self.error = ""
         for name in FOLDERS:
             os.makedirs(os.path.join(self.folder, name), exist_ok=True)
 
@@ -103,8 +109,25 @@ class CommandFolder:
                 traceback.print_exc()
         return buffer.getvalue()
 
+    def pending_since(self) -> float:
+        """When the oldest command still waiting was written; 0 if none."""
+        queue = os.path.join(self.folder, "viewer_cmd")
+        try:
+            times = [os.path.getmtime(os.path.join(queue, n))
+                     for n in os.listdir(queue) if n.endswith(".py")]
+        except OSError:
+            return 0.0
+        return min(times) if times else 0.0
+
     def poll(self):
         """Run every waiting command file, oldest name first."""
+        try:
+            self._poll()
+            self.error = ""
+        except Exception as exc:                            # noqa: BLE001
+            self.error = f"{type(exc).__name__}: {exc}"
+
+    def _poll(self):
         queue = os.path.join(self.folder, "viewer_cmd")
         done = os.path.join(self.folder, "viewer_done")
         try:
@@ -124,6 +147,8 @@ class CommandFolder:
                 target = os.path.join(done, f"{stem}_{int(time.time())}{ext}")
             os.replace(source, target)
             self.ran += 1
+            self.last_run = time.time()
+            self.last_failed = "Traceback (most recent call last)" in output
         self._heartbeat()
 
     def _heartbeat(self):

@@ -2051,15 +2051,24 @@ qu'affichées et la mesure dont elles proviennent.
 Parlez à votre application d'IA (l'application de bureau Claude, Claude
 Code, tout agent qui sait lire et écrire des fichiers) en langage courant ;
 elle pilote cette fenêtre sous vos yeux. Cliquez sur **AI assistant...**
-(en haut de la fenêtre principale) : **Start** fait surveiller au programme
-un dossier de commandes — l'agent écrit de petits fichiers Python dans son
-`viewer_cmd/`, le programme les exécute et écrit leur sortie dans `out/` —
-et y écrit `API.md`, la liste des quelque 50 opérations documentées du
+(en haut du panneau d'outils), choisissez le dossier des données et celui
+des résultats, cochez ce que vous voulez (demander avant chaque paramètre
+physique, pas à pas, journal d'utilisation, cacher l'identité de
+l'échantillon, rapport, diapositives) et ajoutez vos demandes ; **Copy the
+prompt and start** met le programme à l'écoute (dossiers : l'agent écrit de
+petits fichiers Python dans `<results>/_agent/viewer_cmd/` ; MCP : le pont
+agent) et copie un message à coller dans l'application. La fenêtre liste
+ensuite chaque étape de l'agent, et **Pause the agent** vous laisse la main.
+Le bouton **AI assistant** est un voyant, même fenêtre fermée (la fermer
+n'arrête pas l'agent) : gris à l'arrêt, vert en marche, jaune en pause,
+rouge en erreur. Pendant ce temps, vous pouvez consulter les données dans
+la fenêtre principale ; les étapes de l'agent ne touchent pas votre
+sélection.
+En mode dossiers, elle écrit aussi `API.md`, la liste des quelque 50 opérations documentées du
 programme (`L.rows()`, `L.fermi_edge(...)`, `L.cut_to_k(...)`,
 `L.kz_to_k(...)`, `L.bz_overlay(...)`, `L.slice_series(...)`,
 `L.figure_render(...)` …) : l'agent lit ce seul fichier au lieu du code
-source. **Copy the message** donne le premier message à coller dans
-l'application, avec vos dossiers et les règles de travail. Chaque opération
+source. Chaque opération
 ajoute de nouvelles lignes sans modifier les anciennes, n'écrase aucun
 fichier et n'attend aucun clic. Le guide complet est `agentic/README.md`.
 

@@ -1940,15 +1940,22 @@ data as shown and the measurement it came from.
 **The easiest way: AI assistant... and the command folder (recommended).**
 Talk to your AI app (the Claude desktop app, Claude Code, any agent that can
 read and write files) in plain words; it drives this window while you
-watch. Press **AI assistant...** (top of the main window): **Start** makes
-the program watch a command folder — the agent writes small Python files
-into its `viewer_cmd/`, the program runs them and writes what they printed
-to `out/` — and writes `API.md` into it, the list of the program's ~50
+watch. Press **AI assistant...** (top of the tool panel), choose the data
+and results folders, tick what you want (ask before each physical parameter,
+step by step, a usage log, hiding the sample's identity, a report, slides)
+and add your own requests; **Copy the prompt and start** makes the program
+listen — in folders: the agent writes small Python files into
+`<results>/_agent/viewer_cmd/`, the program runs them; with MCP: the agent
+bridge — and copies one prompt to paste into the AI app. The window then
+lists each step the agent ran, and **Pause the agent** lets you work by
+hand. The **AI assistant** button is a status light, also with the window
+closed (closing it does not stop the agent): grey not running, green
+running, yellow paused, red an error. Meanwhile you can look at the data in
+the main window; the agent's steps leave your selection alone. In folders it also writes `API.md`, the list of the program's ~50
 documented operations (`L.rows()`, `L.fermi_edge(...)`, `L.cut_to_k(...)`,
 `L.kz_to_k(...)`, `L.bz_overlay(...)`, `L.slice_series(...)`,
 `L.figure_render(...)` …), so the agent reads one file instead of the
-source. **Copy the message** gives the first message to paste into the AI
-app, with your folders and the working rules. Every operation adds new rows
+source. Every operation adds new rows
 rather than changing old ones, never overwrites a file and never waits for a
 click. The full guide is `agentic/README.md`.
 

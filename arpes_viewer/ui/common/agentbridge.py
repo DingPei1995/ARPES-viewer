@@ -132,6 +132,12 @@ class AgentBridge(QTcpServer):
         self.token = ""
         self.newConnection.connect(self._connected)
         self._buffers = {}
+        #: set by the AI assistant window's Pause: requests that act are
+        #: refused (the agent is told to wait) while the person works by hand
+        self.paused = False
+        #: ``[(time, op, ok, detail)]`` of the requests answered, newest
+        #: last, for the AI assistant window to show
+        self.history = []
 
     def listen_local(self) -> bool:
         from arpes_viewer.agent import bridge as config
@@ -188,13 +194,31 @@ class AgentBridge(QTcpServer):
         handler = getattr(self, f"op_{op}", None)
         if handler is None:
             return {"ok": False, "error": f"no operation {op!r}"}, None
+        args = request.get("args") or {}
+        if self.paused and op not in self.READ_ONLY:
+            return {"ok": False, "error": "paused: the person is working in the "
+                    "program by hand. Wait, and ask them before going on."}, None
+        detail = str(args.get("operation", "")) if op == "api" else ""
         try:
-            result = handler(**(request.get("args") or {}))
+            result = handler(**args)
         except Exception as exc:                            # noqa: BLE001
+            self._note(op, False, detail or str(exc)[:80])
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}, None
+        self._note(op, True, detail)
         if isinstance(result, tuple) and len(result) == 2 and callable(result[1]):
             return {"ok": True, "result": result[0]}, result[1]
         return {"ok": True, "result": result}, None
+
+    #: requests that only look, answered even while paused, and not listed
+    READ_ONLY = ("status", "rows", "windows", "screenshot", "figure",
+                 "api_help")
+
+    def _note(self, op, ok, detail=""):
+        import time as _time
+        if op in self.READ_ONLY:
+            return
+        self.history.append((_time.time(), op, bool(ok), detail))
+        del self.history[:-200]
 
     # -- the operations ------------------------------------------------------
     def _rows(self):

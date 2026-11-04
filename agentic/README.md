@@ -36,9 +36,10 @@ The program has no chat of its own. It is the agent's **tool**: the agent
 sends it commands, the program carries them out in its window, and you can
 look, check, and take over at any moment.
 
-The quickest way in: start ARPES viewer, press **AI assistant...** (top of
-the main window). That window starts everything the agent needs and gives
-you a first message to paste into your AI app (§2.1).
+The quickest way in: start ARPES viewer and press **AI assistant...** (top
+of the tool panel). Choose the data and results folders, tick what you
+want, press **Copy the prompt and start**, paste the prompt into your AI
+app — and watch it work in the program, stepping in when you like (§2.1).
 
 ---
 
@@ -83,16 +84,43 @@ Why this route:
 
 ### 2.1 Start it (from the program — the easy way)
 
-1. Start ARPES viewer (`arpes-viewer`) and press **AI assistant...**.
-2. **1. Let the agent drive this window**: choose the command folder (by
-   default `agentic/` of the repository, or `~/arpes_agent`) and press
-   **Start**. The program writes `API.md` into it — the list of everything
-   it can do — and says *Listening*.
-3. Give your AI app access to that folder (Claude desktop app: add the
-   folder to the conversation or project).
-4. **2. Paste this into your AI app**: set today's data folder, press **Copy
-   the message**, paste it into your AI app, and send. The message tells the
-   agent where to write, to read `API.md` first, and the working rules.
+Press **AI assistant...** (top of the tool panel). On the left:
+
+1. **Folders**: the data to process (read only) and where the results go.
+2. **What you want**: tick what you like — ask before each physical
+   parameter, show each step and wait (both on by default), record token /
+   plan usage, hide the sample's real identity, write a report, make
+   slides, keep the list tidy — and add anything else in your own words.
+3. **Your AI app**: *works in folders* (the Claude desktop app, Claude
+   Code, Cursor — recommended) or *uses MCP tools*.
+4. **Copy the prompt and start**: the program starts listening (folders:
+   in `<results>/_agent`, with `API.md` written there; MCP: the agent
+   bridge, which is on as soon as MCP is chosen) and puts one prompt on the
+   clipboard. Paste it into your AI app and send.
+
+Your AI app will ask for permission: give it the results folder (read and
+write) and the data folder (read only); for MCP, allow it to add and run
+the server.
+
+On the right, **Watch and step in** lists each step the agent ran (✗ for a
+failed one; click to see what it printed), while the results appear in the
+main list and windows. **Pause the agent** holds its next commands while
+you work by hand; **Resume** lets them through (the prompt tells the agent
+to wait and ask when it is paused).
+
+The **AI assistant** button itself is a **status light**, also with the
+window closed — closing the window does not stop the agent:
+
+| Colour | Meaning |
+|---|---|
+| grey | not running: not started, or nothing done for a few minutes (finished, or waiting for you) |
+| green | running: the agent is working |
+| yellow | paused: you are working by hand |
+| red | error: the last step failed, or the commands stopped being run — open the window to see which |
+
+While the agent works you can look at the data in the main window as
+usual: its own steps leave your selection in the list alone. (During one
+long step — a whole-cube conversion — the window waits for it to finish.)
 
 ### 2.2 Start it from a script (unattended, or on a second screen)
 
@@ -168,8 +196,9 @@ tools. Installing ARPES viewer installs the command `arpes-viewer-mcp`.
 
 ### 4.1 Connect it (once)
 
-The **AI assistant** window's **Copy the MCP settings** gives the entry with
-the right Python. Or by hand:
+Easiest: in the **AI assistant** window choose *Uses MCP tools* and press
+**Copy the prompt and start** — the bridge is on, and the prompt tells the
+agent how to add the server (Claude Code adds it itself). Or by hand:
 
 **Claude Desktop.** *Settings → Developer → Edit Config* opens
 `claude_desktop_config.json`; put this in it and restart:
@@ -185,8 +214,8 @@ If the app cannot find it, give the full Python path with `"args": ["-m",
 
 ### 4.2 With the program on screen (recommended for this route)
 
-Start the program with `arpes-viewer --agent-bridge` (or **Start the
-bridge** in the AI assistant window). The app then has
+Start the program with `arpes-viewer --agent-bridge` (or choose *Uses MCP
+tools* in the AI assistant window, which turns the bridge on). The app then has
 `viewer_api_help` (the operations of §3) and `viewer_api` (call one: the
 same `L` as route 3), plus `viewer_figure`, `viewer_render_figure`,
 `viewer_screenshot`, `viewer_python` and the list tools. The bridge listens
@@ -252,7 +281,7 @@ python agentic/examples/02_cut_to_momentum.py  D:/data/my_beamtime  D:/results
 
 | What you see | What to do |
 |---|---|
-| Nothing appears in `out/` | The command folder is not listening: AI assistant window → *Start* (or `launch_viewer.py`); `heartbeat.txt` in the folder shows the last poll |
+| Nothing appears in *Watch and step in* | The program is not listening (AI assistant → *Copy the prompt and start*), or it is paused (*Resume*); `heartbeat.txt` in `<results>/_agent` shows the last poll |
 | `ModalDialogBlocked` in a log | The command opened a dialog that would wait for a click: use the operation instead (`L.help()`) |
 | `KeyError: ... matches several rows` | Give the row's whole name (`L.rows()`) |
 | `FileExistsError` | Results are never written over: give a new file name |

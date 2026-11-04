@@ -2,7 +2,8 @@
 
 Ready-made requests for an AI app driving ARPES viewer (see
 [README.md](README.md)). Written for route 3 — the program open on your
-screen, its command folder listening (**AI assistant...** → *Start*) — and
+screen, listening for the agent (**AI assistant...** → *Copy the prompt and
+start*) — and
 they work the same over MCP (route 1, `viewer_api`). Replace the folders,
 names and numbers in `<...>` with your own: a request with the physical
 parameters given gets a better result than a short one.
@@ -11,8 +12,8 @@ parameters given gets a better result than a short one.
 
 ## 0. The first message
 
-The **AI assistant** window writes this for you, with your folders filled
-in (*Copy the message*). In short:
+The **AI assistant** window writes it for you from two folders, a few
+ticked options and your own words (*Copy the prompt and start*). In short:
 
 > You are helping me analyse ARPES data with ARPES viewer, open on my
 > screen. Write one Python file per step into `<command folder>/viewer_cmd`

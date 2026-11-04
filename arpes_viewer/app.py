@@ -2921,6 +2921,10 @@ def open_assistant():
 def SetConnect():
     ui.BrowseFolderButton.clicked.connect(BrowseFolder)
     ui.AssistantButton.clicked.connect(open_assistant)
+    # its colour is the agent's state, kept up to date with or without the
+    # AI assistant window open
+    from arpes_viewer.ui.common.assistant import install_status_light
+    install_status_light(sys.modules[__name__], ui.AssistantButton)
     ui.LoadDataButton.clicked.connect(open_loader)
     ui.PickFilesButton.clicked.connect(PickFiles)
     ui.ClearListButton.clicked.connect(ClearList)

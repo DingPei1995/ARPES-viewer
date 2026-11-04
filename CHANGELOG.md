@@ -89,11 +89,21 @@ what the program got in its way).
   Qt-free computations, so an agent reads one file instead of the source.
   A test fails when it falls behind; CLAUDE.md says to regenerate it after
   every UI or tool change.
-- **AI assistant...** in the main window: whom to talk to; **Start** the
-  command folder (it writes `API.md` into it); a first message for the AI
-  app with the folders and the rules filled in; the MCP settings and the
-  bridge. The command folder (`ui/common/agentfolder.py`) is the same one
-  `launch_viewer.py` starts.
+- **AI assistant...** at the top of the tool panel: the data and results
+  folders, a few options (ask before each physical parameter, step by step,
+  a usage log, hiding the sample's identity, a report, slides, a tidy list)
+  and requests in one's own words make one prompt; **Copy the prompt and
+  start** starts the command folder in `<results>/_agent` (writing
+  `API.md` into it) or, for an MCP app, the agent bridge (on as soon as MCP
+  is chosen), and copies the prompt. The window then lists each step the
+  agent ran, with its output, and **Pause the agent** holds its commands
+  while the person works by hand. The button itself is a status light,
+  with or without the window open (closing it does not stop the agent):
+  grey not running, green running, yellow paused, red a failed step or
+  commands no longer run. The agent's operations put the person's
+  selection in the list back as it was, so the data can be looked at
+  while it works. The command folder
+  (`ui/common/agentfolder.py`) is the same one `launch_viewer.py` starts.
 - `agentic/README.md`, `PROMPTS.md`, the README and the user guides put
   route 3 first, then MCP, then scripts, and explain how the agent learns
   what the program can do.

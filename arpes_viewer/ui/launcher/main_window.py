@@ -108,14 +108,6 @@ class Ui_MainWindow:
         pick_row.addWidget(self.LoadDataButton, stretch=1)
         pick_row.addWidget(self.PickFilesButton, stretch=1)
         pick_row.addWidget(self.ClearListButton)
-        # The way in for an AI agent: whom to talk to, the command folder it
-        # drives this window through, a first message to paste.
-        self.AssistantButton = QtWidgets.QPushButton("AI assistant...", self.centralwidget)
-        self.AssistantButton.setToolTip(
-            "Let an AI agent (the Claude desktop app, Claude Code ...) drive "
-            "this program: start the command folder it works through, copy a "
-            "first message for your AI app, or the MCP settings.")
-        pick_row.addWidget(self.AssistantButton)
         menu_layout.addLayout(pick_row)
 
         self.OpenHint = QtWidgets.QLabel(
@@ -249,6 +241,18 @@ class Ui_MainWindow:
         layout = QtWidgets.QVBoxLayout(panel)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(4)
+
+        # The way in for an AI agent, above the tools it uses: two folders,
+        # a few options, a prompt to copy into the AI app, then watching it
+        # work (ui.common.assistant).
+        self.AssistantButton = QtWidgets.QPushButton("AI assistant...", panel)
+        self.AssistantButton.setObjectName("AssistantButton")
+        self.AssistantButton.setToolTip(
+            "Let an AI agent (the Claude desktop app, Claude Code, an MCP "
+            "app ...) process your data in this window: choose the data and "
+            "results folders, tick what you want, copy the prompt into your "
+            "AI app -- then watch each step here and step in at any time.")
+        layout.addWidget(self.AssistantButton)
 
         title = QtWidgets.QLabel("Tools")
         title.setObjectName("ToolPanelTitle")
