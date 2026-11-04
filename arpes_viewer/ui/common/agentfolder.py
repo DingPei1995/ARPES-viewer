@@ -92,22 +92,32 @@ class CommandFolder:
         return self.timer is not None and self.timer.isActive()
 
     def scope(self) -> dict:
-        """What a command file sees."""
+        """What a command file sees (``inspect``, ``os``, ``re`` and
+        ``json`` already imported, as most steps want one of them)."""
+        import inspect
+        import json
+        import re
         import numpy as np
         from PyQt5 import QtCore, QtWidgets
         return {"A": self.app, "L": self.live, "HERE": self.folder,
                 "DATA": self.data_dir, "QtCore": QtCore,
-                "QtWidgets": QtWidgets, "np": np}
+                "QtWidgets": QtWidgets, "np": np, "os": os, "re": re,
+                "inspect": inspect, "json": json}
 
     def run_file(self, path: str) -> str:
         """Run one command file; returns what it printed."""
-        from arpes_viewer.ui.common.agentbridge import modal_guard
+        from arpes_viewer.ui.common.agentbridge import mojibake_warning, modal_guard
+        from arpes_viewer.ui.common.quietwindows import agent_windows
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
             try:
                 with open(path, encoding="utf-8") as handle:
-                    code = compile(handle.read(), path, "exec")
-                with modal_guard():
+                    text = handle.read()
+                warning = mojibake_warning(text)
+                if warning:
+                    print(warning)
+                code = compile(text, path, "exec")
+                with modal_guard(), agent_windows():
                     exec(code, self.scope())
             except Exception:                               # noqa: BLE001
                 traceback.print_exc()

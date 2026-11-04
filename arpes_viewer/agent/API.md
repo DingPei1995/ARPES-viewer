@@ -31,14 +31,15 @@ Results are plain dicts, lists and strings. An error says what was wrong
 
 | Step | Operation |
 |---|---|
-| What is in the folder / the list | `L.add_files(folder_or_files)`, `L.rows()`, `L.describe(row)`, `L.metadata(row, "photon")` |
-| Look without reading the screen | `L.picture(row, x, y, path)`, `L.profile(row, along, ranges)` |
-| Fermi level, E - E_F | `L.fermi_edge(...)`, `L.shift_energy(row, ef)`; kz map: `L.kz_align_fermi(...)` |
+| What is in the folder / the list | `L.add_files(folder_or_files)` (report its `left_out`, `unrecognised`, `warnings`), `L.rows(compact=True)`, `L.describe(row)`, `L.metadata(row, "photon")` |
+| Look without reading the screen | `L.picture(row, x, y, path)`, `L.profile(row, along, ranges, summary=True)` |
+| Fermi level, E - E_F | `L.fermi_edge_search(row)` (the candidate edges on that row's axis), `L.fermi_edge(row, window, picture=path)`, `L.shift_energy(row, ef)`; kz map: `L.kz_align_fermi(...)` |
 | Clean up | `L.crop`, `L.bin`, `L.normalise` (after the Fermi fit), `L.smooth`, `L.background` |
 | Second derivative, curvature, symmetrise | `L.derivative`, `L.curvature`, `L.symmetrise` |
-| To momentum | `L.cut_to_k`, `L.map_to_k`, `L.kz_to_k` (V0 from `gamma_hv`) |
-| The Brillouin zone | `L.brillouin_zone`, `L.bz_overlay(row, ...)`, `L.bz3d_picture(path, ...)` |
-| A figure | `L.slice_series(row, values=...)`, `L.figure_from(rows)`, `L.panel_set`, `L.panel_picture`, `L.figure_arrange`, `L.figure_describe`, `L.figure_render`, `L.figure_export`, `L.figure_save` |
+| Dichroism, difference, ratio of two cuts | `L.cut_arithmetic(a, b, operation="asymmetry", normalise="total")` |
+| To momentum | `L.cut_to_k`, `L.map_to_k` (both take `ef=` and `normalise_axes=`: one call, one row), `L.kz_to_k` (V0 from `gamma_hv`) |
+| The Brillouin zone | `L.brillouin_zone`, `L.bz_overlay(row, ...)`, `L.bz3d_picture(path, ..., labels="G, L")` |
+| A figure | `L.slice_series(row, values=...)`, several maps side by side: `L.slice_grid(rows, values=...)`; `L.figure_from(rows)`, `L.panel_set`, `L.panel_picture`, `L.figure_arrange`, `L.figure_describe`, `L.figure_render`, `L.figure_export`, `L.figure_save` |
 | MDC/EDC fits, core levels, tight-binding, calculated bands, 3-D views ... | `L.tools()`, `L.run_tool(action, row)` (section 2) |
 | Anything else | `L.data(row)` + the program's functions (section 4) + `L.add(...)` |
 
@@ -46,6 +47,35 @@ Where no operation fits: open the tool on screen with `L.run_tool(action,
 row)` (section 2), or compute with the program's own functions (section 4)
 on `L.data(row)` and list the result with `L.add(...)` -- and say that you
 did.
+
+### Working rules (learnt from real sessions)
+
+- **Look before you compute.** Before a new kind of step, search
+  `L.help()`, `L.tools()` and `L.functions()`; the program probably has it
+  (dichroism is `L.cut_arithmetic`, not a formula of your own).
+- **Never go around an operation silently.** Do not edit the program's
+  internal tables (`A.loaded_items` ...); if no operation does it, say
+  which one is missing and ask before working around it.
+- **After `add_files`**, compare the rows with the folder and report what
+  was left out, not recognised or warned about. Rows can be named by their
+  number in `rows()` or their file's path when names are not enough.
+- **Names**: say which part of a name comes from the file name and which
+  from recorded metadata; mark guesses.
+- **Fermi level**: on raw data, per row, on that row's own axis
+  (`fermi_edge_search`); the Fermi edge is the *last* drop to the floor,
+  not the steepest one. Draw each fit (`picture=`); rows of the same photon
+  and pass energy must agree; when the data cannot decide, ask once.
+- **A tidy list**: chain steps in one call (`map_to_k(row, ef=...,
+  normalise_axes=(1, 2))`) so only the final row is listed; remove rows
+  only when the person agrees.
+- **Figures**: test in a `check` folder, publish one version per figure;
+  signed quantities get a diverging colour map with symmetric levels.
+- **Small outputs**: `rows(compact=True)`, `profile(..., summary=True)` or
+  `path=`; arrays to files, not into the conversation. Code files as UTF-8,
+  non-ASCII as `\u` escapes.
+- **Windows** the operations open and close never appear on screen; the
+  ones left open (a figure, a tool for the person) appear on the main
+  panel's screen.
 
 ## 1. Operations: `L.<name>(...)`
 
@@ -65,18 +95,32 @@ are open, and where the agent's folders are.
 
 ### The list
 
-#### `L.rows()`
+#### `L.rows(compact=False)`
 
-The rows of the main list: ``name``, ``kind`` (Cut, Map, kz map,
-k-map ...), ``path`` of the file behind it, and whether it is
-selected.
+The rows of the main list: ``row`` (its number, which every
+operation also takes in place of a name), ``name``, ``kind`` (Cut,
+Map, kz map, k-map ...), ``path`` of the file behind it, and whether
+it is selected. ``compact=True`` gives one line per row instead
+("3 | Map LH 117eV | Map | D:\...\Map_1_ROI1_.txt"): a long list
+costs far fewer tokens that way.
 
-#### `L.add_files(paths)`
+#### `L.add_files(paths, extras=False)`
 
 Add files to the list, the reader detected as by Quick add.
 ``paths`` is one path or a list; a folder adds every file in it a
 reader recognises, and the scans in its sub-folders (a CASSIOPEE
-map folder is one row). Returns the rows added.
+map folder is one row). Returns ``added`` (the names of the new
+rows), and what to tell the person before going on:
+
+* ``left_out``: single spectra found inside a sub-folder next to a
+  map's numbered scans (a test spectrum, a reference ...) -- not
+  part of the map, so not listed unless ``extras=True``;
+* ``unrecognised``: files no reader took (parameter files, notes);
+* ``warnings``: what a reader noticed, e.g. a polarisation in the
+  file name that differs from the one recorded with the data.
+
+Row names come from the file or folder name, with the photon energy
+and polarisation the beamline recorded; names are unique.
 
 #### `L.select(*names)`
 
@@ -119,10 +163,14 @@ Write a picture of ``y`` against ``x`` (axis labels, indices, or
 ``ranges`` ({axis: (lo, hi)}); for looking at data without reading
 the screen. Returns what was drawn.
 
-#### `L.profile(name, along, ranges=None)`
+#### `L.profile(name, along, ranges=None, summary=False, path='', max_points=400)`
 
 An EDC or MDC as numbers: the values along one axis, the others
-integrated over ``ranges`` ({axis: (lo, hi)}).
+integrated over ``ranges`` ({axis: (lo, hi)}). Hundreds of numbers
+cost many tokens: ``summary=True`` gives only the axis range and
+step, the maximum (where), the minimum, and the steepest fall and
+rise; ``path`` writes the whole curve to a CSV file (then read it
+with your own code); ``max_points`` thins what is returned.
 
 #### `L.open(name)`
 
@@ -131,14 +179,33 @@ Returns the window's title.
 
 ### Energy
 
-#### `L.fermi_edge(name, energy_window=None, temperature=30.0, ranges=None, fit_temperature=False)`
+#### `L.fermi_edge(name, energy_window=None, temperature=30.0, ranges=None, fit_temperature=False, picture='')`
 
 Fit the Fermi edge of the EDC summed over ``ranges`` of the other
 axes, within ``energy_window`` (lo, hi) on the row's own energy axis.
 The temperature is held unless ``fit_temperature``. Returns E_F,
 the resolution, their errors and the reduced chi2; a fit that finds
 no edge (normalised data, a window without the edge) is refused
-with the reason.
+with the reason, the row's energy axis, and where the curve falls
+fastest. Each row has its own energy axis: choose the window per
+row (``fermi_edge_search`` lists the candidate edges), never reuse
+another row's. ``picture`` writes a PNG of the EDC, the window and
+the fitted curve -- for the person to check, also when the fit is
+refused.
+
+#### `L.fermi_edge_search(name, ranges=None, temperature=30.0, fit=True, half_window=0.15)`
+
+Find where the Fermi edge may be on a row's own energy axis, for
+choosing the window of ``fermi_edge``: the drops of the EDC (summed
+over ``ranges``, raw data) that stand clearly above the noise,
+highest energy first. The Fermi edge is the *last* drop, after which
+the intensity stays at the floor -- not the steepest one: a band
+edge, or the strong drop under a weak tail of pass-energy-20 data,
+can be steeper. With ``fit`` each candidate is fitted on its
+``window`` and judged (E_F inside the window, a real step, a
+resolution, chi2). Returns the axis, the candidates and advice: when
+two fit well, the data cannot decide -- ask the person, once, and
+apply the answer to the rows of the same photon and pass energy.
 
 #### `L.shift_energy(name, ef, new_name='')`
 
@@ -177,6 +244,14 @@ sums taken inside ``window`` (lo, hi, on the first of them) if given;
 ``to_peak`` divides by the maximum. Never before a Fermi fit: fit the
 raw data first.
 
+For a map (axes 0 = deflector/polar, 1 = slit, 2 = energy):
+``axes=(1, 2)`` divides every cut of the map (one slit x energy
+plane per deflector angle) by its own total -- what evens out the
+intensity from cut to cut; ``axes=2`` divides every EDC by its total;
+``axes=(0, 1)`` every constant-energy plane. ``map_to_k`` can do the
+E - E_F shift and this in the same call (``ef``, ``normalise_axes``)
+so no intermediate rows are listed.
+
 #### `L.smooth(name, widths, new_name='')`
 
 Gaussian smoothing, NaN-aware; ``widths`` one sigma per axis in
@@ -208,21 +283,46 @@ Average a constant-energy map (each energy plane of a k-map, or a
 (degrees) and inversion, about ``centre`` -- which is yours to give,
 never guessed. Returns the new row and the residual.
 
+#### `L.cut_arithmetic(name_a, name_b, operation='asymmetry', normalise='total', intensity_floor=0.05, region=None, ranges=None, new_name='')`
+
+Combine two cuts as the Cut arithmetic window does -- dichroism
+(LH vs LV, CR vs CL), a difference, a ratio: ``operation``
+"asymmetry" (A − B)/(A + B), "difference", "ratio" or "sum";
+``normalise`` "total" (B scaled to A's total over the common area),
+"region" (over ``region`` (x0, y0, x1, y1)) or "none";
+``intensity_floor`` hides points where A + B is below that fraction
+of its maximum. Both cuts are first cropped to the range they share
+(and to ``ranges``, ((x_lo, x_hi), (E_lo, E_hi)), if given); B is
+resampled onto A's grid. Use the same kind of cuts (both in k, both
+on E - E_F). The result is signed: show it with a diverging colour
+map ("redwhiteblue", flipped for red = positive) and symmetric
+levels. Returns the new row, B's scale factor, the summary and any
+polarisation warning.
+
 ### Momentum
 
-#### `L.cut_to_k(name, gamma_slit_deg=0.0, deflector_deg=0.0, gamma_deflector_deg=None, azimuth_deg=0.0, n_k=None, new_name='')`
+#### `L.cut_to_k(name, gamma_slit_deg=0.0, deflector_deg=0.0, gamma_deflector_deg=None, azimuth_deg=0.0, n_k=None, new_name='', ef=None, normalise_axes=None)`
 
 A cut in momentum (k conversion, cut): normal emission at slit
 angle ``gamma_slit_deg``; the deflector or polar angle the cut was
 taken at and where Γ is on it, if off normal. A cut already on
-E - E_F stays on it. Returns the new row.
+E - E_F stays on it. ``ef`` (the fitted E_F on the row's own axis)
+and ``normalise_axes`` (as ``normalise``) do the E - E_F shift and
+the normalisation in the same call, so the list gets only the final
+row; the history records every step. Returns the new row.
 
-#### `L.map_to_k(name, gamma_deflector_deg=0.0, gamma_slit_deg=0.0, azimuth_deg=0.0, n_kx=None, n_ky=None, new_name='')`
+#### `L.map_to_k(name, gamma_deflector_deg=0.0, gamma_slit_deg=0.0, azimuth_deg=0.0, n_kx=None, n_ky=None, new_name='', ef=None, normalise_axes=None)`
 
 An angle map in momentum, (kx, ky, E) (k conversion, map): Γ at
 deflector/polar ``gamma_deflector_deg`` and slit ``gamma_slit_deg``,
 turned by ``azimuth_deg``. Convert a map already on E - E_F, so the
-result is too. Returns the new row (a k-map).
+result is too -- or give ``ef`` (the fitted E_F on the row's own
+axis) and, if wanted, ``normalise_axes`` ((1, 2): every cut of the
+map by its own total), and the shift, the normalisation and the
+conversion are one call that lists only the k-map. The kx grid
+defaults to twice the scanned angles, at most 100 points (never
+fewer than the scan has): one point per scan step gives streaks;
+ky to the slit's points. Returns the new row (a k-map).
 
 #### `L.kz_to_k(name, *, space_group, a, b=None, c=None, alpha=None, beta=None, gamma=None, surface_hkl=(0, 0, 1), kpar_rotation_deg=0.0, inner_potential=None, gamma_hv=None, work_function=None, effective_mass=1.0, normal_emission_deg=0.0, theta_offset_deg=None, calibrate_hv=False, n_kz=None, n_kpar=None)`
 
@@ -267,19 +367,35 @@ of the reciprocal vector (0 through Γ, 0.5 the zone top); ``paths``
 like "G-M-K-G"; axes in the crystal frame (k_a, k_b, k_c) or, with
 ``frame="sample"``, the data's (k_x, k_y, k_z: k_z along
 ``surface_hkl``, k_x turned by ``azimuth_deg``); ``view`` "oblique",
-an axis name or a vector; labels sized for a ``panel_mm`` wide panel
-at ``text_pt`` if given. Never overwrites ``path``.
+an axis name or a vector; ``labels`` True (every high-symmetry
+point), False (none) or the ones to show ("G, L" or ["Γ", "L"]);
+labels sized for a ``panel_mm`` wide panel at ``text_pt`` if given.
+Never overwrites ``path``.
 
 ### Figures
 
-#### `L.slice_series(name, values, *, axis=2, half_width=0.0, cols=3, nominal_titles=True, shared=True, colormap=None, flip=None, percentiles=(0.0, 100.0), gamma=1.0, zone=True, zone_style='solid', title='')`
+#### `L.slice_series(name, values, *, axis=2, half_width=0.0, cols=3, nominal_titles=True, shared=True, colormap=None, flip=None, percentiles=(0.0, 100.0), gamma=1.0, zone=True, zone_style='solid', title='', high_factor=1.0, zone_color=None, zone_width=0.6)`
 
 A page of slices through a map (Slice series figure): one panel
 per value along ``axis`` (2 = energy), each the planes within
 ``half_width``, titled with the value asked for; colour map, levels
-(percentiles), gamma at creation; the row's Brillouin zone on
-constant-energy panels. Returns the figure in numbers (its title
-names it for the other figure operations).
+(each panel's ``percentiles``, the span stretched by ``high_factor``
+so the strongest intensity is not saturated; ``shared=False`` keeps
+each panel's own), gamma at creation; the row's Brillouin zone on
+constant-energy panels, in ``zone_style`` ("solid", "dashed"),
+``zone_color`` ("#RRGGBB", or "#AARRGGBB" for a see-through line,
+e.g. "#B8D62020") and ``zone_width`` (pt). Several maps side by
+side: ``slice_grid``. Returns the figure in numbers (its title names
+it for the other figure operations).
+
+#### `L.slice_grid(names, values, *, axis=2, half_width=0.0, column_titles=None, colormap='gray', flip=False, percentiles=(0.0, 100.0), high_factor=1.0, gamma=1.0, shared=False, zone=True, zone_style='solid', zone_color=None, zone_width=0.6, width_mm=0.0, title='Slice grid')`
+
+One figure of the same slices through several maps: a column per
+map (``names``; ``column_titles`` to name them, e.g. "LH", "LV"), a
+row per value along ``axis`` (2 = energy) -- a polarisation or
+temperature series. Each panel is titled "<column>, <value> <unit>";
+colour, levels, gamma and the Brillouin zone as in
+``slice_series``. Returns the figure in numbers.
 
 #### `L.figure_from(*names, title='')`
 
@@ -336,7 +452,9 @@ Never overwrites. Returns the files written.
 
 Save the figure as an .afig file to open and edit again, with
 (``with_data``) the data of each panel in "data for <name>" beside
-it -- leave that out of anything shared. Never overwrites.
+it -- leave that out of anything shared. Never overwrites. The window
+keeps its title, so the other figure operations still find it by
+the same name.
 
 ### Tool windows
 
@@ -457,7 +575,7 @@ The tool panel's buttons, for what has no operation of its own above. The window
 - **`viewer_figure`** -- A figure window in numbers, without a picture: page size, each panel's frame (mm), title, axis names, colour scale and text sizes. Check a layout with this.
 - **`viewer_render_figure`** -- Write a figure window as a PNG, as it will be printed (not a screenshot), and return it with its numbers (viewer_figure).
 - **`viewer_close_window`** -- Close one of the program's windows (by part of its title).
-- **`viewer_python`** -- Run Python inside the running program (globals: A = arpes_viewer.app, QtCore, QtWidgets, np); what it prints comes back. For anything the other tools do not cover -- set a dialog's fields, press its buttons.
+- **`viewer_python`** -- Run Python inside the running program (globals: A = arpes_viewer.app, L = the documented operations, QtCore, QtWidgets, np, os, re, inspect, json); what it prints comes back. For anything the operations (viewer_api) do not cover; never to edit the program's internal tables -- ask the person first and name the missing operation.
 
 ## 4. The program's computations (`arpes_viewer.tools`)
 
@@ -466,7 +584,7 @@ Qt-free functions, for a computation of your own on `L.data(row).values` / `.axe
 - **`spectra.corelevel`** -- A quick core-level check of a cut, as plain numpy/scipy with no Qt: which element and orbital each peak of the angle-integrated EDC comes from. `assign`, `candidates_near`, `check`, `common_elements`, `describe_candidates`, `detect_scale`, `element_lines`, `expected_fermi_level`, `find_peaks`, `info_number`, `integrated_edc`, `locate_fermi_edge`, `parse_elements`, `peak_at`, `photon_energy_of`, `reference_lines`, `suggest_shift`, `work_function_of`
 - **`spectra.curves`** -- One-dimensional data: EDCs, MDCs, spin EDCs -- as tables, with no Qt. `channel_names`, `crop`, `curve_info`, `data_channels`, `is_sigma`, `looks_like_counts`, `normalise`, `rebin`, `shift_x`, `sigma_name`, `sigma_of`, `subtract_background`, `table`, `value_label`, `with_poisson_sigma`
 - **`spectra.dispersion`** -- What comes out of a fitted band: the dispersion, the Fermi velocity, the effective mass, and the self-energy. `bare_band_from_anchors`, `fit_dispersion`, `kramers_kronig`, `line_crossing`, `self_energy`, `window_scan`
-- **`spectra.fermi`** -- Fermi-edge fitting, as plain numpy/scipy with no Qt -- the same split as ``tools.momentum.kspace`` and ``tools.processing.analysis``. `broadened_fermi`, `divide_fermi`, `edge_problems`, `fermi_edge_model`, `fermi_function`, `fit_channels`, `fit_fermi_edge`, `initial_guess`, `levels_along`, `steepest_drop`
+- **`spectra.fermi`** -- Fermi-edge fitting, as plain numpy/scipy with no Qt -- the same split as ``tools.momentum.kspace`` and ``tools.processing.analysis``. `broadened_fermi`, `divide_fermi`, `edge_candidates`, `edge_problems`, `fermi_edge_model`, `fermi_function`, `fit_channels`, `fit_fermi_edge`, `initial_guess`, `levels_along`, `steepest_drop`
 - **`spectra.peaks`** -- MDC and EDC peak fitting, with no Qt: a band model that carries its own identity and the energy range it exists over, hand-placed seeds interpolated into a star. `fit_line`, `fit_series`, `peak_profile`, `suggest_seed`
 - **`spectra.spin`** -- Spin polarisation from the channels of a spin-resolved EDC, with no Qt. `analyse`, `axes_available`, `channels_from_info`, `design_report`, `pairs`, `parse_channel`, `parse_channels`
 - **`momentum.cutk`** -- Angle-to-momentum conversion for a single **Cut** -- one E-vs-angle spectrum taken at one deflector position -- as the companion to ``tools.momentum.kspace``'s . `convert_cut`, `cut_directions`, `cut_extent`, `cut_momenta`

@@ -150,7 +150,9 @@ def test_the_map_conversion_keeps_the_measured_angles(app):
     from arpes_viewer.ui.viewers import windows as W
     window = W.ContourWindow(_map(), "m", "gray", False)
     dialog = W.KConversionDialog(window)
-    assert dialog.nkx_box.value() == DEFL.size
+    # twice the scanned angles (at most 100): one point per scan step left
+    # streaks between the cuts
+    assert dialog.nkx_box.value() == min(2 * DEFL.size, 100)
     assert dialog.nky_box.value() == SLIT.size
     from PyQt5.QtWidgets import QLabel
     texts = [label.text() for label in dialog.findChildren(QLabel)]

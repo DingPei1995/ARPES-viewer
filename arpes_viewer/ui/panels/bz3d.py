@@ -496,6 +496,13 @@ class BrillouinZone3DDialog(QDialog):
             "and the axes where they would crowd.")
         self.left_edit.editingFinished.connect(self.refresh)
         form.addRow("Label on the left", self.left_edit)
+        self.only_edit = QLineEdit("")
+        self.only_edit.setPlaceholderText("all; or e.g. G, L")
+        self.only_edit.setToolTip(
+            "Only these high-symmetry points are labelled (empty: all of "
+            "them) -- e.g. just Γ and L on a schematic of one path.")
+        self.only_edit.editingFinished.connect(self.refresh)
+        form.addRow("Label only", self.only_edit)
         return group
 
     # ==================================================================
@@ -588,6 +595,9 @@ class BrillouinZone3DDialog(QDialog):
         self.view.zone_axes = self.axes_box.isChecked()
         self.view.zone_left_labels = {l for l in parse_path(self.left_edit.text())
                                       if l != "|"}
+        only = getattr(self, "only_edit", None)
+        only = {l for l in parse_path(only.text()) if l != "|"} if only else set()
+        self.view.zone_only_labels = only or None
         try:
             _p, _b, _zone, points = self.view.zone()
             params = structure.lattice_params()

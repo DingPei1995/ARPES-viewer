@@ -3392,7 +3392,9 @@ class SliceSeriesDialog(QDialog):
 def slice_panels(cube, axes, labels, *, axis: int, values, half_width: float = 0.0,
                  titles: bool = True, colormap="gray", flip=False,
                  nominal_titles: bool = True, percentiles=(0.0, 100.0),
-                 gamma: float = 1.0, zone=None, zone_style="solid"):
+                 gamma: float = 1.0, zone=None, zone_style="solid",
+                 high_factor: float = 1.0, zone_color: str = None,
+                 zone_width: float = 0.6):
     """Cut a cube into panels along one axis.
 
     ``cube`` is ``(x, y, z)``; slicing along one axis leaves the other two
@@ -3405,9 +3407,13 @@ def slice_panels(cube, axes, labels, *, axis: int, values, half_width: float = 0
     (``nominal_titles``: "−0.2 eV", not "−0.002192 eV" for the plane at
     E_F); the plane's own value and the window are kept in the panel's
     ``data.info`` (``slice.*``). ``percentiles`` and ``gamma`` set each
-    panel's colour scale; ``zone``, a Brillouin-zone overlay as the map
-    keeps it (``bz_overlay_state``), is drawn on constant-energy panels
-    (slicing the third axis), each edge once.
+    panel's colour scale, the span from the lower to the upper level
+    stretched by ``high_factor`` (above 1: the strongest intensity is not
+    saturated); ``zone``, a
+    Brillouin-zone overlay as the map keeps it (``bz_overlay_state``), is
+    drawn on constant-energy panels (slicing the third axis), each edge
+    once, in ``zone_color`` ("#RRGGBB", or "#AARRGGBB" with transparency:
+    "#B8D62020" is a see-through red) at ``zone_width`` pt if given.
     """
     import warnings as _warnings
     from arpes_viewer.tools.crystal.bz2d import unique_edges
@@ -3439,7 +3445,7 @@ def slice_panels(cube, axes, labels, *, axis: int, values, half_width: float = 0
         panel = panel_from_arrays(
             frame, axes[others[0]], axes[others[1]],
             labels[others[0]], labels[others[1]],
-            name=f"{name} = {shown:.4g}", colormap=colormap, flip=flip)
+            name=f"{name} = {_tidy(shown)}", colormap=colormap, flip=flip)
         panel.data.info.update({
             "slice.axis": labels[axis],
             "slice.nominal": float(value),
@@ -3450,8 +3456,9 @@ def slice_panels(cube, axes, labels, *, axis: int, values, half_width: float = 0
         if titles:
             panel.title = f"{_tidy(shown)} {unit}".strip()
         finite = frame[np.isfinite(frame)]
-        if finite.size and (low > 0.0 or high < 100.0):
+        if finite.size and (low > 0.0 or high < 100.0 or high_factor != 1.0):
             lo, hi = np.percentile(finite, (low, high))
+            hi = lo + (hi - lo) * float(high_factor) if high_factor != 1.0 else hi
             if hi > lo:
                 panel.levels = (float(lo), float(hi))
         panel.gamma = float(gamma)
@@ -3460,8 +3467,9 @@ def slice_panels(cube, axes, labels, *, axis: int, values, half_width: float = 0
                 for (x0, y0), (x1, y1) in unique_edges(layer.get("polygons", [])):
                     panel.overlays.append(nf.Overlay(
                         xs=[float(x0), float(x1)], ys=[float(y0), float(y1)],
-                        color=layer.get("color", "#39c2ff"),
-                        width_pt=0.6, style=zone_style, name="Brillouin zone"))
+                        color=zone_color or layer.get("color", "#39c2ff"),
+                        width_pt=float(zone_width), style=zone_style,
+                        name="Brillouin zone"))
             for text, x, y in zone.get("labels") or []:
                 panel.texts.append(nf.TextNote(
                     x=float(x), y=float(y), text=str(text),
@@ -3473,7 +3481,10 @@ def slice_panels(cube, axes, labels, *, axis: int, values, half_width: float = 0
 def _tidy(value: float) -> str:
     """A position as a title writes it: "−0.2", "0", "0.15" -- never
     "-0.30000000000000004" from an even spacing, nor "-0" for zero."""
-    text = f"{float(value):.4g}"
+    value = float(value)
+    if abs(value) < 1e-9:
+        value = 0.0           # -0.0, or -1e-17 from a sum of steps
+    text = f"{value:.4g}"
     if text in ("-0", "-0.0"):
         text = "0"
     return text.replace("-", "−")

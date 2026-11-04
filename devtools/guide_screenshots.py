@@ -154,7 +154,7 @@ class Shots:
              "fs_correction", "process", "stack", "volume", "cut_arithmetic",
              "kz_processing", "kz_conversion", "degrid", "curves", "spin",
              "figure", "export", "data_operations", "spatial", "slice_figure",
-             "plot_tools", "combine", "calculation"]
+             "plot_tools", "combine", "calculation", "assistant"]
 
     def __init__(self, av, app, paths, data_dir):
         self.av, self.app, self.paths, self.data_dir = av, app, paths, data_dir
@@ -757,6 +757,69 @@ class Shots:
         dialog.step.setValue(40)
         shot(dialog, "combine_cuts_dialog", (520, 600))
         dialog.reject()
+
+    def assistant(self):
+        """The AI assistant: set up (left), then a short session run
+        through the command folder, as an agent drives it (right)."""
+        import time as _time
+        from arpes_viewer.ui.common.assistant import AssistantDialog
+        main = self.av
+        results = os.path.join(_HOME, "results_demo")
+        os.makedirs(results, exist_ok=True)
+        dialog = AssistantDialog(main)
+        dialog.data_edit.setText(self.data_dir)
+        dialog.results_edit.setText(results)
+        for key, box in dialog.option_boxes.items():
+            box.setChecked(key in ("ask", "steps", "report", "clean"))
+        dialog.extra_edit.setPlainText(
+            "Process the Fermi-surface map at 60 eV: fit E_F, convert to k "
+            "with \u0393 at normal emission, draw the zone, and make a slice "
+            "series at E_F, \u22120.2 and \u22120.4 eV.")
+        dialog.mode_folders.setChecked(True)
+        dialog.refresh_prompt()
+        shot(dialog, "assistant_setup", (1180, 760))
+
+        dialog.copy_and_start()
+        folder = main._command_folder
+        commands = os.path.join(folder.folder, "viewer_cmd")
+        steps = [
+            ("01_rows.py", "print(L.rows(compact=True))\n"),
+            ("02_fermi_edge.py",
+             "found = L.fermi_edge_search('FS_map_hv60')\n"
+             "print(found['advice'])\n"
+             "fit = L.fermi_edge('FS_map_hv60', found['candidates'][0]['window'],"
+             " temperature=20, picture=os.path.join(HERE, 'ef_map60.png'))\n"
+             "print('E_F =', round(fit['values']['ef'], 4), 'eV')\n"),
+            ("03_to_k.py",
+             "ef = L.fermi_edge('FS_map_hv60', L.fermi_edge_search('FS_map_hv60')"
+             "['candidates'][0]['window'], temperature=20)['values']['ef']\n"
+             "k = L.map_to_k('FS_map_hv60', ef=ef, normalise_axes=(1, 2))\n"
+             "print(k, L.describe(k)['axes'][0]['points'], 'kx points')\n"),
+            ("04_slices.py",
+             "print(L.slice_series('FS_map_hv60 [k]', values=[0, -0.2, -0.4],"
+             " half_width=0.02, cols=3, title='Slices 60 eV')['panels'][0]['title'])\n"),
+        ]
+        for name, code in steps:
+            with open(os.path.join(commands, name), "w", encoding="utf-8") as handle:
+                handle.write(code)
+            folder.poll()
+            pump()
+            _time.sleep(0.05)
+        for window in QApplication.topLevelWidgets():
+            if window.isVisible() and window.windowTitle() == "Slices 60 eV":
+                window.close()
+        dialog.refresh_status()
+        dialog.steps.setCurrentRow(1)
+        pump()
+        shot(dialog, "assistant_running", (1180, 760))
+        main.win.resize(860, 900)
+        pump()
+        button = main.ui.AssistantButton
+        top = button.mapTo(main.win, button.rect().topLeft()).y()
+        main.win.grab(QtCore.QRect(0, 0, main.win.width(), top + button.height() + 120)
+                    ).save(os.path.join(OUT, "assistant_button.png"))
+        print("saved assistant_button")
+        dialog.close()
 
 
 if __name__ == "__main__":

@@ -35,7 +35,24 @@ or several, or all of them -- and the folder is listed once, as the assembled
 cube. Its row is named after the folder's base name with the photon energy
 and polarisation from the `_i` files (`FineMap 117eV LH`; a photon-energy
 scan shows its range, `KzScan 40-120eV LH`), so repeats of one scan at
-different settings can be told apart.
+different settings can be told apart. When the scans themselves are called
+just `Map` (`Map150K/Map_1_ROI1_.txt`), the row takes the folder's name
+(`Map150K 117eV LV`).
+
+A **single spectrum** is named after its file (`LV_theta_21.5 117eV LV`),
+not after its Scienta region: the region is a template reused for a whole
+series of cuts (one `FineCutLH` region for nineteen files, the LV ones
+included), so naming by it listed many identical rows with the wrong
+polarisation. A file name that is only a number keeps the region in front
+(`fixed_cut 0001 150eV`). Every row name is unique in the list. The photon
+energy and polarisation in a name come from the `_i` parameter file, or the
+spectrum's header when there is none (`beam_from` in the listing says
+which); a name that spells a polarisation different from the recorded one
+gets a warning, which the agent's `L.add_files` reports.
+
+Single spectra lying in a map's folder next to its numbered scans (a test
+cut, a reference) are not part of the map; `L.add_files` on the parent
+folder reports them as `left_out` and lists them only on request.
 
 What the folder becomes depends on what was stepped between the spectra,
 which is read from the small `_i` parameter files that sit beside them:
@@ -378,6 +395,19 @@ A kz map's absolute binding energies are only as good as the nominal photon
 energies and the tabulated work function. On real scans these do not always
 agree -- fit a Fermi edge per photon energy before reading absolute binding
 energies off one.
+
+**Kinetic axis and work function of a Fermi-surface map or a cut.** A map
+or cut stays on the analyser's *kinetic* energy axis as the Scienta file
+prints it (`Dimension 1 scale`); nothing is referred to E_F at loading, so
+a Fermi-edge fit (`L.fermi_edge`, the Fermi-edge tool) on the raw data sets
+E_F. The header's `Low Energy` / `High Energy` describe the region as the
+acquisition software set it up and need not equal the printed axis (they
+may be given in another reference); the axis is what is read. The work
+function recorded with the data (`cassiopee.work_function_eV`, from the
+beamline's tabulated calibration against photon energy) is used only to
+refer a photon-energy scan's members to E_F (`E - E_F = E_kin - hv + phi`);
+hv - phi need not match the measured edge of a map to better than a few
+hundred meV -- fit the edge.
 
 ### Unrecognised layouts
 

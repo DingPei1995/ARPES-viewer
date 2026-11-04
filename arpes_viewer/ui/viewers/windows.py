@@ -1525,13 +1525,17 @@ class KConversionDialog(QDialog):
         mode_box.addStretch(1)
         form.addRow("Output grid", mode_row)
 
-        # As many points as were measured along each angle, as the cut
+        # As many points as were measured along the slit, as the cut
         # conversion does: a fixed 100 threw away most of a slit's channels.
+        # Along the scanned angle, twice the scan (at most 100, never fewer
+        # than measured): one point per scan step left streaks between cuts.
+        from arpes_viewer.agent.workspace import default_kx_points
         n_defl = max(len(contour.angle_defl), 2)
         n_slit = max(len(contour.angle_slit), 2)
         self.nkx_box = self._count_box(
-            n_defl, f"Number of kx points. Defaults to the measured {n_defl} "
-                    f"deflector angles.")
+            default_kx_points(n_defl),
+            f"Number of kx points. Defaults to twice the measured {n_defl} "
+            f"deflector angles, at most 100 (never fewer than measured).")
         self.nky_box = self._count_box(
             n_slit, f"Number of ky points. Defaults to the measured {n_slit} "
                     f"slit angles.")
@@ -3859,7 +3863,8 @@ class ContourWindow(ViewerWindow):
                      colormap: str = None, flip: bool = None,
                      percentiles=(0.0, 100.0), gamma: float = 1.0,
                      zone: bool = True, zone_style: str = "solid",
-                     show: bool = True):
+                     show: bool = True, high_factor: float = 1.0,
+                     zone_color: str = None, zone_width: float = 0.6):
         """The slice-series figure without the dialog: what scripts and
         agents call, since the dialog is modal and would block them.
 
@@ -3889,7 +3894,8 @@ class ContourWindow(ViewerWindow):
                 flip=self.flip if flip is None else bool(flip),
                 percentiles=percentiles, gamma=gamma,
                 zone=self.saved_zone() if zone else None,
-                zone_style=zone_style)
+                zone_style=zone_style, high_factor=high_factor,
+                zone_color=zone_color, zone_width=zone_width)
         except Exception as exc:
             QMessageBox.warning(self, "Slice figure", f"Could not slice it:\n{exc}")
             return None

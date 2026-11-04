@@ -41,6 +41,26 @@ class ModalDialogBlocked(RuntimeError):
     a click nobody makes and stop everything behind it."""
 
 
+#: what UTF-8 text looks like after being read as Windows-1252 once: "−"
+#: becomes "âˆ’", "°" "Â°", "Γ" "Î“", "Å" "Ã…"
+_MOJIBAKE = ("\u00e2\u02c6", "\u00e2\u20ac", "\u00c2\u00b0", "\u00c2\u00b5",
+             "\u00ce\u201c", "\u00c3\u2026", "\u00c3\u00a9", "\u00e2\u0080")
+
+
+def mojibake_warning(text: str) -> str:
+    """A warning when ``text`` (an agent's code) holds characters garbled by
+    a wrong encoding on the way -- "âˆ’0.2" for "−0.2" -- which would end
+    up as such in titles and figure notes; "" if none."""
+    found = [m for m in _MOJIBAKE if m in (text or "")]
+    if not found:
+        return ""
+    return ("WARNING: this code holds garbled characters (" + ", ".join(
+        repr(m) for m in found) + "): it was written or read in the wrong "
+        "encoding (UTF-8 read as Windows-1252). Write files as UTF-8 (in "
+        "PowerShell: -Encoding utf8), or write non-ASCII characters as "
+        "escapes in the code, e.g. \"\\u2212\" for the minus sign.")
+
+
 @contextlib.contextmanager
 def modal_guard(log=print):
     """Inside this, a modal dialog raises :class:`ModalDialogBlocked`
@@ -365,16 +385,25 @@ class AgentBridge(QTcpServer):
         return {"closed": title}
 
     def op_python(self, code: str):
-        """Run ``code`` in the program, with ``A`` (the app module),
-        ``QtCore``, ``QtWidgets`` and ``np``; what it prints comes back."""
+        """Run ``code`` in the program, with ``A`` (the app module), ``L``,
+        ``QtCore``, ``QtWidgets``, ``np``, ``os``, ``re``, ``inspect`` and
+        ``json``; what it prints comes back."""
+        import inspect
+        import json as _json
+        import re
         import numpy as np
         from PyQt5 import QtCore, QtWidgets
+        from arpes_viewer.ui.common.quietwindows import agent_windows
         buffer = io.StringIO()
         scope = {"A": self.app, "L": self.live(), "QtCore": QtCore,
-                 "QtWidgets": QtWidgets, "np": np}
+                 "QtWidgets": QtWidgets, "np": np, "os": os, "re": re,
+                 "inspect": inspect, "json": _json}
         with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
             try:
-                with modal_guard():
+                warning = mojibake_warning(code)
+                if warning:
+                    print(warning)
+                with modal_guard(), agent_windows():
                     exec(compile(code, "<agent>", "exec"), scope)
             except Exception:                               # noqa: BLE001
                 traceback.print_exc()

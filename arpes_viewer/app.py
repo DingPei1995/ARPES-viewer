@@ -237,7 +237,10 @@ def _add_scanned(scanned, options=None):
             # A loader may know what the dataset is actually called -- the
             # native one does, because the name was saved with it. Only fall
             # back to the filename when nothing better is offered.
-            row_name = info.get("name") or name
+            # Unique from the start: rows are addressed by name (the
+            # agent's operations, renaming, the figure sources), and two
+            # rows called alike cannot be told apart in the list either.
+            row_name = unique_name(info.get("name") or name)
             loaded_items[key] = {"memory": None,
                                  "backing": None, "exported": True,
                                  "options": options, **info,

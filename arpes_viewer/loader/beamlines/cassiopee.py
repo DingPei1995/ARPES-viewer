@@ -1086,6 +1086,44 @@ def _with_beam(name: str, beam) -> str:
     return " ".join(part for part in parts if part)
 
 
+def _polarisations_named(text: str) -> set:
+    """The polarisations a file or folder name spells out: "LH" in
+    "FineCutLH", "Map117eVCL" or "LV_theta_21.5", not the "CL" of "CLEAN"."""
+    found = set()
+    for match in re.finditer(r"LH|LV|CR|CL", text or ""):
+        before = text[:match.start()]
+        after = text[match.end():match.end() + 1]
+        if before and before[-1].isupper() and not before.endswith("eV"):
+            continue
+        if after and after.isupper():
+            continue
+        found.add(match.group())
+    return found
+
+
+def _polarisation_warning(names, recorded) -> str:
+    """A warning when the name says one polarisation and the beamline
+    recorded another; "" when they agree or either is unknown."""
+    if not recorded:
+        return ""
+    said = set()
+    for name in names:
+        said |= _polarisations_named(name)
+    if said and str(recorded).upper() not in said:
+        return (f"the name says {'/'.join(sorted(said))} but the beamline "
+                f"recorded {recorded}; check which is right")
+    return ""
+
+
+def _series_name(path: str, base: str) -> str:
+    """A series' name: its folder's when the scans' own base name is only
+    the start of it ("Map" in a folder "Map150K"), else the base."""
+    folder = os.path.basename(os.path.dirname(os.path.abspath(path)))
+    if folder and folder != base and folder.startswith(base):
+        return folder
+    return base
+
+
 # --------------------------------------------------------------------------
 class CassiopeeLoader(Loader):
     name = "SOLEIL CASSIOPEE"
@@ -1139,40 +1177,73 @@ class CassiopeeLoader(Loader):
         LH"): scans at one spot are routinely repeated at several energies
         and polarisations under the same base name, and without them the
         list shows several identical rows.
+
+        A single spectrum is named after its *file*, not its Scienta region:
+        the region is a template reused for a whole series of cuts
+        ("FineCutLH" for nineteen files, LV ones included), so naming by it
+        gave many identical rows with the wrong polarisation. A file name
+        that is only a number keeps the region's name in front ("fixed_cut
+        0001"). A map folder whose scans are called just "Map" is named
+        after the folder ("Map150K"). Where the name spells a polarisation
+        that differs from the recorded one, the entry carries a
+        ``warning``; ``beam_from`` says where the photon energy and
+        polarisation in the name were read.
         """
         members = series_members(path)
         if len(members) > 1:
             base = SERIES_PATTERN.match(
                 os.path.splitext(os.path.basename(path))[0]).group("base")
+            base = _series_name(path, base)
             stepped = series_kind(path)
-            return [{
+            beam = _series_beam(members)
+            entry = {
                 "entry": "series",
                 "path": members[0][1],
                 "kind": KIND_FOR_SERIES.get(stepped, "Map"),
-                "name": _with_beam(base, _series_beam(members)),
+                "name": _with_beam(base, beam),
                 "title": SERIES_TITLES.get(stepped, "").format(
                     n=len(paired_members(path)[0])),
                 "start_time": None,
-            }]
+                "beam_from": "the scans' parameter files (_i.txt)",
+            }
+            warning = _polarisation_warning([base], beam[1])
+            if warning:
+                entry["warning"] = warning
+            return [entry]
 
         try:
             regions = parse_scienta(path)
         except Exception:
             return []
         parameters = read_parameter_file(parameter_path(path))
+        stem = os.path.splitext(os.path.basename(path))[0]
         entries = []
         for index, region in enumerate(regions):
-            beam = ([parameters.get("photon_energy_eV",
-                                    region.info.get("photon_energy_eV"))],
+            recorded = parameters.get("photon_energy_eV")
+            beam = ([recorded if recorded is not None
+                     else region.info.get("photon_energy_eV")],
                     parameters.get("polarisation"))
-            name = region.name or os.path.splitext(os.path.basename(path))[0]
-            entries.append({
+            if len(regions) > 1 and region.name:
+                name = f"{stem} {region.name}"
+            elif re.fullmatch(r"[\d_\-]*", stem) and region.name:
+                name = f"{region.name} {stem}"
+            else:
+                name = stem or region.name
+            entry = {
                 "entry": f"region {index + 1}" if len(regions) > 1 else "cut",
                 "kind": "Cut",
                 "name": _with_beam(name, beam),
                 "title": region.name,
                 "start_time": region.info.get("date"),
-            })
+                "beam_from": ("the parameter file (_i.txt)" if recorded is not None
+                              else "the spectrum's header"
+                              if region.info.get("photon_energy_eV") is not None
+                              else ""),
+            }
+            warning = _polarisation_warning([stem], beam[1])
+            if warning:
+                entry["warning"] = warning
+            entries.append(entry)
         return entries
 
     def __init__(self, median_filter: bool = False,

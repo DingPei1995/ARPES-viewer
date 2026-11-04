@@ -493,3 +493,147 @@ def test_file_dialogs_return_native_paths(monkeypatch):
     assert QFileDialog.getOpenFileNames()[0] == [paths.native("/tmp/a.nxs")]
     paths.install_native_dialogs()                          # once only
     assert QFileDialog.getExistingDirectory() == paths.native("/tmp/results")
+
+
+# ----------------------------------------------------------------------
+# From a day of real data processed by an agent (CASSIOPEE, 2026-11-04)
+# ----------------------------------------------------------------------
+def test_rows_by_number_and_path_and_compact(program):
+    from arpes_viewer.ui.common.live import Live
+    L = Live(program)
+    rows = L.rows()
+    assert L.describe(rows[1]["row"])["kind"] == "map"
+    assert L.rename(0, "cut one") == "cut one"
+    with pytest.raises(KeyError, match="row number"):
+        L.describe(99)
+    text = L.rows(compact=True)
+    assert text.splitlines()[0].startswith("0 | cut one | ")
+
+
+def test_profile_summary_and_file(program, tmp_path):
+    from arpes_viewer.ui.common.live import Live
+    L = Live(program)
+    short = L.profile("cut1", "energy", summary=True)
+    assert "x" not in short and short["steepest_fall_at"] == pytest.approx(EF, abs=0.02)
+    path = tmp_path / "edc.csv"
+    full = L.profile("cut1", "energy", path=str(path), max_points=10)
+    assert path.exists() and len(full["x"]) <= 11
+
+
+def test_fermi_edge_picture_search_and_a_refusal_that_says_where(program, tmp_path):
+    from arpes_viewer.ui.common.live import Live
+    L = Live(program)
+    fit = L.fermi_edge("cut1", (16.3, 16.6), picture=str(tmp_path / "ef.png"))
+    assert os.path.exists(fit["picture"])
+    with pytest.raises(ValueError, match="energy axis runs 16.0000..16.6000"):
+        L.fermi_edge("cut1", (16.0, 16.1), picture=str(tmp_path / "bad.png"))
+    assert os.path.exists(str(tmp_path / "bad.png"))   # the refusal, drawn too
+    found = L.fermi_edge_search("cut1")
+    best = found["candidates"][0]
+    assert best["highest"] and best["energy"] == pytest.approx(EF, abs=0.02)
+    assert best["fit"]["ef"] == pytest.approx(EF, abs=0.01)
+
+
+def test_edge_candidates_put_a_weak_last_edge_first():
+    """Pass-energy-20 data: a strong drop under a weak tail; the Fermi edge
+    is the tail's end, not the steeper drop."""
+    from arpes_viewer.tools.spectra.fermi import edge_candidates, fermi_function
+    rng = np.random.default_rng(0)
+    e = np.linspace(110.0, 111.9, 400)
+    y = rng.poisson(1000 * fermi_function(e, 111.45, 60)
+                    + 60 * fermi_function(e, 111.80, 16) + 5).astype(float)
+    found = edge_candidates(e, y)
+    assert found[0]["energy"] == pytest.approx(111.80, abs=0.02)
+    assert found[1]["energy"] == pytest.approx(111.45, abs=0.02)
+
+
+def test_map_to_k_in_one_call_lists_only_the_k_map(program):
+    from arpes_viewer.ui.common.live import Live
+    L = Live(program)
+    before = len(L.rows())
+    k = L.map_to_k("map1", ef=EF, normalise_axes=(1, 2))
+    assert len(L.rows()) == before + 1 and k == "map1 [k]"
+    axes = L.describe(k)["axes"]
+    assert axes[0]["points"] == 2 * DEFL.size          # twice the scan
+    assert axes[2]["max"] < 0.2                        # on E - E_F
+    history = " ".join(str(v) for v in L.metadata(k, "proc.step").values())
+    assert "E - E_F" in history and "normalise" in history
+    from arpes_viewer.agent.workspace import default_kx_points
+    assert default_kx_points(61) == 100 and default_kx_points(150) == 150
+    assert default_kx_points(20) == 40
+
+
+def test_cut_arithmetic_makes_a_row(program):
+    from arpes_viewer.ui.common.live import Live
+    L = Live(program)
+    data = L.data("cut1")
+    L.add("cut2", "cut", data.axes, data.values * 2.0, labels=data.labels)
+    out = L.cut_arithmetic("cut1", "cut2", operation="asymmetry",
+                           normalise="total")
+    assert out["scale_b"] == pytest.approx(0.5)
+    values = L.data(out["row"]).values
+    assert np.nanmax(np.abs(values)) < 1e-9            # same after scaling
+
+
+def test_slice_grid_and_a_saved_figure_keeps_its_title(program, tmp_path):
+    from arpes_viewer.ui.common.live import Live
+    L = Live(program)
+    k = L.map_to_k("map1", ef=EF)
+    L.bz_overlay(k, space_group=221, a=3.0)
+    k2 = L.map_to_k("map1", ef=EF, new_name="map2 [k]")
+    figure = L.slice_grid([k, k2], [0.0, -0.1], column_titles=["LH", "LV"],
+                          percentiles=(3, 99.7), high_factor=1.4,
+                          zone_style="dashed", zone_color="#B8D62020",
+                          title="grid")
+    titles = [p["title"] for p in figure["panels"]]
+    assert titles == ["LH, 0 eV", "LV, 0 eV", "LH, −0.1 eV", "LV, −0.1 eV"]
+    L.figure_save("grid", str(tmp_path / "grid.afig"))
+    assert "grid" in L.figures()                       # still found by title
+    L.close("grid")
+
+
+def test_windows_an_operation_opens_and_closes_never_show(program):
+    """A window made and closed inside an agent's step is never mapped on
+    a screen; one left open is shown at the end."""
+    from PyQt5.QtCore import Qt
+    from PyQt5.QtWidgets import QWidget
+    from arpes_viewer.ui.common.quietwindows import agent_windows
+    with agent_windows():
+        flash = QWidget()
+        flash.setWindowTitle("flash")
+        flash.show()
+        assert flash.isVisible() and flash.testAttribute(Qt.WA_DontShowOnScreen)
+        flash.close()
+        stays = QWidget()
+        stays.setWindowTitle("stays")
+        stays.show()
+        with agent_windows():                      # nested: still hidden
+            pass
+        assert stays.testAttribute(Qt.WA_DontShowOnScreen)
+    assert stays.isVisible() and not stays.testAttribute(Qt.WA_DontShowOnScreen)
+    stays.close()
+
+
+def test_garbled_characters_in_an_agents_code_are_reported():
+    from arpes_viewer.ui.common.agentbridge import mojibake_warning
+    garbled = "−".encode("utf-8").decode("cp1252")
+    assert "encoding" in mojibake_warning(f"title = '{garbled}0.2 eV'")
+    assert mojibake_warning("title = '−0.2 eV'") == ""
+
+
+def test_a_lone_spectrum_in_a_map_folder_is_reported_not_listed(program, tmp_path):
+    from arpes_viewer.ui.common.live import Live
+    from test.loaders.test_cassiopee import make_series, write_spectrum
+    folder = tmp_path / "beamtime" / "Map150eV"
+    folder.mkdir(parents=True)
+    make_series(str(folder), base="Map150eV", count=3, thetas=[-1.0, 0.0, 1.0])
+    write_spectrum(str(folder / "CSS0009.txt"), np.linspace(115.6, 116.0, 4),
+                   np.linspace(-15, 15, 5), np.ones((5, 4)))
+    (tmp_path / "beamtime" / "notes.docx").write_text("x", encoding="utf-8")
+    L = Live(program)
+    out = L.add_files(str(tmp_path / "beamtime"))
+    assert len(out["added"]) == 1 and out["added"][0].startswith("Map150eV")
+    assert [os.path.basename(p) for p in out["left_out"]] == ["CSS0009.txt"]
+    assert out["unrecognised"] == ["notes.docx"]
+    again = L.add_files(str(folder / "CSS0009.txt"))
+    assert len(again["added"]) == 1

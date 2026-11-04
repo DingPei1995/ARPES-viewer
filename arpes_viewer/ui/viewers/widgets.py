@@ -1118,6 +1118,23 @@ class _InteractiveImageBase(pg.ImageView):
     coordinate<->index conversion stays correct.
     """
 
+    def setImage(self, img, *args, **kwargs):            # noqa: N802 (Qt's name)
+        """pyqtgraph's, safe for a picture with no finite value: its
+        histogram raised "Cannot set range [nan, nan]" there (a plane
+        beyond a k conversion's cone, a fully masked result). Such a
+        picture is drawn as zeros on fixed levels."""
+        try:
+            array = np.asarray(img)
+            empty = (array.dtype.kind == "f" and
+                     (array.size == 0 or not np.isfinite(array).any()))
+        except Exception:                                   # noqa: BLE001
+            empty = False
+        if empty:
+            img = np.zeros(array.shape, dtype=float)
+            kwargs["autoLevels"] = False
+            kwargs["levels"] = (0.0, 1.0)
+        return super().setImage(img, *args, **kwargs)
+
     #: emitted when the user asks (via right-click) to apply the current
     #: rectangle selection; the owner decides what that means.
     selectionApplied = pyqtSignal()

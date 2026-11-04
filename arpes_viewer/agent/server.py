@@ -46,7 +46,11 @@ viewer_select, viewer_run_tool (any tool-panel button, e.g. "fermi", "kmap",
 "bz3d", "figure"), viewer_screenshot, viewer_figure, viewer_render_figure,
 viewer_python. With the program on screen, viewer_api_help lists its documented
 operations and viewer_api calls them (the same as L in viewer_python); use them
-before anything else. Check a figure with viewer_figure (numbers) and
+before anything else, and ask the person before going around them with
+viewer_python (say why: name the missing operation). If your app defers tool
+schemas, load every arpes-viewer tool in one search, and say what you are doing
+before a long step. Keep outputs small: rows(compact=True), profile(...,
+summary=True or path=...), pictures written to files. Check a figure with viewer_figure (numbers) and
 viewer_render_figure (the PNG as printed) rather than a screenshot. In
 viewer_python a modal dialog raises ModalDialogBlocked instead of waiting:
 call the tool's function (e.g. a ContourWindow's slice_figure(values=...)). save_datasets(..., ".nxs") then viewer_add_files puts a headless
@@ -313,9 +317,11 @@ def build_server(workspace: Workspace = None) -> Server:
              lambda window: bridge.request("close_window", window=window),
              {"window": _str("Part of the window's title.")}, ("window",)),
         Tool("viewer_python", "Run Python inside the running program (globals: "
-             "A = arpes_viewer.app, QtCore, QtWidgets, np); what it prints comes "
-             "back. For anything the other tools do not cover -- set a dialog's "
-             "fields, press its buttons.",
+             "A = arpes_viewer.app, L = the documented operations, QtCore, "
+             "QtWidgets, np, os, re, inspect, json); what it prints comes "
+             "back. For anything the operations (viewer_api) do not cover; "
+             "never to edit the program's internal tables -- ask the person "
+             "first and name the missing operation.",
              lambda code: bridge.request("python", code=code),
              {"code": _str("Python source.")}, ("code",)),
     ]

@@ -57,8 +57,18 @@ def operation(group: str):
         raise ValueError(f"unknown group {group!r}")
 
     def mark(function):
-        function._operation = group
-        return function
+        import functools
+
+        @functools.wraps(function)
+        def run(*args, **kwargs):
+            # windows opened and closed again inside an operation never
+            # flash on screen; those it leaves open appear on the main
+            # panel's screen (ui.common.quietwindows)
+            from arpes_viewer.ui.common.quietwindows import agent_windows
+            with agent_windows():
+                return function(*args, **kwargs)
+        run._operation = group
+        return run
     return mark
 
 
@@ -166,33 +176,50 @@ class Live:
     # ==================================================================
     # The list
     # ==================================================================
-    def _key(self, name: str):
+    def _key(self, name):
         """The list key of the row called ``name`` (exact, else the one row
-        whose name contains it)."""
+        whose name contains it); an ``int`` is the row's number in
+        ``rows()``, and the path of a file reaches the one row read from it
+        -- for rows that share a name."""
         items = self.A.loaded_items
+        if isinstance(name, (int, np.integer)) and not isinstance(name, bool):
+            widget = self.A.ui.FilePathListWidget
+            if not 0 <= int(name) < widget.count():
+                raise KeyError(f"no row number {int(name)}; the list has "
+                               f"{widget.count()} rows (0-{widget.count() - 1})")
+            return widget.item(int(name)).data(0x0100)
         name = str(name)
         exact = [k for k, r in items.items() if r.get("name") == name]
         if len(exact) == 1:
             return exact[0]
         found = [k for k, r in items.items()
                  if name.lower() in str(r.get("name", "")).lower()]
-        if len(found) == 1:
+        if len(found) == 1 and not exact:
             return found[0]
+        if os.path.sep in name or "/" in name:
+            wanted = os.path.normcase(os.path.normpath(name))
+            by_path = [k for k, r in items.items() if r.get("path") and
+                       os.path.normcase(os.path.normpath(str(r["path"]))) == wanted]
+            if len(by_path) == 1:
+                return by_path[0]
         names = [str(items[k].get("name")) for k in (exact or found)]
         if not names:
             raise KeyError(f"no row called {name!r}; rows: "
                            f"{[r.get('name') for r in items.values()]}")
         raise KeyError(f"{name!r} matches several rows: {names}; give the "
-                       f"whole name")
+                       f"whole name, the row's number in rows() or its path")
 
     def _name(self, key) -> str:
         return str(self.A.loaded_items[key].get("name"))
 
     @operation("The list")
-    def rows(self) -> list:
-        """The rows of the main list: ``name``, ``kind`` (Cut, Map, kz map,
-        k-map ...), ``path`` of the file behind it, and whether it is
-        selected."""
+    def rows(self, compact: bool = False):
+        """The rows of the main list: ``row`` (its number, which every
+        operation also takes in place of a name), ``name``, ``kind`` (Cut,
+        Map, kz map, k-map ...), ``path`` of the file behind it, and whether
+        it is selected. ``compact=True`` gives one line per row instead
+        ("3 | Map LH 117eV | Map | D:\\...\\Map_1_ROI1_.txt"): a long list
+        costs far fewer tokens that way."""
         A = self.A
         widget = A.ui.FilePathListWidget
         out = []
@@ -202,44 +229,101 @@ class Live:
             record = A.loaded_items.get(key, {})
             out.append({"row": i, "name": record.get("name", item.text()),
                         "kind": record.get("kind", ""),
-                        "path": record.get("path", ""),
+                        "path": native(record.get("path", "")) or "",
                         "selected": item.isSelected()})
+        if compact:
+            return "\n".join(f"{r['row']} | {r['name']} | {r['kind']} | "
+                             f"{r['path']}" + (" | selected" if r["selected"] else "")
+                             for r in out)
         return out
 
     @operation("The list")
     @_keeps_selection
-    def add_files(self, paths) -> dict:
+    def add_files(self, paths, extras: bool = False) -> dict:
         """Add files to the list, the reader detected as by Quick add.
         ``paths`` is one path or a list; a folder adds every file in it a
         reader recognises, and the scans in its sub-folders (a CASSIOPEE
-        map folder is one row). Returns the rows added."""
+        map folder is one row). Returns ``added`` (the names of the new
+        rows), and what to tell the person before going on:
+
+        * ``left_out``: single spectra found inside a sub-folder next to a
+          map's numbered scans (a test spectrum, a reference ...) -- not
+          part of the map, so not listed unless ``extras=True``;
+        * ``unrecognised``: files no reader took (parameter files, notes);
+        * ``warnings``: what a reader noticed, e.g. a polarisation in the
+          file name that differs from the one recorded with the data.
+
+        Row names come from the file or folder name, with the photon energy
+        and polarisation the beamline recorded; names are unique."""
         if isinstance(paths, str):
             paths = [paths]
-        files = []
+        files, unrecognised, folders = [], [], []
         for path in paths:
-            files += self._expand(native(path))
+            path = native(path)
+            if os.path.isdir(path):
+                folders.append(path)
+            found, skipped = self._expand(path, report=True)
+            files += found
+            unrecognised += skipped
         before = set(self.A.loaded_items)
         self.A.add_files(files, background=False)
-        added = [self._name(k) for k in self.A.loaded_items if k not in before]
-        return {"added": added, "rows": len(self.A.loaded_items)}
+        new = [k for k in self.A.loaded_items if k not in before]
+        left_out = []
+        if folders and not extras:
+            records = self.A.loaded_items
+            series_dirs = {os.path.dirname(str(records[k].get("path", "")))
+                           for k in new if records[k].get("entry") == "series"}
+            loose = [k for k in new if records[k].get("entry") != "series"
+                     and os.path.dirname(str(records[k].get("path", ""))) in series_dirs
+                     and os.path.dirname(str(records[k].get("path", ""))) not in folders]
+            if loose:
+                left_out = [native(records[k].get("path", "")) for k in loose]
+                self.A._remove_keys(loose)
+                new = [k for k in new if k not in loose]
+        warnings = []
+        for k in new:
+            record = self.A.loaded_items[k]
+            if record.get("warning"):
+                warnings.append(f"{record.get('name')}: {record['warning']}")
+        added = [self._name(k) for k in new]
+        out = {"added": added, "rows": len(self.A.loaded_items)}
+        if left_out:
+            out["left_out"] = left_out
+            out["left_out_note"] = (
+                "single spectra in a map's folder, not part of the map; tell "
+                "the person, and add them with add_files(path) if wanted")
+        if unrecognised:
+            out["unrecognised"] = unrecognised[:30] + (
+                [f"... {len(unrecognised) - 30} more"] if len(unrecognised) > 30 else [])
+        if warnings:
+            out["warnings"] = warnings
+        return out
 
     @staticmethod
-    def _expand(path: str) -> list:
+    def _expand(path: str, report: bool = False):
         """A file as itself; a folder as the recognised files in it and in
         its sub-folders one level down (the loaders list a numbered series
-        once, whichever of its files is given)."""
+        once, whichever of its files is given). With ``report``, also the
+        files no reader recognised: ``(found, unrecognised)``."""
         if not os.path.isdir(path):
-            return [path]
+            return ([path], []) if report else [path]
         from arpes_viewer.loader import registry
-        found = []
+        found, skipped = [], []
         for folder in [path] + sorted(
                 os.path.join(path, d) for d in os.listdir(path)
                 if os.path.isdir(os.path.join(path, d))):
             for name in sorted(os.listdir(folder)):
                 candidate = os.path.join(folder, name)
-                if os.path.isfile(candidate) and registry.detect(candidate):
+                if not os.path.isfile(candidate):
+                    continue
+                if registry.detect(candidate):
                     found.append(candidate)
-        return found
+                elif not (name.startswith(".") or
+                          os.path.splitext(name)[0].endswith("_i")):
+                    # (a CASSIOPEE scan's parameter file "<scan>_i.txt" is
+                    # read with its scan, not on its own)
+                    skipped.append(os.path.relpath(candidate, path))
+        return (found, skipped) if report else found
 
     @operation("The list")
     def select(self, *names) -> list:
@@ -369,11 +453,39 @@ class Live:
         return _plain(summary)
 
     @operation("Looking at data")
-    def profile(self, name: str, along, ranges=None) -> dict:
+    def profile(self, name: str, along, ranges=None, summary: bool = False,
+                path: str = "", max_points: int = 400) -> dict:
         """An EDC or MDC as numbers: the values along one axis, the others
-        integrated over ``ranges`` ({axis: (lo, hi)})."""
+        integrated over ``ranges`` ({axis: (lo, hi)}). Hundreds of numbers
+        cost many tokens: ``summary=True`` gives only the axis range and
+        step, the maximum (where), the minimum, and the steepest fall and
+        rise; ``path`` writes the whole curve to a CSV file (then read it
+        with your own code); ``max_points`` thins what is returned."""
         workspace, (ident,) = self._workspace(name)
-        return _plain(workspace.profile(ident, along, ranges))
+        out = workspace.profile(ident, along, ranges,
+                                max_points=1 << 30 if summary else int(max_points),
+                                path=native(path) or None)
+        out["saved"] = native(out.get("saved")) or ""
+        if summary:
+            x = np.asarray(out.pop("x"), dtype=float)
+            y = np.asarray(out.pop("y"), dtype=float)
+            out.pop("every", None)
+            good = np.isfinite(x) & np.isfinite(y)
+            x, y = x[good], y[good]
+            if x.size >= 3:
+                order = np.argsort(x)
+                x, y = x[order], y[order]
+                smooth = np.convolve(y, np.ones(3) / 3.0, mode="same")
+                slope = np.gradient(smooth, x)
+                slope[:2] = slope[-2:] = 0.0
+                out.update({
+                    "range": [float(x[0]), float(x[-1])],
+                    "step": float(np.median(np.diff(x))),
+                    "max": [float(x[np.argmax(y)]), float(np.max(y))],
+                    "min": [float(x[np.argmin(y)]), float(np.min(y))],
+                    "steepest_fall_at": float(x[np.argmin(slope)]),
+                    "steepest_rise_at": float(x[np.argmax(slope)])})
+        return _plain(out)
 
     @operation("Looking at data")
     @_keeps_selection
@@ -391,16 +503,179 @@ class Live:
     @operation("Energy")
     def fermi_edge(self, name: str, energy_window=None,
                    temperature: float = 30.0, ranges=None,
-                   fit_temperature: bool = False) -> dict:
+                   fit_temperature: bool = False, picture: str = "") -> dict:
         """Fit the Fermi edge of the EDC summed over ``ranges`` of the other
         axes, within ``energy_window`` (lo, hi) on the row's own energy axis.
         The temperature is held unless ``fit_temperature``. Returns E_F,
         the resolution, their errors and the reduced chi2; a fit that finds
         no edge (normalised data, a window without the edge) is refused
-        with the reason."""
+        with the reason, the row's energy axis, and where the curve falls
+        fastest. Each row has its own energy axis: choose the window per
+        row (``fermi_edge_search`` lists the candidate edges), never reuse
+        another row's. ``picture`` writes a PNG of the EDC, the window and
+        the fitted curve -- for the person to check, also when the fit is
+        refused."""
         workspace, (ident,) = self._workspace(name)
-        return _plain(workspace.fermi_edge(ident, energy_window, temperature,
-                                           ranges, fit_temperature))
+        try:
+            out = workspace.fermi_edge(ident, energy_window, temperature,
+                                       ranges, fit_temperature)
+        except ValueError as exc:
+            energy, edc = self._edc(workspace, ident, ranges)
+            from arpes_viewer.tools.spectra.fermi import steepest_drop
+            inside = np.ones(energy.size, bool)
+            if energy_window:
+                inside = (energy >= min(energy_window)) & (energy <= max(energy_window))
+            hint = (f"; the energy axis runs {energy.min():.4f}..{energy.max():.4f} eV"
+                    f" (step {abs(np.median(np.diff(energy))):.4g})")
+            if inside.sum() >= 7:
+                hint += (f"; inside the window the curve falls fastest at "
+                         f"{steepest_drop(energy[inside], edc[inside]):.4f} eV")
+            elif energy_window:
+                hint += "; the window holds (almost) no points of it"
+            if picture:
+                self._edc_picture(picture, energy, edc, energy_window, None,
+                                  f"{self._name(self._key(name))}: refused")
+            raise ValueError(f"{exc}{hint}; fermi_edge_search(name) lists the "
+                             f"candidate edges") from None
+        if picture:
+            energy, edc = self._edc(workspace, ident, ranges)
+            out["picture"] = self._edc_picture(
+                picture, energy, edc, energy_window, out["values"],
+                f"{self._name(self._key(name))}: E_F = {out['values']['ef']:.4f} eV")
+        return _plain(out)
+
+    @staticmethod
+    def _edc(workspace, ident, ranges):
+        """The EDC the Fermi fit sees: energy ascending, other axes averaged."""
+        e = workspace.axis_index(ident, "energy")
+        values, (energy,) = workspace._window(ident, (e,), ranges)
+        energy = np.asarray(energy, dtype=float)
+        values = np.asarray(values, dtype=float)
+        order = np.argsort(energy)
+        return energy[order], values[order]
+
+    @staticmethod
+    def _edc_picture(path, energy, edc, window, values, title) -> str:
+        """A PNG of an EDC, the fit window (grey) and the fitted edge (red)."""
+        from PyQt5.QtCore import QPointF, QRectF, Qt
+        from PyQt5.QtGui import QColor, QImage, QPainter, QPainterPath, QPen
+        path = native(path)
+        if os.path.exists(path):
+            raise FileExistsError(f"{path} exists; give a new name")
+        width, height, m = 760, 460, 54
+        image = QImage(width, height, QImage.Format_RGB32)
+        image.fill(QColor("white"))
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.Antialiasing)
+        good = np.isfinite(edc)
+        x0, x1 = float(energy.min()), float(energy.max())
+        y0 = float(np.nanmin(edc)) if good.any() else 0.0
+        y1 = float(np.nanmax(edc)) if good.any() else 1.0
+        y1 = y1 if y1 > y0 else y0 + 1.0
+        box = QRectF(m, 30, width - m - 20, height - 30 - m)
+
+        def at(x, y):
+            return QPointF(box.left() + (x - x0) / (x1 - x0 or 1) * box.width(),
+                           box.bottom() - (y - y0) / (y1 - y0) * box.height())
+        if window:
+            lo, hi = sorted(float(v) for v in window)
+            a, b = at(max(lo, x0), y0), at(min(hi, x1), y1)
+            painter.fillRect(QRectF(a.x(), b.y(), b.x() - a.x(), a.y() - b.y()),
+                             QColor(225, 225, 225))
+        painter.setPen(QPen(QColor("#333333"), 1))
+        painter.drawRect(box)
+
+        def curve(xs, ys, colour, pen_width):
+            line = QPainterPath()
+            first = True
+            for x, y in zip(xs, ys):
+                if not np.isfinite(y):
+                    first = True
+                    continue
+                point = at(float(x), float(y))
+                line.moveTo(point) if first else line.lineTo(point)
+                first = False
+            painter.setPen(QPen(QColor(colour), pen_width))
+            painter.drawPath(line)
+        curve(energy, edc, "#1f4fa8", 1.4)
+        if values:
+            from arpes_viewer.tools.spectra.fermi import fermi_edge_model
+            from arpes_viewer.tools.spectra.fermi import PARAMETERS
+            lo, hi = (sorted(float(v) for v in window) if window else (x0, x1))
+            xs = np.linspace(max(lo, x0), min(hi, x1), 300)
+            curve(xs, fermi_edge_model(xs, **{k: values[k] for k in PARAMETERS}),
+                  "#d62020", 2.0)
+            ef = at(float(values["ef"]), y0)
+            painter.setPen(QPen(QColor("#d62020"), 1, Qt.DashLine))
+            painter.drawLine(QPointF(ef.x(), box.top()), QPointF(ef.x(), box.bottom()))
+        painter.setPen(QColor("#111111"))
+        painter.drawText(QRectF(m, 4, width - m, 22), Qt.AlignLeft, title)
+        painter.drawText(QRectF(m, height - m + 6, 120, 20), Qt.AlignLeft, f"{x0:.3f}")
+        painter.drawText(QRectF(width - 140, height - m + 6, 120, 20),
+                         Qt.AlignRight, f"{x1:.3f}")
+        painter.drawText(QRectF(m, height - 26, width - 2 * m, 20), Qt.AlignCenter,
+                         "energy (eV) -- grey: fit window, red: fitted edge")
+        painter.end()
+        if not image.save(path, "PNG"):
+            raise OSError(f"could not write {path}")
+        return path
+
+    @operation("Energy")
+    def fermi_edge_search(self, name: str, ranges=None,
+                          temperature: float = 30.0, fit: bool = True,
+                          half_window: float = 0.15) -> dict:
+        """Find where the Fermi edge may be on a row's own energy axis, for
+        choosing the window of ``fermi_edge``: the drops of the EDC (summed
+        over ``ranges``, raw data) that stand clearly above the noise,
+        highest energy first. The Fermi edge is the *last* drop, after which
+        the intensity stays at the floor -- not the steepest one: a band
+        edge, or the strong drop under a weak tail of pass-energy-20 data,
+        can be steeper. With ``fit`` each candidate is fitted on its
+        ``window`` and judged (E_F inside the window, a real step, a
+        resolution, chi2). Returns the axis, the candidates and advice: when
+        two fit well, the data cannot decide -- ask the person, once, and
+        apply the answer to the rows of the same photon and pass energy."""
+        from arpes_viewer.tools.spectra.fermi import edge_candidates
+        workspace, (ident,) = self._workspace(name)
+        energy, edc = self._edc(workspace, ident, ranges)
+        candidates = edge_candidates(energy, edc, half_window=float(half_window))
+        good = []
+        for candidate in candidates:
+            if not fit:
+                continue
+            try:
+                result = workspace.fermi_edge(ident, candidate["window"],
+                                              temperature, ranges, False)
+                candidate["fit"] = {
+                    "ef": round(result["values"]["ef"], 5),
+                    "ef_error": round(result["errors"].get("ef", float("nan")), 5),
+                    "resolution": round(result["values"]["resolution"], 4),
+                    "reduced_chi2": round(result["reduced_chi2"], 3)}
+                good.append(candidate)
+            except ValueError as exc:
+                candidate["fit"] = f"refused: {exc}"
+        if not candidates:
+            advice = ("no clear drop on this axis: the edge may lie beyond the "
+                      "axis, or the data are normalised; look at a picture")
+        elif fit and len([c for c in good if c["after"] < 0.15]) > 1:
+            advice = ("more than one candidate fits and falls to a low level: "
+                      "the highest one is the usual Fermi edge, but compare "
+                      "with rows of the same photon and pass energy, and ask "
+                      "the person before choosing")
+        elif fit and good and good[0]["highest"] and good[0]["after"] < 0.15:
+            advice = (f"the highest candidate is the Fermi edge (the intensity "
+                      f"stays at the floor above it): E_F = "
+                      f"{good[0]['fit']['ef']:.4f} eV (window "
+                      f"{good[0]['window'][0]:.3f}..{good[0]['window'][1]:.3f}); "
+                      f"the lower ones are band features")
+        elif fit and good:
+            advice = (f"one candidate fits: E_F = {good[0]['fit']['ef']:.4f} eV "
+                      f"(window {good[0]['window'][0]:.3f}..{good[0]['window'][1]:.3f})")
+        else:
+            advice = "take the highest candidate's window first"
+        return _plain({"axis": [float(energy.min()), float(energy.max()),
+                                float(np.median(np.diff(energy)))],
+                       "candidates": candidates, "advice": advice})
 
     @operation("Energy")
     @_keeps_selection
@@ -507,7 +782,15 @@ class Live:
         every plane spanned by two axes (``axes=(0, 1)``) by its total; the
         sums taken inside ``window`` (lo, hi, on the first of them) if given;
         ``to_peak`` divides by the maximum. Never before a Fermi fit: fit the
-        raw data first."""
+        raw data first.
+
+        For a map (axes 0 = deflector/polar, 1 = slit, 2 = energy):
+        ``axes=(1, 2)`` divides every cut of the map (one slit x energy
+        plane per deflector angle) by its own total -- what evens out the
+        intensity from cut to cut; ``axes=2`` divides every EDC by its total;
+        ``axes=(0, 1)`` every constant-energy plane. ``map_to_k`` can do the
+        E - E_F shift and this in the same call (``ef``, ``normalise_axes``)
+        so no intermediate rows are listed."""
         from arpes_viewer.tools.processing.dataops import self_normalize
         data = self.data(name)
         dims = (axes,) if np.ndim(axes) == 0 else tuple(axes)
@@ -607,40 +890,142 @@ class Live:
     # ==================================================================
     # Momentum
     # ==================================================================
+    def _prepared(self, name, ef=None, normalise_axes=None,
+                  normalise_window=None):
+        """The row in a workspace, shifted to E - E_F (``ef``) and divided by
+        its own intensity (``normalise_axes``) there, so that a chain of
+        steps lists only its last row; each step goes into the history.
+        Returns ``(workspace, ident)``."""
+        from arpes_viewer.tools.processing.dataops import self_normalize
+        from arpes_viewer.tools.processing.process import Step, record_step
+        workspace, (ident,) = self._workspace(name)
+        source = self._name(self._key(name))
+        if ef is not None:
+            ident = workspace.shift_energy(ident, float(ef))["id"]
+            record = workspace.get(ident)
+            record["scan"].info = record_step(
+                dict(record["scan"].info or {}),
+                Step("E - E_F", {"ef": float(ef)}, source=source))
+        if normalise_axes is not None:
+            record = workspace.get(ident)
+            scan = record["scan"]
+            dims = ((normalise_axes,) if np.ndim(normalise_axes) == 0
+                    else tuple(normalise_axes))
+            axes = [np.asarray(getattr(scan, slot), dtype=float)
+                    for slot in scan.axis_slots("array")]
+            scan.value = self_normalize(np.asarray(scan.array(), dtype=float),
+                                        axes, dims, window=normalise_window)
+            scan.info = record_step(dict(scan.info or {}), Step(
+                "normalise", {"dims": list(dims), "window": normalise_window},
+                source=source))
+        return workspace, ident
+
     @operation("Momentum")
     @_keeps_selection
     def cut_to_k(self, name: str, gamma_slit_deg: float = 0.0,
                  deflector_deg: float = 0.0, gamma_deflector_deg: float = None,
                  azimuth_deg: float = 0.0, n_k: int = None,
-                 new_name: str = "") -> str:
+                 new_name: str = "", ef: float = None,
+                 normalise_axes=None) -> str:
         """A cut in momentum (k conversion, cut): normal emission at slit
         angle ``gamma_slit_deg``; the deflector or polar angle the cut was
         taken at and where Γ is on it, if off normal. A cut already on
-        E - E_F stays on it. Returns the new row."""
-        workspace, (ident,) = self._workspace(name)
+        E - E_F stays on it. ``ef`` (the fitted E_F on the row's own axis)
+        and ``normalise_axes`` (as ``normalise``) do the E - E_F shift and
+        the normalisation in the same call, so the list gets only the final
+        row; the history records every step. Returns the new row."""
+        workspace, ident = self._prepared(name, ef, normalise_axes)
         result = workspace.convert_cut(
             ident, gamma_slit_deg=gamma_slit_deg, deflector_deg=deflector_deg,
             gamma_deflector_deg=gamma_deflector_deg, azimuth_deg=azimuth_deg,
             n_k=n_k, name=new_name or None)
         record = workspace.get(result["id"])
+        if not new_name:
+            record["name"] = f"{self._name(self._key(name))} [k]"
         return self._list_scan(record["scan"], record["name"])
 
     @operation("Momentum")
     @_keeps_selection
     def map_to_k(self, name: str, gamma_deflector_deg: float = 0.0,
                  gamma_slit_deg: float = 0.0, azimuth_deg: float = 0.0,
-                 n_kx: int = None, n_ky: int = None, new_name: str = "") -> str:
+                 n_kx: int = None, n_ky: int = None, new_name: str = "",
+                 ef: float = None, normalise_axes=None) -> str:
         """An angle map in momentum, (kx, ky, E) (k conversion, map): Γ at
         deflector/polar ``gamma_deflector_deg`` and slit ``gamma_slit_deg``,
         turned by ``azimuth_deg``. Convert a map already on E - E_F, so the
-        result is too. Returns the new row (a k-map)."""
-        workspace, (ident,) = self._workspace(name)
+        result is too -- or give ``ef`` (the fitted E_F on the row's own
+        axis) and, if wanted, ``normalise_axes`` ((1, 2): every cut of the
+        map by its own total), and the shift, the normalisation and the
+        conversion are one call that lists only the k-map. The kx grid
+        defaults to twice the scanned angles, at most 100 points (never
+        fewer than the scan has): one point per scan step gives streaks;
+        ky to the slit's points. Returns the new row (a k-map)."""
+        workspace, ident = self._prepared(name, ef, normalise_axes)
         result = workspace.convert_map(
             ident, gamma_deflector_deg=gamma_deflector_deg,
             gamma_slit_deg=gamma_slit_deg, azimuth_deg=azimuth_deg,
             n_kx=n_kx, n_ky=n_ky, name=new_name or None)
         record = workspace.get(result["id"])
+        if not new_name:
+            record["name"] = f"{self._name(self._key(name))} [k]"
         return self._list_scan(record["scan"], record["name"])
+
+    @operation("Processing")
+    @_keeps_selection
+    def cut_arithmetic(self, name_a: str, name_b: str,
+                       operation: str = "asymmetry", normalise: str = "total",
+                       intensity_floor: float = 0.05, region=None,
+                       ranges=None, new_name: str = "") -> dict:
+        """Combine two cuts as the Cut arithmetic window does -- dichroism
+        (LH vs LV, CR vs CL), a difference, a ratio: ``operation``
+        "asymmetry" (A − B)/(A + B), "difference", "ratio" or "sum";
+        ``normalise`` "total" (B scaled to A's total over the common area),
+        "region" (over ``region`` (x0, y0, x1, y1)) or "none";
+        ``intensity_floor`` hides points where A + B is below that fraction
+        of its maximum. Both cuts are first cropped to the range they share
+        (and to ``ranges``, ((x_lo, x_hi), (E_lo, E_hi)), if given); B is
+        resampled onto A's grid. Use the same kind of cuts (both in k, both
+        on E - E_F). The result is signed: show it with a diverging colour
+        map ("redwhiteblue", flipped for red = positive) and symmetric
+        levels. Returns the new row, B's scale factor, the summary and any
+        polarisation warning."""
+        from arpes_viewer.tools.processing.cutops import (combine,
+                                                          polarisation_warnings)
+        a, b = self.data(name_a), self.data(name_b)
+        if np.ndim(a.values) != 2 or np.ndim(b.values) != 2:
+            raise ValueError("cut_arithmetic takes two cuts (2-D rows)")
+        bounds = []
+        for i in range(2):
+            lo = max(float(np.nanmin(a.axes[i])), float(np.nanmin(b.axes[i])))
+            hi = min(float(np.nanmax(a.axes[i])), float(np.nanmax(b.axes[i])))
+            if ranges is not None and ranges[i] is not None:
+                lo, hi = max(lo, min(ranges[i])), min(hi, max(ranges[i]))
+            if hi <= lo:
+                raise ValueError(f"A and B share nothing on axis {i} "
+                                 f"({a.labels[i]})")
+            bounds.append((lo, hi))
+
+        def cropped(data):
+            keep = [(np.asarray(ax) >= lo - 1e-9) & (np.asarray(ax) <= hi + 1e-9)
+                    for ax, (lo, hi) in zip(data.axes, bounds)]
+            return (np.asarray(data.values, dtype=float)[np.ix_(*keep)],
+                    [np.asarray(ax)[k] for ax, k in zip(data.axes, keep)])
+        va, axa = cropped(a)
+        vb, axb = cropped(b)
+        result = combine(va, axa, vb, axb, operation=operation,
+                         normalise=normalise, region=region,
+                         intensity_floor=float(intensity_floor),
+                         a_labels=a.labels, b_labels=b.labels)
+        preset = "circular_dichroism" if operation == "asymmetry" else "linear_dichroism"
+        warnings = polarisation_warnings(a.info, b.info, preset)
+        row = self._derive(name_a, result.values, axa, "cut arithmetic",
+                           {"operation": operation, "with": b.name,
+                            "normalise": normalise, "scale_b": result.scale,
+                            "intensity_floor": intensity_floor,
+                            "bounds": bounds},
+                           new_name or f"{a.name} {operation} {b.name}")
+        return _plain({"row": row, "scale_b": float(result.scale),
+                       "summary": result.summary(), "warnings": warnings})
 
     @operation("Momentum")
     @_keeps_selection
@@ -812,7 +1197,7 @@ class Live:
                      beta: float = None, gamma: float = None, planes=((0, 0, 1, 0.0),),
                      paths=("",), frame: str = "crystal", surface_hkl=(0, 0, 1),
                      azimuth_deg: float = 0.0, axes: bool = True,
-                     labels: bool = True, left_labels: str = "",
+                     labels=True, left_labels: str = "",
                      view="oblique", size=(1600, 1600), panel_mm: float = 0.0,
                      text_pt: float = 8.0) -> dict:
         """A picture of the 3-D Brillouin zone (the 3D BZ window), for a
@@ -821,8 +1206,10 @@ class Live:
         like "G-M-K-G"; axes in the crystal frame (k_a, k_b, k_c) or, with
         ``frame="sample"``, the data's (k_x, k_y, k_z: k_z along
         ``surface_hkl``, k_x turned by ``azimuth_deg``); ``view`` "oblique",
-        an axis name or a vector; labels sized for a ``panel_mm`` wide panel
-        at ``text_pt`` if given. Never overwrites ``path``."""
+        an axis name or a vector; ``labels`` True (every high-symmetry
+        point), False (none) or the ones to show ("G, L" or ["Γ", "L"]);
+        labels sized for a ``panel_mm`` wide panel at ``text_pt`` if given.
+        Never overwrites ``path``."""
         path = native(path)
         if os.path.exists(path):
             raise FileExistsError(f"{path} exists; give a new name")
@@ -840,7 +1227,12 @@ class Live:
             for text in paths:
                 dialog.add_path(str(text))
             dialog.axes_box.setChecked(bool(axes))
-            dialog.labels_box.setChecked(bool(labels))
+            if isinstance(labels, (str, list, tuple)):
+                chosen = labels if isinstance(labels, str) else ", ".join(labels)
+                dialog.labels_box.setChecked(bool(chosen.strip()))
+                dialog.only_edit.setText(chosen)
+            else:
+                dialog.labels_box.setChecked(bool(labels))
             dialog.left_edit.setText(left_labels)
             dialog.set_frame(frame, surface_hkl, azimuth_deg)
             dialog.width_box.setValue(int(size[0]))
@@ -886,19 +1278,88 @@ class Live:
                      colormap: str = None, flip: bool = None,
                      percentiles=(0.0, 100.0), gamma: float = 1.0,
                      zone: bool = True, zone_style: str = "solid",
-                     title: str = "") -> dict:
+                     title: str = "", high_factor: float = 1.0,
+                     zone_color: str = None, zone_width: float = 0.6) -> dict:
         """A page of slices through a map (Slice series figure): one panel
         per value along ``axis`` (2 = energy), each the planes within
         ``half_width``, titled with the value asked for; colour map, levels
-        (percentiles), gamma at creation; the row's Brillouin zone on
-        constant-energy panels. Returns the figure in numbers (its title
-        names it for the other figure operations)."""
+        (each panel's ``percentiles``, the span stretched by ``high_factor``
+        so the strongest intensity is not saturated; ``shared=False`` keeps
+        each panel's own), gamma at creation; the row's Brillouin zone on
+        constant-energy panels, in ``zone_style`` ("solid", "dashed"),
+        ``zone_color`` ("#RRGGBB", or "#AARRGGBB" for a see-through line,
+        e.g. "#B8D62020") and ``zone_width`` (pt). Several maps side by
+        side: ``slice_grid``. Returns the figure in numbers (its title names
+        it for the other figure operations)."""
         self.select(name)
         window = self.A.open_slice_series(
             values=list(values), axis=int(axis), half_width=float(half_width),
             cols=int(cols), nominal_titles=nominal_titles, shared=shared,
             colormap=colormap, flip=flip, percentiles=tuple(percentiles),
-            gamma=float(gamma), zone=bool(zone), zone_style=zone_style)
+            gamma=float(gamma), zone=bool(zone), zone_style=zone_style,
+            high_factor=float(high_factor), zone_color=zone_color,
+            zone_width=float(zone_width))
+        return self._figure_made(window, title)
+
+    @operation("Figures")
+    def slice_grid(self, names, values, *, axis: int = 2,
+                   half_width: float = 0.0, column_titles=None,
+                   colormap: str = "gray", flip: bool = False,
+                   percentiles=(0.0, 100.0), high_factor: float = 1.0,
+                   gamma: float = 1.0, shared: bool = False, zone: bool = True,
+                   zone_style: str = "solid", zone_color: str = None,
+                   zone_width: float = 0.6, width_mm: float = 0.0,
+                   title: str = "Slice grid") -> dict:
+        """One figure of the same slices through several maps: a column per
+        map (``names``; ``column_titles`` to name them, e.g. "LH", "LV"), a
+        row per value along ``axis`` (2 = energy) -- a polarisation or
+        temperature series. Each panel is titled "<column>, <value> <unit>";
+        colour, levels, gamma and the Brillouin zone as in
+        ``slice_series``. Returns the figure in numbers."""
+        from arpes_viewer.ui.panels.figure import FigureWindow, slice_panels
+        from arpes_viewer.ui.viewers.windows import keep_alive
+        if isinstance(names, str):
+            names = [names]
+        heads = list(column_titles or [self._name(self._key(n)) for n in names])
+        if len(heads) != len(names):
+            raise ValueError("give one column title per map")
+        columns = []
+        for name in names:
+            key = self._key(name)
+            contour = self.A.map_contour(key)
+            if contour is None:
+                raise ValueError(f"{name!r} could not be opened")
+            made_for_it = not contour.isVisible()
+            try:
+                slice_axes, labels = contour.slice_axes()
+                panels = slice_panels(
+                    contour.full_cube(), slice_axes, labels, axis=int(axis),
+                    values=list(values), half_width=float(half_width),
+                    colormap=colormap, flip=bool(flip),
+                    percentiles=tuple(percentiles), gamma=float(gamma),
+                    zone=contour.saved_zone() if zone else None,
+                    zone_style=zone_style, high_factor=float(high_factor),
+                    zone_color=zone_color, zone_width=float(zone_width))
+            finally:
+                if made_for_it and not contour.cut_windows:
+                    contour.close()
+            columns.append(panels)
+        grid = []
+        for row in range(len(values)):
+            for head, panels in zip(heads, columns):
+                panel = panels[row]
+                panel.title = f"{head}, {panel.title}" if panel.title else head
+                grid.append(panel)
+        window = FigureWindow(grid, title, parent=None, dataset_source=None)
+        window.figure.fit_grid(len(names))
+        window.figure.letter_panels()
+        window.figure.style.shared_levels = bool(shared)
+        window.figure.style.equal_aspect = int(axis) == 2
+        if width_mm:
+            window.figure.style.width_mm = float(width_mm)
+        window.refresh()
+        window.show()
+        keep_alive(window)
         return self._figure_made(window, title)
 
     @operation("Figures")
@@ -1009,11 +1470,18 @@ class Live:
                     with_data: bool = True) -> str:
         """Save the figure as an .afig file to open and edit again, with
         (``with_data``) the data of each panel in "data for <name>" beside
-        it -- leave that out of anything shared. Never overwrites."""
+        it -- leave that out of anything shared. Never overwrites. The window
+        keeps its title, so the other figure operations still find it by
+        the same name."""
         path = native(path)
         if os.path.exists(path):
             raise FileExistsError(f"{path} exists; give a new name")
-        return self._figure(title).save_file(path, with_data=bool(with_data))
+        window = self._figure(title)
+        kept = window.windowTitle()
+        try:
+            return window.save_file(path, with_data=bool(with_data))
+        finally:
+            window.setWindowTitle(kept)
 
     # ==================================================================
     # Tool windows

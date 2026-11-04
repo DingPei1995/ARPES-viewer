@@ -245,14 +245,15 @@ Results are plain dicts, lists and strings. An error says what was wrong
 
 | Step | Operation |
 |---|---|
-| What is in the folder / the list | `L.add_files(folder_or_files)`, `L.rows()`, `L.describe(row)`, `L.metadata(row, "photon")` |
-| Look without reading the screen | `L.picture(row, x, y, path)`, `L.profile(row, along, ranges)` |
-| Fermi level, E - E_F | `L.fermi_edge(...)`, `L.shift_energy(row, ef)`; kz map: `L.kz_align_fermi(...)` |
+| What is in the folder / the list | `L.add_files(folder_or_files)` (report its `left_out`, `unrecognised`, `warnings`), `L.rows(compact=True)`, `L.describe(row)`, `L.metadata(row, "photon")` |
+| Look without reading the screen | `L.picture(row, x, y, path)`, `L.profile(row, along, ranges, summary=True)` |
+| Fermi level, E - E_F | `L.fermi_edge_search(row)` (the candidate edges on that row's axis), `L.fermi_edge(row, window, picture=path)`, `L.shift_energy(row, ef)`; kz map: `L.kz_align_fermi(...)` |
 | Clean up | `L.crop`, `L.bin`, `L.normalise` (after the Fermi fit), `L.smooth`, `L.background` |
 | Second derivative, curvature, symmetrise | `L.derivative`, `L.curvature`, `L.symmetrise` |
-| To momentum | `L.cut_to_k`, `L.map_to_k`, `L.kz_to_k` (V0 from `gamma_hv`) |
-| The Brillouin zone | `L.brillouin_zone`, `L.bz_overlay(row, ...)`, `L.bz3d_picture(path, ...)` |
-| A figure | `L.slice_series(row, values=...)`, `L.figure_from(rows)`, `L.panel_set`, `L.panel_picture`, `L.figure_arrange`, `L.figure_describe`, `L.figure_render`, `L.figure_export`, `L.figure_save` |
+| Dichroism, difference, ratio of two cuts | `L.cut_arithmetic(a, b, operation="asymmetry", normalise="total")` |
+| To momentum | `L.cut_to_k`, `L.map_to_k` (both take `ef=` and `normalise_axes=`: one call, one row), `L.kz_to_k` (V0 from `gamma_hv`) |
+| The Brillouin zone | `L.brillouin_zone`, `L.bz_overlay(row, ...)`, `L.bz3d_picture(path, ..., labels="G, L")` |
+| A figure | `L.slice_series(row, values=...)`, several maps side by side: `L.slice_grid(rows, values=...)`; `L.figure_from(rows)`, `L.panel_set`, `L.panel_picture`, `L.figure_arrange`, `L.figure_describe`, `L.figure_render`, `L.figure_export`, `L.figure_save` |
 | MDC/EDC fits, core levels, tight-binding, calculated bands, 3-D views ... | `L.tools()`, `L.run_tool(action, row)` (section 2) |
 | Anything else | `L.data(row)` + the program's functions (section 4) + `L.add(...)` |
 
@@ -260,6 +261,35 @@ Where no operation fits: open the tool on screen with `L.run_tool(action,
 row)` (section 2), or compute with the program's own functions (section 4)
 on `L.data(row)` and list the result with `L.add(...)` -- and say that you
 did.
+
+### Working rules (learnt from real sessions)
+
+- **Look before you compute.** Before a new kind of step, search
+  `L.help()`, `L.tools()` and `L.functions()`; the program probably has it
+  (dichroism is `L.cut_arithmetic`, not a formula of your own).
+- **Never go around an operation silently.** Do not edit the program's
+  internal tables (`A.loaded_items` ...); if no operation does it, say
+  which one is missing and ask before working around it.
+- **After `add_files`**, compare the rows with the folder and report what
+  was left out, not recognised or warned about. Rows can be named by their
+  number in `rows()` or their file's path when names are not enough.
+- **Names**: say which part of a name comes from the file name and which
+  from recorded metadata; mark guesses.
+- **Fermi level**: on raw data, per row, on that row's own axis
+  (`fermi_edge_search`); the Fermi edge is the *last* drop to the floor,
+  not the steepest one. Draw each fit (`picture=`); rows of the same photon
+  and pass energy must agree; when the data cannot decide, ask once.
+- **A tidy list**: chain steps in one call (`map_to_k(row, ef=...,
+  normalise_axes=(1, 2))`) so only the final row is listed; remove rows
+  only when the person agrees.
+- **Figures**: test in a `check` folder, publish one version per figure;
+  signed quantities get a diverging colour map with symmetric levels.
+- **Small outputs**: `rows(compact=True)`, `profile(..., summary=True)` or
+  `path=`; arrays to files, not into the conversation. Code files as UTF-8,
+  non-ASCII as `\\u` escapes.
+- **Windows** the operations open and close never appear on screen; the
+  ones left open (a figure, a tool for the person) appear on the main
+  panel's screen.
 """
 
 

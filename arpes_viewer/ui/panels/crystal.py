@@ -101,6 +101,8 @@ class CrystalView(QWidget):
         #: labels drawn at their leftmost symmetry-equivalent point (as the
         #: picture is turned), to keep them clear of the path and the axes
         self.zone_left_labels = set()
+        #: the only labels drawn (None: every high-symmetry point)
+        self.zone_only_labels = None
         #: the axes drawn with the zone: their names and Cartesian
         #: directions. The crystal frame (k_a, k_b, k_c along the Cartesian
         #: axes of the cell: k_a along a, k_c along c x a's normal) unless
@@ -309,6 +311,8 @@ class CrystalView(QWidget):
                                       colour, width, 2 * lift))
         if self.zone_labels:
             for label, k in table.items():
+                if self.zone_only_labels and label not in self.zone_only_labels:
+                    continue
                 if label in self.zone_left_labels:
                     k = self._leftmost_equivalent(k)
                 items.append(("atom", k, 0.025 * float(np.linalg.norm(b[0])),

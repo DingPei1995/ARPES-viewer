@@ -162,6 +162,59 @@ on your computer.
   a coding agent writing a script to keep, on the headless workspace and the
   Qt-free computations in `arpes_viewer/tools/`.
 
+### Starting and watching an agent from the AI assistant panel
+
+<p align="center">
+  <img src="docs/images/assistant_button.png" width="80%"
+       alt="The AI assistant button at the top of the tool panel, lit green while an agent works">
+</p>
+
+1. **Open it.** Press **AI assistant...** at the top of the main panel's
+   tool column (above). The button is also the agent's **status light**,
+   whether the window is open or not: grey not running, green running,
+   yellow paused (you work by hand), red a failed step.
+
+<p align="center">
+  <img src="docs/images/assistant_setup.png" width="96%"
+       alt="The AI assistant window before starting: the folders, the options, the request in one's own words">
+</p>
+
+2. **Set it up** (left column):
+   - **1. Folders**: the **data** folder (read only for the agent) and a
+     **results** folder (everything it writes goes there; its commands go
+     in `<results>/_agent`).
+   - **2. What you want**: ask before each physical parameter (Γ, an
+     energy window, V0 ...), step by step with your go-ahead, a usage log,
+     a report, slides, hiding the sample's identity, a tidy list -- and
+     your request in your own words.
+   - **3. Your AI app**: *works in folders* (the Claude desktop app, Claude
+     Code, any agent that reads and writes files -- nothing to install) or
+     *uses MCP tools*.
+3. **Start.** Press **Copy the prompt and start** and paste the prompt
+   into your AI app. The prompt tells the agent where the folders are,
+   where the program's reference (`arpes_viewer/agent/API.md`) is, and the
+   working rules (fit E_F on raw data per row, report files left out,
+   ask before going around an operation, keep the list tidy ...);
+   **Show the prompt** shows it in full.
+
+<p align="center">
+  <img src="docs/images/assistant_running.png" width="96%"
+       alt="The AI assistant window while the agent works: its steps, each with what it printed">
+</p>
+
+4. **Watch and step in** (right column). Each step the agent runs appears
+   in the list with ✓ or ✗ (red); click one to see what it printed -- here
+   the Fermi-edge search and fit of a map. Its results appear as new rows
+   in the main list (never overwriting anything), its pictures and figures
+   in the results folder. **Pause the agent** holds its next commands while
+   you work by hand (the light turns yellow); **Resume** lets them through.
+   Closing the window does not stop the agent.
+5. **Your screens stay yours.** Windows the agent opens only to drive them
+   (a conversion dialog, a temporary slice series) never appear; the ones
+   it leaves open -- a finished figure, a viewer, a tool waiting for your
+   input -- open on the screen of the main panel, not on the screen you
+   are working on.
+
 The step-by-step guide is [`agentic/README.md`](agentic/README.md), with
 requests to copy in [`agentic/PROMPTS.md`](agentic/PROMPTS.md); a real session
 by Sonnet 5.5 is in [`Reports/`](Reports).

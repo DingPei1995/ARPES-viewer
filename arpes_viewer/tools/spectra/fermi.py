@@ -211,6 +211,76 @@ def steepest_drop(energy, intensity) -> float:
     return float(e[int(np.argmin(slope))])
 
 
+def edge_candidates(energy, intensity, *, smooth_points: int = 7,
+                    half_window: float = 0.15, max_candidates: int = 4) -> list:
+    """The drops in an EDC that could be the Fermi edge, highest energy
+    first -- for choosing a fit window on data whose axis is not known yet.
+
+    The steepest drop is not a safe answer: a band edge, or the strong drop
+    of a pass-energy-20 spectrum below a weak tail, can be steeper than the
+    edge itself. The Fermi edge is the *last* drop on the axis: after it the
+    intensity stays at the floor (dark counts, second order). So every drop
+    clearly above the noise is listed, each with
+
+    * ``energy``: where the lightly smoothed curve falls fastest;
+    * ``step``: the height of the drop over +-``half_window``/2, as a
+      fraction of the curve's maximum;
+    * ``after``: the level just above it, as a fraction of the maximum
+      (near 0 for the Fermi edge);
+    * ``window``: a fit window of +-``half_window`` around it, cut at the
+      axis's ends;
+    * ``highest``: True for the highest-energy drop -- the usual Fermi edge.
+
+    Fit each with :func:`fit_fermi_edge` on its ``window``; when two
+    candidates are both plausible (a weak tail above a strong drop), the
+    data alone cannot decide which is E_F: compare with a reference (gold,
+    another scan at the same photon and pass energy) or ask.
+    """
+    e = np.asarray(energy, dtype=float)
+    y = np.asarray(intensity, dtype=float)
+    keep = np.isfinite(e) & np.isfinite(y)
+    e, y = e[keep], y[keep]
+    order = np.argsort(e)
+    e, y = e[order], y[order]
+    if e.size < 9:
+        return []
+    width = max(3, int(smooth_points) | 1)
+    smooth = _smooth(y, width)
+    pad = width // 2
+    smooth[:pad] = y[:pad]
+    smooth[-pad:] = y[-pad:]
+    residual = y - smooth
+    top = float(np.max(smooth)) or 1.0
+    slope = -np.gradient(smooth, e)
+    slope[:pad] = slope[-pad:] = 0.0
+    step_e = float(np.median(np.diff(e))) or 1e-3
+    reach = max(2, int(round(0.5 * half_window / step_e)))
+    merged = []
+    for i in range(1, e.size - 1):
+        lo, hi = max(0, i - reach), min(e.size - 1, i + reach)
+        # the fastest fall within its own neighbourhood: one point per drop
+        if slope[i] <= 0 or slope[i] < np.max(slope[lo:hi + 1]):
+            continue
+        step = float(smooth[lo] - smooth[hi])
+        # the noise where the drop is (Poisson noise is far larger on the
+        # strong signal below a weak edge than on the edge itself)
+        noise = float(np.std(residual[max(pad, lo):min(e.size - pad, hi + 1)]))
+        if step <= max(5.0 * noise, 0.01 * top):
+            continue
+        merged.append((i, step))
+    merged.sort(key=lambda t: -e[t[0]])
+    out = []
+    for rank, (i, step) in enumerate(merged[:int(max_candidates)]):
+        hi = min(e.size - 1, i + reach)
+        out.append({"energy": float(e[i]),
+                    "step": round(step / top, 4),
+                    "after": round(float(smooth[hi]) / top, 4),
+                    "window": [float(max(e[0], e[i] - half_window)),
+                               float(min(e[-1], e[i] + half_window))],
+                    "highest": rank == 0})
+    return out
+
+
 # --------------------------------------------------------------------------
 # The fit
 # --------------------------------------------------------------------------

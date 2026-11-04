@@ -625,7 +625,38 @@ def test_a_photon_energy_scan_is_named_by_its_range(tmp_path):
 
 def test_a_lone_spectrum_is_named_with_its_photon_energy(spectrum):
     entries = registry.list_entries(spectrum[0])
-    assert entries[0]["name"] == "fixed_cut 150eV"
+    assert entries[0]["name"] == "fixed_cut 0001 150eV"
+
+
+def test_lone_spectra_are_named_by_their_files_not_the_shared_region(tmp_path):
+    """Nineteen cuts of one region template ("FineCutLH") used to come in as
+    nineteen rows called "FineCutLH 117eV", the LV ones included."""
+    angle = np.linspace(-15.0, 15.0, 5)
+    energy = np.linspace(115.6, 116.0, 4)
+    values = np.arange(20, dtype=float).reshape(5, 4)
+    names = []
+    for stem in ("LH_theta_21.5", "LV_theta_21.5"):
+        path = write_spectrum(str(tmp_path / f"{stem}.txt"), energy, angle, values)
+        names.append(registry.list_entries(path)[0]["name"])
+    assert names[0].startswith("LH_theta_21.5") and names[1].startswith("LV_theta_21.5")
+
+
+def test_a_polarisation_in_the_name_is_checked_against_the_record():
+    assert cassiopee._polarisations_named("FineCutLH") == {"LH"}
+    assert cassiopee._polarisations_named("Map117eVCL") == {"CL"}
+    assert cassiopee._polarisations_named("LV_theta_21.5_100K") == {"LV"}
+    assert cassiopee._polarisations_named("CLEAN_map") == set()
+    assert "LH" in cassiopee._polarisation_warning(["LV_theta_24.5"], "LH")
+    assert cassiopee._polarisation_warning(["LV_theta_24.5"], "LV") == ""
+    assert cassiopee._polarisation_warning(["Map"], "LH") == ""
+
+
+def test_a_folder_of_scans_called_map_is_named_after_the_folder(tmp_path):
+    folder = tmp_path / "Map150K"
+    folder.mkdir()
+    paths = make_series(str(folder), base="Map", count=3,
+                        thetas=[-1.0, 0.0, 1.0])
+    assert registry.list_entries(paths[0])[0]["name"].startswith("Map150K")
 
 
 def test_the_beam_label_leaves_out_what_is_unknown():

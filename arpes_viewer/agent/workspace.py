@@ -50,6 +50,13 @@ def png_bytes(rgba) -> bytes:
             + chunk(b"IEND", b""))
 
 
+def default_kx_points(scanned: int) -> int:
+    """The kx grid of a map's k conversion: twice the scanned angles, at
+    most 100 points, never fewer than the scan has. One point per scan step
+    (61 deflector angles, say) leaves streaks between the scanned cuts."""
+    return int(max(scanned, min(2 * scanned, 100)))
+
+
 class Workspace:
     """The datasets of one agent session, by id."""
 
@@ -422,7 +429,7 @@ class Workspace:
             scan.x, scan.k, scan.z, np.asarray(scan.value),
             theta_offset_deg=float(gamma_deflector_deg),
             phi_offset_deg=float(gamma_slit_deg), azimuth_deg=float(azimuth_deg),
-            energy_offset_eV=offset, n_kx=int(n_kx or len(scan.x)),
+            energy_offset_eV=offset, n_kx=int(n_kx or default_kx_points(len(scan.x))),
             n_ky=int(n_ky or len(scan.k)), precision="float32")
         energy = np.asarray(energy, dtype=float)
         labels = {"x": "kx (Å⁻¹)", "k": "ky (Å⁻¹)",

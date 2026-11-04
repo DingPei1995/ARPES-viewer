@@ -63,6 +63,67 @@ instead of the program's internals.
   route 3 first, then MCP, then scripts, and explain how the agent learns
   what the program can do.
 
+**Later the same day: from a day of real CASSIOPEE data processed by an
+agent through MCP** (its usage and issue logs, the bug report and the
+scripts it had to write).
+
+- **Agent windows no longer flash on screen.** Windows an operation opens
+  only to drive them (the kz conversion and BZ overlap dialogs, a contour
+  read for its cube, a slice series regrouped into another figure) are
+  shown off screen; those still open when the agent's step ends -- a
+  figure, a viewer, a tool left for the person -- appear on the screen of
+  the main panel, and so do dialogs that wait for the person
+  (`ui/common/quietwindows.py`, around every `L` operation, command file
+  and `viewer_python` call).
+- **Fixed**: a viewer showing a picture with no finite value (a plane
+  beyond a k conversion's cone) raised "Cannot set range [nan, nan]" on
+  every redraw; it is drawn empty.
+- **Row names unique from the start.** A CASSIOPEE cut is named after its
+  file, not its Scienta region (nineteen cuts of one "FineCutLH" region
+  came in as nineteen identical rows, the LV ones labelled LH); a map
+  folder of scans called just "Map" takes the folder's name; any listed
+  name is made unique. A name that spells a polarisation different from
+  the recorded one carries a warning. Operations also take a row's number
+  in `rows()` or its file's path.
+- **`L.add_files`** reports single spectra lying in a map's folder
+  (`left_out`, added only on request), files no reader recognised, and the
+  readers' warnings.
+- **Fermi level**: `L.fermi_edge_search` lists the candidate edges on a
+  row's own axis, highest first, each fitted and judged -- the edge is the
+  last drop to the floor, not the steepest one (pass-energy-20 data have a
+  strong drop under a weak tail); `L.fermi_edge(..., picture=)` draws the
+  EDC, the window and the fit, also for a refused fit, whose message now
+  gives the row's axis and where the curve falls fastest
+  (`tools.spectra.fermi.edge_candidates`).
+- **Fewer intermediate rows**: `L.map_to_k` / `L.cut_to_k` take `ef=` and
+  `normalise_axes=`, so E - E_F, normalisation and k conversion are one
+  call and one row, every step in its history. The kx grid of a map's k
+  conversion defaults to twice the scanned angles, at most 100 (never
+  fewer than measured), here and in the k conversion window.
+- **New operations**: `L.cut_arithmetic` (the Cut arithmetic window:
+  dichroism, difference, ratio, on the common range), `L.slice_grid` (the
+  same slices of several maps, a column per map: polarisation or
+  temperature series). `L.slice_series` takes `high_factor`, `zone_color`
+  (also `#AARRGGBB`), `zone_width`; `L.bz3d_picture(labels="G, L")` labels
+  only the points named (also "Label only" in the 3D BZ window).
+  `L.figure_save` keeps the window's title. `L.rows(compact=True)` and
+  `L.profile(..., summary=True / path=)` keep outputs small;
+  `L.normalise` explains the axes of a map. `viewer_python` and command
+  files have `L`, `os`, `re`, `inspect` and `json`; code holding
+  characters garbled by a wrong encoding ("âˆ’" for "−") is reported.
+- **The agent's workflow**: the AI assistant's prompt, `API.md` and the MCP
+  server's instructions carry the rules the session's review asked for --
+  report what `add_files` left out, mark guessed parts of names, look for
+  an operation before computing, never edit the program's tables (ask,
+  naming the missing operation), fit E_F on raw data per row and draw each
+  fit, chain steps to keep the list tidy, one final version per figure,
+  diverging colour maps for signed quantities, compact outputs, all MCP
+  tools loaded at once. The usage log no longer asks for token figures the
+  agent cannot see. The loader README explains CASSIOPEE's kinetic axis
+  and work function.
+- **README**: how to start and watch an agent from the AI assistant
+  panel, with screenshots (`devtools/guide_screenshots.py assistant`).
+
 ## 1.3.1 — 2026-11-03
 
 From a day of real data processed by an agent (the session's own review of

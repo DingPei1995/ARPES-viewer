@@ -56,8 +56,8 @@ OPTIONS = (
      "for my go-ahead before the next."),
     ("usage", "Record token / plan usage per step", False,
      "Keep a usage log in {usage_log}: one line per step with the "
-     "time, the step, and any token count or plan-usage figure you can see "
-     "or that I give you."),
+     "time and the step; add a token or plan-usage figure only when I give "
+     "you one (you cannot see them yourself)."),
     ("hide", "Hide the sample's real identity", False,
      "Hide the sample's real identity in everything you write (reports, "
      "slides, figure titles, file names): call it \"sample A\", give lattice "
@@ -131,11 +131,13 @@ def build_prompt(mode: str, data: str, results: str, options=(),
                   "program has (the same list as " + reference + "). Call them "
                   "with viewer_api(operation, args). Use these operations, not "
                   "viewer_python, wherever one exists; "
-                  "viewer_api_help(\"name\") explains one.",
+                  "viewer_api_help(\"name\") explains one. If your app loads "
+                  "tool definitions on demand, load all the arpes-viewer tools "
+                  "in one search.",
                   "", "Start: viewer_api(\"add_files\", "
                   + json.dumps({"paths": data}, ensure_ascii=False)
-                  + "), then viewer_api(\"rows\"); tell me what is there and "
-                  "propose a plan."]
+                  + "), then viewer_api(\"rows\", {\"compact\": true}); tell "
+                  "me what is there and propose a plan."]
     else:
         lines += [f"- Commands: {commands}", "",
                   "How to drive the program: write one small Python file per "
@@ -148,8 +150,9 @@ def build_prompt(mode: str, data: str, results: str, options=(),
                   "and read its log: the same list). Use those operations "
                   "(L.add_files, L.fermi_edge, L.kz_to_k, L.slice_series ...), "
                   "not the program's source; L.help(\"name\") explains one.",
-                  "", f"Start: L.add_files(r\"{data}\") and L.rows(); tell me "
-                  "what is there and propose a plan.",
+                  "", f"Start: print(L.add_files(r\"{data}\")) and "
+                  "print(L.rows(compact=True)); tell me what is there and "
+                  "propose a plan.",
                   "", "If a command file stays unrun for more than a minute, I "
                   "have paused you to work by hand: wait, and ask me."]
     rules = ["Everything stays on this computer.",
@@ -158,8 +161,40 @@ def build_prompt(mode: str, data: str, results: str, options=(),
              "Check pictures and figures with the program's own operations "
              "(picture, figure_describe, figure_render), not by reading my "
              "screen.",
-             "If you compute something yourself rather than with an "
-             "operation, say so."] + chosen
+             "After adding the data, compare the rows with the folder and "
+             "tell me what add_files left out, did not recognise or warned "
+             "about. When you rename rows, say which part of each name comes "
+             "from the file name and which from the recorded metadata; mark "
+             "guesses, and ask me about files whose names do not say what "
+             "they are.",
+             "Use the operations. Before computing anything yourself, look "
+             "for it in L.help(), L.tools() and L.functions(); if you compute "
+             "it yourself anyway, say so. Never edit the program's internal "
+             "tables: if no operation does what is needed, stop, tell me "
+             "which operation is missing, and ask before working around it.",
+             "Fermi level: fit the raw data, before any normalisation. Every "
+             "row has its own energy axis: read it, and choose the window "
+             "for that row (fermi_edge_search), never another row's. Pass "
+             "picture=... so I can check each fit. Rows of the same photon "
+             "and pass energy should agree within a few meV; if they do not, "
+             "or two edges fit, show me and ask once, then apply the answer "
+             "to the rest.",
+             "Keep the list readable: do chains of steps in one call where "
+             "the operation offers it (map_to_k / cut_to_k with ef= and "
+             "normalise_axes=), so only final rows are listed, named clearly; "
+             "remove intermediate rows only after I agree.",
+             "Figures: try them in {check}; publish one final version per "
+             "figure in {figures}<N>; when I ask for a change, move the old "
+             "version to {superseded} rather than keeping v1/v2 files. Signed "
+             "quantities (dichroism, differences) get a diverging colour map "
+             "with symmetric levels.".format(
+                 check=os.path.join(results, "check"),
+                 figures=os.path.join(results, "figures", "Figure"),
+                 superseded=os.path.join(results, "_superseded")),
+             "Keep outputs small: rows(compact=True), profile(..., "
+             "summary=True) or to a file; large arrays go to files. Write "
+             "code files as UTF-8 and non-ASCII characters as \\u escapes. "
+             "Say what you are doing before a long step."] + chosen
     lines += ["", "Rules:"] + [f"{i}. {rule}" for i, rule in enumerate(rules, 1)]
     if extra.strip():
         lines += ["", "What I want:", extra.strip()]
