@@ -134,12 +134,20 @@ class CommandFolder:
         return min(times) if times else 0.0
 
     def poll(self):
-        """Run every waiting command file, oldest name first."""
+        """Run every waiting command file, oldest name first. Never inside
+        itself: a command that waits on a progress window pumps events, and
+        this timer must not start the next command (or the same one again,
+        not yet moved to viewer_done) in the middle of it."""
+        if getattr(self, "_polling", False):
+            return
+        self._polling = True
         try:
             self._poll()
             self.error = ""
         except Exception as exc:                            # noqa: BLE001
             self.error = f"{type(exc).__name__}: {exc}"
+        finally:
+            self._polling = False
 
     def _poll(self):
         queue = os.path.join(self.folder, "viewer_cmd")

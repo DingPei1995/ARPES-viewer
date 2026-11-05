@@ -49,6 +49,15 @@ its end opens as far as it went, from every beamline.**
   calibration" because of its zero-filled tail.
 - **An image with no finite value is drawn blank** instead of raising inside
   pyqtgraph.
+- **No silent wait when a tool reads a map not yet opened.** Self-normalise,
+  Truncate, Compress, the figure composer and saving opened the file on the
+  GUI thread; a CASSIOPEE folder (parsed whole to know its axes) or a
+  Scienta `.zip` froze the window for seconds ("not responding"). Every
+  read of a dataset not already open now goes through the progress window
+  (`app._acquire`): it appears after 0.4 s with the file's name, a bar and
+  Cancel. The windows still read only the axes -- an HDF5 map stays on disk
+  until Apply, which has its own progress. Inside an agent's command the
+  read stays direct, and the command folder never polls inside itself.
 
 **The release itself, 2026-11-04:**
 

@@ -764,7 +764,8 @@ def plot_selected_as_figure():
             opened = data is None
             if opened:
                 try:
-                    data = NxsData.acquire(record["path"], record["entry"])
+                    data = _acquire(record["path"], record["entry"],
+                                    record.get("options"))
                 except Exception as exc:
                     problems.append(f"{record['name']}: {exc}")
                     continue
@@ -931,7 +932,8 @@ def _dataset_for_saving(key):
         data = record["memory"]
     else:
         try:
-            data = NxsData.acquire(record["path"], record["entry"])
+            data = _acquire(record["path"], record["entry"],
+                            record.get("options"))
         except Exception as exc:
             traceback.print_exc()
             return None, f"{record['name']}: could not be read ({exc})"
@@ -1627,19 +1629,25 @@ def _load_dataset(key):
     return _acquire(record["path"], record["entry"], options)
 
 
-def _acquire(path, entry, options):
-    """Open a file, on the worker thread when the reader says it will be slow.
+def _acquire(path, entry, options=None):
+    """Open a file on the worker thread, with a "Reading ..." window if it
+    takes a while.
 
-    Most readers open a file with one call into HDF5 and there is nothing to
-    report or to wait for. A few genuinely take a while -- assembling a
-    CASSIOPEE folder means parsing a hundred text files -- and those are the
-    ones that declare a ``progress`` argument. Those go through
-    :func:`ui.common.jobs.run_blocking`, so the window keeps painting and there is a
-    bar and a Cancel instead of a frozen panel.
+    What has to be read depends on the reader. An HDF5 map is opened
+    lazily -- its axes are read, its counts stay on disk until a viewer or
+    an operation asks for them -- and that is over before the progress
+    window's delay (:data:`ui.common.jobs.DIALOG_DELAY_MS`), so nothing
+    shows. A CASSIOPEE map is a folder of a hundred text files whose axes
+    are only known once they are all parsed; a Scienta ``.zip`` or ``.ibw``
+    is read whole. Those take seconds, and done on the GUI thread they
+    froze the window with no word of what was happening ("not responding",
+    as reported when Self-normalise was pressed on a map not yet opened).
 
-    The distinction is the reader's own: a loader that can report progress is
-    one that expected to need to. Everything else keeps the direct path it
-    has always had, which is both faster and a smaller thing to get wrong.
+    So every read that is not of a dataset already open goes through
+    :func:`ui.common.jobs.run_blocking`: the window keeps painting, and a
+    read that lasts shows its name, a bar (a moving one for readers that
+    cannot say how far they are) and a Cancel. A dataset already open is
+    handed back directly.
     """
     loader = None
     try:
@@ -1650,13 +1658,19 @@ def _acquire(path, entry, options):
     except Exception:                                      # noqa: BLE001
         loader = None
 
-    slow = loader is not None and nxs_loaders._accepts_progress(loader.load)
-    if not slow or nxs_jobs.busy():
+    reports = loader is not None and nxs_loaders._accepts_progress(loader.load)
+    from arpes_viewer.ui.common.agentbridge import agent_running
+    if (nxs_jobs.busy() or NxsData.is_open(path, entry, options)
+            or QApplication.instance() is None or agent_running()):
         return NxsData.acquire(path, entry, options=options)
 
     title = f"Reading {os.path.basename(path)}"
 
     def work(report):
+        if not reports:
+            report(-1, title)                   # a moving bar: no fraction
+            return NxsData.acquire(path, entry, options=options)
+
         def progress(done, total, label):
             report(done / max(1, total), f"{label}  ({done + 1} of {total})")
         return NxsData.acquire(path, entry, options=options, progress=progress)
@@ -1737,9 +1751,10 @@ def open_data_operations(operation="truncate"):
     for key in keys:
         record = loaded_items[key]
         try:
-            data = record.get("memory")
-            if data is None:
-                data = NxsData.acquire(record["path"], record["entry"])
+            # The window needs only the axes; the counts are read when Apply
+            # is pressed. A map whose reader must parse it to know its axes
+            # (a CASSIOPEE folder) says so in a progress window.
+            data = load_dataset(key)
         except Exception as exc:
             traceback.print_exc()
             problems.append(f"{label_for(key)}: could not be read ({exc})")

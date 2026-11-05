@@ -61,6 +61,17 @@ def mojibake_warning(text: str) -> str:
         "escapes in the code, e.g. \"\\u2212\" for the minus sign.")
 
 
+#: How many agent steps are running now (nested modal_guard blocks).
+_AGENT_DEPTH = 0
+
+
+def agent_running() -> bool:
+    """Whether code an agent sent is running now. A read in the program
+    then stays on the GUI thread (app._acquire): pumping events while it
+    waits would let the agent's next command start inside this one."""
+    return _AGENT_DEPTH > 0
+
+
 @contextlib.contextmanager
 def modal_guard(log=print):
     """Inside this, a modal dialog raises :class:`ModalDialogBlocked`
@@ -109,6 +120,8 @@ def modal_guard(log=print):
                (QInputDialog, "getDouble"), (QInputDialog, "getInt"),
                (QInputDialog, "getItem")]
     saved = [(owner, name, owner.__dict__.get(name)) for owner, name in patched]
+    global _AGENT_DEPTH
+    _AGENT_DEPTH += 1
     try:
         QDialog.exec_ = QDialog.exec = blocked_exec
         QMessageBox.exec_ = QMessageBox.exec = blocked_exec
@@ -120,6 +133,7 @@ def modal_guard(log=print):
             setattr(owner, name, refuse_static(f"{owner.__name__}.{name}"))
         yield
     finally:
+        _AGENT_DEPTH -= 1
         for owner, name, original in saved:
             if original is None:
                 try:

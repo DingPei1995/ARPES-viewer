@@ -749,6 +749,14 @@ class NxsData:
         self._refs = 1
 
     @classmethod
+    def is_open(cls, nxs_path: str, entry: str = None, options=None) -> bool:
+        """Whether :meth:`acquire` would hand back a dataset already open
+        (and so read nothing) rather than read the file."""
+        key = (os.path.abspath(nxs_path), entry, _options_key(options))
+        existing = cls._open_files.get(key)
+        return existing is not None and existing.alive()
+
+    @classmethod
     def acquire(cls, nxs_path: str, entry: str = None, options=None,
                 progress=None) -> "NxsData":
         """Get the shared NxsData for a file, opening it if needed.
