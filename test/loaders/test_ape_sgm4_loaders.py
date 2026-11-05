@@ -244,3 +244,23 @@ def test_sgm4_knife_edge_is_listed_but_not_opened(tmp_path):
     assert entry["kind"] == "Knife edge"
     with pytest.raises(NotImplementedError, match="knife-edge"):
         registry.load(path)
+
+
+def test_sgm4_igor_dim_layout(tmp_path):
+    """ScanDetails as the beamline's Igor loader (SGM4loader_v7W9.ipf)
+    reads it: ``dimensions`` and ``Dim<n>_*`` instead of ``SlowAxis_*``."""
+    path = str(tmp_path / "dim.h5")
+    cube = _write_sgm4(path, [("ShiftX", -5.0, 2.5, 5)])
+    with h5py.File(path, "a") as f:
+        d = f["Entry/Data/ScanDetails"]
+        for key in ("names", "start", "step", "length"):
+            del d[f"SlowAxis_{key}"]
+        d["dimensions"] = np.array([1])
+        d["Dim1_name"] = np.array([b"ShiftX"])
+        d["Dim1_start"] = np.array([-5.0])
+        d["Dim1_step"] = np.array([2.5])
+        d["Dim1_length"] = np.array([5])
+    assert registry.detect(path).name == "ASTRID2 SGM4"
+    scan = registry.load(path)
+    np.testing.assert_allclose(scan.x, np.linspace(-5, 5, 5))
+    np.testing.assert_array_equal(np.asarray(scan.value), cube)

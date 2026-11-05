@@ -64,7 +64,8 @@ _LEGACY = {"SALX": "ShiftX", "SALY": "ShiftY"}
 
 def is_sgm4(f: h5py.File) -> bool:
     return isinstance(f.get(_DETAILS), h5py.Group) \
-        and "SlowAxis_names" in f[_DETAILS] \
+        and ("dimensions" in f[_DETAILS]
+             or "SlowAxis_names" in f[_DETAILS]) \
         and (_SPECTRA in f or "Entry/Process/SumData" in f)
 
 
@@ -85,6 +86,28 @@ def _axes(details: h5py.Group, which: str) -> tuple:
     lengths = [int(n) for n in np.atleast_1d(details[f"{which}_length"][()])]
     axes = [start + step * np.arange(n)
             for start, step, n in zip(starts, steps, lengths)]
+    return names, lengths, axes
+
+
+def _slow_axes(details: h5py.Group) -> tuple:
+    """``(names, lengths, axes)`` of the scanned axes, first (fastest) first.
+
+    As the beamline's Igor loader (``SGM4loader_v7W9.ipf``) reads them:
+    ``dimensions`` gives their number, and axis ``n`` (from 1) is
+    ``Dim<n>_name``, ``_start``, ``_step`` and ``_length``. Files without
+    ``dimensions`` fall back to ``SlowAxis_*``."""
+    if "dimensions" not in details:
+        return _axes(details, "SlowAxis")
+    ndim = int(np.atleast_1d(details["dimensions"][()])[0])
+    names, lengths, axes = [], [], []
+    for n in range(1, ndim + 1):
+        first = lambda key: np.atleast_1d(details[f"Dim{n}_{key}"][()])[0]
+        name = _LEGACY.get(text(first("name")), text(first("name")))
+        start, step = float(first("start")), float(first("step"))
+        length = int(first("length"))
+        names.append(name)
+        lengths.append(length)
+        axes.append(start + step * np.arange(length))
     return names, lengths, axes
 
 
@@ -234,9 +257,18 @@ def read_layout(f: h5py.File) -> Layout:
             "a knife-edge scan holds a summed intensity per point, not "
             "spectra, and is not read here")
     details = f[_DETAILS]
-    slow_names, slow_lengths, slow_axes = _axes(details, "SlowAxis")
+    slow_names, slow_lengths, slow_axes = _slow_axes(details)
     fast_names, _fast_lengths, fast_axes = _axes(details, "FastAxis")
     dataset = f[_SPECTRA]
+    if len(fast_names) == 2 and not slow_names and dataset.ndim == 2:
+        # A single cut (no scanned axis): the spectra are the image itself.
+        energy_index = next((i for i, n in enumerate(fast_names)
+                             if "energy" in n.casefold()), 0)
+        return Layout(dataset=dataset, perm=(1 - energy_index, energy_index),
+                      dims=[], angle=fast_axes[1 - energy_index],
+                      energy=fast_axes[energy_index],
+                      facility="ASTRID2 SGM4", prefix="SGM4_",
+                      info=_read_info(f), work_function=WORK_FUNCTION_EV)
     if dataset.ndim != 1 + len(fast_names) or len(fast_names) != 2:
         raise ValueError(f"spectra of shape {dataset.shape} do not match "
                          f"the fast axes {fast_names}")

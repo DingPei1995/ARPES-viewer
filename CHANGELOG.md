@@ -17,6 +17,12 @@ file is the record of how it got that way.
 An AI agent started in one step, and driven through documented operations
 instead of the program's internals.
 
+**Later, 2026-11-05 (same version): the SGM4 reader follows the
+beamline's Igor loader (`SGM4loader_v7W9.ipf`).** The scanned axes are
+read from `ScanDetails/dimensions` and `Dim<n>_name/_start/_step/_length`
+as that loader does (`SlowAxis_*` is still read when `dimensions` is
+absent), and a file with no scanned axis opens as a single cut.
+
 **Later, 2026-11-05 (same version): a map whose scan was stopped before
 its end opens as far as it went, from every beamline.**
 
