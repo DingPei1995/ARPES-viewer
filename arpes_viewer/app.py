@@ -68,6 +68,7 @@ from arpes_viewer.ui.viewers import windows as viewer_windows_module
 from arpes_viewer.loader import registry as nxs_loaders
 from arpes_viewer.loader import session as nxs_session
 from arpes_viewer.loader import scan as nxs_scan
+from arpes_viewer.loader import native as nxs_native
 
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".arpes_viewer", "config.json")
 
@@ -956,6 +957,75 @@ def _dataset_for_saving(key):
             data.close()
 
 
+def _same_file(a, b) -> bool:
+    try:
+        return (os.path.normcase(os.path.abspath(str(a)))
+                == os.path.normcase(os.path.abspath(str(b))))
+    except (TypeError, ValueError):
+        return False
+
+
+def _rows_from_file(path):
+    """The rows that are re-read from ``path`` when opened (not computed
+    rows, which live in memory or in their auto-saved copy)."""
+    return [key for key, record in loaded_items.items()
+            if record.get("memory") is None and not record.get("backing")
+            and _same_file(record.get("path", ""), path)]
+
+
+def _viewers_on_file(path):
+    """The open viewer windows showing a dataset read from ``path``."""
+    rows = set(_rows_from_file(path))
+    found = []
+    for window in _open_viewer_windows():
+        data = getattr(window, "data", None)
+        if getattr(window, "_list_key", None) in rows or (
+                isinstance(data, NxsData)
+                and _same_file(getattr(data, "path", ""), path)):
+            found.append(window)
+    return found
+
+
+def _release_file(path):
+    """Close everything that reads ``path``: its viewers, the dataset whose
+    metadata is on show, and any dataset still open on it -- so the file can
+    be replaced (save over the file a row came from)."""
+    global current_data
+    for window in _viewers_on_file(path):
+        try:
+            window.close()
+        except RuntimeError:
+            pass
+    if isinstance(current_data, NxsData) and _same_file(current_data.path, path):
+        current_data.close()
+        current_data = None
+    for key, data in list(NxsData._open_files.items()):
+        if _same_file(key[0], path):
+            data._refs = 1
+            data.close()
+
+
+def _confirm_replace(path, other_rows, viewers) -> bool:
+    """Ask before saving over a file the program is reading from, saying
+    what that closes and what it loses. Nothing to say: no question."""
+    lines = []
+    if viewers:
+        lines.append(f"{len(viewers)} viewer window(s) showing data from it "
+                     f"will be closed.")
+    if other_rows:
+        names = ", ".join(label_for(key) for key in other_rows[:6])
+        more = f" and {len(other_rows) - 6} more" if len(other_rows) > 6 else ""
+        lines.append(f"Its other dataset(s), not in this save, will no longer "
+                     f"be in the file, and their rows leave the list: "
+                     f"{names}{more}.")
+    if not lines:
+        return True
+    answer = QMessageBox.question(
+        win, "Save over the file it was read from",
+        f"Replace {os.path.basename(path)}?\n\n" + "\n".join(lines))
+    return answer == QMessageBox.Yes
+
+
 def _rebind_saved_rows(keys, path: str, entries):
     """Point the rows that were just saved at the file they were saved to,
     and delete their working copies.
@@ -976,6 +1046,11 @@ def _rebind_saved_rows(keys, path: str, entries):
         record["exported"] = True
         backing = record.get("backing")
         if not backing:
+            if record.get("memory") is None and _same_file(
+                    record.get("path", ""), path):
+                # Saved back over the file it was read from: same file, but
+                # the entry may have a new name.
+                record["entry"] = entry
             continue                       # read from a file to begin with
         record["path"] = path
         record["entry"] = entry
@@ -1026,6 +1101,18 @@ def save_selected(path=None, fmt=None):
     if not path.lower().endswith(extension):
         path += extension
 
+    # Saving over a file the program reads from (the one a row was opened
+    # from): written beside it first, then put in its place once what reads
+    # it is closed -- see loader.native.save_over.
+    replacing = fmt == "nxs" and (nxs_scan.HANDLES.is_open(path)
+                                  or bool(_rows_from_file(path)))
+    replaced_rows = []
+    if replacing:
+        replaced_rows = [key for key in _rows_from_file(path)
+                         if key not in keys]
+        if not _confirm_replace(path, replaced_rows, _viewers_on_file(path)):
+            return
+
     payload, problems, saved_keys = [], [], []
 
     def gather(report):
@@ -1048,6 +1135,8 @@ def save_selected(path=None, fmt=None):
                 report(0.5 + 0.5 * done / max(total, 1),
                        f"Writing {label or os.path.basename(path)} "
                        f"({min(done + 1, total)} of {total})")
+            if replacing:
+                return nxs_native.write_beside(path, payload, progress=progress)
             return save_dataset(path, payload, progress=progress)
         from arpes_viewer.tools.output import igor
         report(None, f"Writing {os.path.basename(path)}")
@@ -1067,10 +1156,22 @@ def save_selected(path=None, fmt=None):
         QMessageBox.warning(win, "Save",
                             "Nothing could be saved:\n" + "\n".join(problems))
         return
+    if replacing:
+        temporary, outcome = outcome
+        try:
+            nxs_native.put_in_place(temporary, path,
+                                    release=lambda: _release_file(path))
+        except Exception as exc:
+            traceback.print_exc()
+            QMessageBox.warning(win, "Save", f"Could not replace the file "
+                                             f"(it is unchanged):\n{exc}")
+            return
     entries = written = outcome
 
     if fmt == "nxs":
         _rebind_saved_rows(saved_keys, path, entries)
+        if replaced_rows:
+            _remove_keys(replaced_rows)
         message = f"Saved {len(payload)} dataset(s) to {os.path.basename(path)}"
     else:
         message = (f"Wrote {len(payload)} dataset(s) for Igor Pro: "

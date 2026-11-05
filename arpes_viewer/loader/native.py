@@ -181,7 +181,8 @@ def save_dataset(path: str, datasets: "list[dict]", progress=None,
         # from under it (and Windows refuses the write anyway, less clearly).
         raise OSError(
             f"{os.path.basename(path)} is open in a viewer (or listed and "
-            f"being read); close what uses it, or save under another name")
+            f"being read); close what uses it, save under another name, or "
+            f"use save_over, which replaces it once its readers are closed")
     with h5py.File(path, "w") as f:
         for index, item in enumerate(datasets):
             if progress is not None:
@@ -231,6 +232,67 @@ def save_dataset(path: str, datasets: "list[dict]", progress=None,
                 except (TypeError, ValueError):
                     motors.attrs[str(key)] = str(val)
     return written
+
+def save_over(path: str, datasets: "list[dict]", release=None,
+              progress=None) -> "list[str]":
+    """Write ``datasets`` over ``path`` even while the program is reading
+    from it -- the file a row was opened from, saved back after a change.
+
+    :func:`save_dataset` refuses that file, because writing over it in place
+    would pull the data out from under whatever reads it lazily (and Windows
+    refuses the write). Here the new file is written beside it first, under
+    a hidden name (:func:`write_beside`); ``release()`` is then called to
+    close everything that reads the old one (viewers, open datasets), the
+    last handle is closed, and the new file takes the old one's place in one
+    step (:func:`put_in_place`). If anything fails, the old file is left as
+    it was and the half-written one removed.
+
+    The values to write must already be in memory (``np.asarray``): after
+    ``release`` the old file can no longer be read. Returns the entry names
+    written, as :func:`save_dataset` does. A GUI writes on a worker thread
+    and closes its windows on its own: it calls the two halves itself.
+    """
+    temporary, written = write_beside(path, datasets, progress=progress)
+    put_in_place(temporary, path, release)
+    return written
+
+
+def write_beside(path: str, datasets: "list[dict]", progress=None):
+    """The first half of :func:`save_over`: ``datasets`` written to a hidden
+    file in ``path``'s folder. Returns ``(that file, the entry names)``."""
+    path = os.path.abspath(path)
+    folder, name = os.path.split(path)
+    temporary = os.path.join(folder, f".{name}.saving-{os.getpid()}.nxs")
+    try:
+        written = save_dataset(temporary, datasets, progress=progress)
+    except BaseException:
+        discard_beside(temporary)
+        raise
+    return temporary, written
+
+
+def put_in_place(temporary: str, path: str, release=None) -> None:
+    """The second half of :func:`save_over`: close what reads ``path``
+    (``release()``, then its last handle) and move ``temporary`` onto it.
+    On failure the temporary file is removed and ``path`` left as it was."""
+    try:
+        if release is not None:
+            release()
+        HANDLES.close_file(path)
+        os.replace(temporary, os.path.abspath(path))
+    except BaseException:
+        discard_beside(temporary)
+        raise
+
+
+def discard_beside(temporary: str) -> None:
+    """Remove a file :func:`write_beside` wrote, if it is still there."""
+    HANDLES.close_file(temporary)
+    try:
+        os.remove(temporary)
+    except OSError:
+        pass
+
 
 def list_native(path: str) -> "list[dict]":
     """Every openable entry of a file written here (see

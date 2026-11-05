@@ -58,6 +58,15 @@ its end opens as far as it went, from every beamline.**
   Cancel. The windows still read only the axes -- an HDF5 map stays on disk
   until Apply, which has its own progress. Inside an agent's command the
   read stays direct, and the command folder never polls inside itself.
+- **Saving over the file a row was read from.** Save refused it ("open in
+  a viewer ... save under another name"), since writing over a file being
+  read pulls the data from under the viewer, and Windows refuses the write.
+  Now the new file is written beside it under a hidden name, the viewers
+  on the old one are closed, and it takes the old one's place in one step
+  (`loader/native.py` `save_over`, `write_beside`, `put_in_place`). One
+  question first when that closes viewers or drops datasets of the file
+  that were not selected (their rows leave the list); if anything fails,
+  the old file is left as it was.
 
 **The release itself, 2026-11-04:**
 

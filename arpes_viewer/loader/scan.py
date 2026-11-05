@@ -215,6 +215,19 @@ class _HandleRegistry:
             closed += 1
         return closed
 
+    def close_file(self, path: str) -> bool:
+        """Close the handle on ``path`` now, whoever holds it -- for a file
+        about to be replaced (:func:`loader.native.save_over`), after
+        everything reading from it has been closed. True if one was open."""
+        entry = self._open.pop(os.path.abspath(path), None)
+        if entry is None:
+            return False
+        try:
+            entry[0].close()
+        except Exception:
+            pass
+        return True
+
     def open_count(self) -> int:
         """Number of files currently held open (used by the tests)."""
         return len(self._open)
