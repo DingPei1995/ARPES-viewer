@@ -280,9 +280,9 @@ class RidgeDialog(QDialog):
 
     def _name(self, base):
         taken = set(self._existing())
-        name, n = f"{base}_rd", 2
+        name, n = f"{base} [ridge]", 2
         while name in taken:
-            name = f"{base}_rd{n}"
+            name = f"{base} [ridge] ({n})"
             n += 1
         return name
 

@@ -2305,9 +2305,9 @@ class BandsDialog(QDialog):
             parameters["path"] = " ".join(f"{l}@{d:.4f}" for d, l in ticks)
         values = B.spectral_function(energies, energy, width)
         taken = set(self._existing())
-        name, n = f"{base} calculation", 2
+        name, n = f"{base} [calc]", 2
         while name in taken:
-            name, n = f"{base} calculation {n}", n + 1
+            name, n = f"{base} [calc] ({n})", n + 1
         return MemoryData("cut", (np.asarray(k, float), np.asarray(energy, float)),
                           values.astype(np.float32),
                           {"x": x_label, "y": "E - E_F (eV)"},

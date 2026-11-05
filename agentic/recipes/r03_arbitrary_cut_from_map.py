@@ -1,9 +1,9 @@
 # Recipe: take a cut along a straight line of a k-converted map with the viewer's "Arbitrary cut".
 # Example: a slice at fixed kx running along ky (the same position as a measured cut).
 import numpy as np
-MAP_ROW = "FineMap_s_nor [k] [E-Ef]"        # name of the k-converted map row
+MAP_ROW = "FineMap [norm] [k] [E-E_F]"        # name of the k-converted map row
 KX = 0.644                                    # 1/A, position of the line
-NAME = "Cut_from_map [k] [E-Ef]"
+NAME = "Cut_from_map [k] [E-E_F]"
 key = {r["name"]: k for k, r in A.loaded_items.items()}[MAP_ROW]
 m = A.load_dataset(key).scan
 ky = np.asarray(m.k, float)

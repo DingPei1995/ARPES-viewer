@@ -67,6 +67,22 @@ its end opens as far as it went, from every beamline.**
   question first when that closes viewers or drops datasets of the file
   that were not selected (their rows leave the list); if anything fails,
   the old file is left as it was.
+- **One naming rule for processed data, and "Sort by data type" by it.**
+  A result is named after its source plus one tag in square brackets per
+  step, oldest first -- `Map80eV [norm] [E-E_F] [k]` -- from one ordered
+  table (`tools/runtime/naming.py`: `[combined]`, `[degrid]`, `[crop]`,
+  `[bin]`, `[norm]`, `[bg]`, `[E-E_F]`, `[dFD]`, `[FS corr]`, `[sm]`,
+  `[symm]`, `[k]`, `[kz]`, `[d2]`, `[cur]`, `[ridge]`, `[slice]`, `[EDC]`
+  ...). The underscore suffixes are gone (`_s_nor`, `_tk`, `_comb`, `_sm`,
+  `_d2`, `_cur`, `_symm`, `_rd`, `_det` ...), and `[E-Ef]` is `[E-E_F]`.
+  "Sort by data type" groups the list by the last tag, in the table's
+  order (measurements as read first), then by kind and name; it used to
+  group by cut / map only, mixing every processing together. Older names
+  are still read as the tags they mean. A chained agent step names every
+  step it ran (`map1 [E-E_F] [norm] [k]`).
+- **Agents name rows the same way**: the rule is in the agent reference's
+  working rules and in the AI assistant's prompt, and `L.naming()` returns
+  the table.
 
 **The release itself, 2026-11-04:**
 

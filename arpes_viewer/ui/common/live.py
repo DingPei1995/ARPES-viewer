@@ -15,7 +15,7 @@ their names -- the same rows the person at the screen sees.
     L.help("kz_to_k")            # one operation in full
     L.rows()                     # what is in the list
     L.fermi_edge("cut1", energy_window=(-0.15, 0.1), temperature=30)
-    L.shift_energy("cut1", ef=-0.012)          # -> "cut1 [E-Ef]"
+    L.shift_energy("cut1", ef=-0.012)          # -> "cut1 [E-E_F]"
     L.slice_series("map1 [k]", values=[0, -0.1, -0.2], half_width=0.02)
 
 Rules every operation keeps:
@@ -352,6 +352,17 @@ class Live:
         if item is not None:
             item.setText(A._row_label(key))
         return new_name
+
+    @operation("The list")
+    def naming(self) -> str:
+        """How a processed row is named: its source's name plus one tag in
+        square brackets per step, oldest first ('Map80eV [norm] [E-E_F]
+        [k]'), from the ordered table returned here. Every operation names
+        its result this way; a ``new_name=`` of your own keeps the tags and
+        adds the step's tag in brackets too, so "Sort by data type" groups
+        the list by what was last done."""
+        from arpes_viewer.tools.runtime.naming import naming_rule
+        return naming_rule()
 
     @operation("The list")
     def remove(self, *names) -> list:
@@ -748,8 +759,9 @@ class Live:
                        value=np.asarray(values))
         for slot, axis in zip(slots, axes):
             setattr(scan, slot, np.asarray(axis, dtype=float))
+        from arpes_viewer.tools.runtime.naming import tagged
         return self._list_scan(scan, new_name or
-                               f"{self._name(self._key(name))} [{step}]")
+                               tagged(self._name(self._key(name)), step))
 
     @operation("Processing")
     @_keeps_selection
@@ -890,6 +902,17 @@ class Live:
     # ==================================================================
     # Momentum
     # ==================================================================
+    def _chain_name(self, name, ef, normalise_axes, step):
+        """The name of a chain's last row: one bracketed tag per step it
+        ran, in order (tools.runtime.naming)."""
+        from arpes_viewer.tools.runtime.naming import tagged
+        out = self._name(self._key(name))
+        if ef is not None:
+            out = tagged(out, "shift_energy")
+        if normalise_axes is not None:
+            out = tagged(out, "normalise")
+        return tagged(out, step)
+
     def _prepared(self, name, ef=None, normalise_axes=None,
                   normalise_window=None):
         """The row in a workspace, shifted to E - E_F (``ef``) and divided by
@@ -941,7 +964,7 @@ class Live:
             n_k=n_k, name=new_name or None)
         record = workspace.get(result["id"])
         if not new_name:
-            record["name"] = f"{self._name(self._key(name))} [k]"
+            record["name"] = self._chain_name(name, ef, normalise_axes, "k")
         return self._list_scan(record["scan"], record["name"])
 
     @operation("Momentum")
@@ -967,7 +990,7 @@ class Live:
             n_kx=n_kx, n_ky=n_ky, name=new_name or None)
         record = workspace.get(result["id"])
         if not new_name:
-            record["name"] = f"{self._name(self._key(name))} [k]"
+            record["name"] = self._chain_name(name, ef, normalise_axes, "k")
         return self._list_scan(record["scan"], record["name"])
 
     @operation("Processing")

@@ -552,7 +552,7 @@ def test_map_to_k_in_one_call_lists_only_the_k_map(program):
     L = Live(program)
     before = len(L.rows())
     k = L.map_to_k("map1", ef=EF, normalise_axes=(1, 2))
-    assert len(L.rows()) == before + 1 and k == "map1 [k]"
+    assert len(L.rows()) == before + 1 and k == "map1 [E-E_F] [norm] [k]"
     axes = L.describe(k)["axes"]
     assert axes[0]["points"] == 2 * DEFL.size          # twice the scan
     assert axes[2]["max"] < 0.2                        # on E - E_F
@@ -637,3 +637,12 @@ def test_a_lone_spectrum_in_a_map_folder_is_reported_not_listed(program, tmp_pat
     assert out["unrecognised"] == ["notes.docx"]
     again = L.add_files(str(folder / "CSS0009.txt"))
     assert len(again["added"]) == 1
+
+
+def test_naming_gives_the_ordered_tag_table(program):
+    from arpes_viewer.ui.common.live import Live
+    from arpes_viewer.tools.runtime.naming import TAGS
+    rule = Live(program).naming()
+    assert "[norm]" in rule and "[E-E_F]" in rule and "[k]" in rule
+    assert rule.index("[norm]") < rule.index("[E-E_F]") < rule.index("[k]")
+    assert len(TAGS) == rule.count("\n  [")

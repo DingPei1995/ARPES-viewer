@@ -362,7 +362,7 @@ class Workspace:
         info = dict(scan.info or {})
         info["fitEF.ef_subtracted"] = float(ef)
         new = self._derived(scan.kind, axes, np.asarray(scan.array()), labels,
-                            info, name or f"{record['name']} [E-Ef]", ident)
+                            info, name or f"{record['name']} [E-E_F]", ident)
         return self.describe(new)
 
     def crop(self, ident, ranges, name: str = None) -> dict:

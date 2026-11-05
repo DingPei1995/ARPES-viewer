@@ -341,7 +341,7 @@ class KzMapProcessDialog(QDialog):
         info["kz.fermi_level_eV"] = np.asarray(result.ef, dtype=float)
         info["kz.fermi_level_fitted"] = np.asarray(result.ok, dtype=bool)
 
-        name = _unique(f"{self.contour.filename} [E-Ef]",
+        name = _unique(f"{self.contour.filename} [E-E_F]",
                        self.contour.existing_names())
         return MemoryData(
             data.kind, (self.hv, self.angles, result.energy), result.cube,

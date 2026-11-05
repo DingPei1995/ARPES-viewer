@@ -73,7 +73,7 @@ ticked options and your own words (*Copy the prompt and start*). In short:
 
 **A photon-energy scan**
 
-> Convert `<kz map [E-Ef]>` to (k_z, k//): space group `<194>`,
+> Convert `<kz map [E-E_F]>` to (k_z, k//): space group `<194>`,
 > a = `<6.26>` Å, c = `<5.82>` Å, surface (0 0 1). Γ is at normal emission
 > at hν = `<80>` eV. Tell me the V0 this gives and which high-symmetry
 > points the measured plane holds.

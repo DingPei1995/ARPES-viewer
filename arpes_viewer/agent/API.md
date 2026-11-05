@@ -60,7 +60,10 @@ did.
   was left out, not recognised or warned about. Rows can be named by their
   number in `rows()` or their file's path when names are not enough.
 - **Names**: say which part of a name comes from the file name and which
-  from recorded metadata; mark guesses.
+  from recorded metadata; mark guesses. A processed row keeps its source's
+  name and adds one tag **in square brackets** per step, oldest first,
+  from the ordered table of `L.naming()` -- `Map80eV [norm] [E-E_F] [k]`,
+  never `Map80eV_norm_k`; a `new_name=` of your own follows the same rule.
 - **Fermi level**: on raw data, per row, on that row's own axis
   (`fermi_edge_search`); the Fermi edge is the *last* drop to the floor,
   not the steepest one. Draw each fit (`picture=`); rows of the same photon
@@ -130,6 +133,15 @@ tool windows act on. Returns the names selected.
 #### `L.rename(name, new_name)`
 
 Give a row a new name (made unique if taken). Returns it.
+
+#### `L.naming()`
+
+How a processed row is named: its source's name plus one tag in
+square brackets per step, oldest first ('Map80eV [norm] [E-E_F]
+[k]'), from the ordered table returned here. Every operation names
+its result this way; a ``new_name=`` of your own keeps the tags and
+adds the step's tag in brackets too, so "Sort by data type" groups
+the list by what was last done.
 
 #### `L.remove(*names)`
 

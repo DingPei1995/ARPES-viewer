@@ -352,9 +352,9 @@ class DetectorDialog(QDialog):
 
     def _default_name(self):
         taken = set(self._existing())
-        name, n = f"{self.name}_det", 2
+        name, n = f"{self.name} [det]", 2
         while name in taken:
-            name, n = f"{self.name}_det{n}", n + 1
+            name, n = f"{self.name} [det] ({n})", n + 1
         return name
 
     def _summary(self):

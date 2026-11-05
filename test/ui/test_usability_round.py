@@ -58,7 +58,7 @@ def test_subtracted_fermi_level_is_read_back(app):
 
 
 def test_a_shifted_cut_converts_and_stays_on_e_minus_ef(app):
-    window = W.CutWindow(_shifted_cut(), "c [E-Ef]", "gray", False)
+    window = W.CutWindow(_shifted_cut(), "c [E-E_F]", "gray", False)
     made = []
     window.datasetCreated.connect(made.append)
     dialog = W.CutKConversionDialog(window)

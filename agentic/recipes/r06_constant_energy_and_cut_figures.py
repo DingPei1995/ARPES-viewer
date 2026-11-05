@@ -15,10 +15,10 @@ bz3d_tool_picture((1, 0, 0), 0.0, S + r"\b3_80LV.png")
 bz3d_tool_picture((1, 0, 0), 0.4465, S + r"\b3_100LH.png")
 bz3d_tool_picture((0, 0, 1), 0.0, S + r"\b3_kz.png")
 jobs = [
- ("hvLH [E-Ef] [kz]   [kz map (k)]", "hvLH [E-Ef] [kz]", "b3_kz.png", "Fig2_kz_constE"),
- ("FineMap80eVLH [E-Ef]_s_nor [k]   [k-map]", "FineMap80eVLH [E-Ef]_s_nor [k]", "b3_80LH.png", "Fig3_map80LH_constE"),
- ("FineMap80eVLV [E-Ef]_s_nor [k]   [k-map]", "FineMap80eVLV [E-Ef]_s_nor [k]", "b3_80LV.png", "Fig4_map80LV_constE"),
- ("FineMap100eVLH [E-Ef]_s_nor [k]   [k-map]", "FineMap100eVLH [E-Ef]_s_nor [k]", "b3_100LH.png", "Fig5_map100LH_constE"),
+ ("hvLH [E-E_F] [kz]   [kz map (k)]", "hvLH [E-E_F] [kz]", "b3_kz.png", "Fig2_kz_constE"),
+ ("FineMap80eVLH [E-E_F] [norm] [k]   [k-map]", "FineMap80eVLH [E-E_F] [norm] [k]", "b3_80LH.png", "Fig3_map80LH_constE"),
+ ("FineMap80eVLV [E-E_F] [norm] [k]   [k-map]", "FineMap80eVLV [E-E_F] [norm] [k]", "b3_80LV.png", "Fig4_map80LV_constE"),
+ ("FineMap100eVLH [E-E_F] [norm] [k]   [k-map]", "FineMap100eVLH [E-E_F] [norm] [k]", "b3_100LH.png", "Fig5_map100LH_constE"),
 ]
 for row, pre, pic, name in jobs:
     try: print(name, const_energy_figure(row, pre, S + "\\" + pic, name)[0])
@@ -27,7 +27,7 @@ for row, pre, pic, name in jobs:
     pump(4)
 
 # --- Fig6: schematic picture of the 80 eV BZ + cuts
-ROW = "FineCuts_tk_s_nor [k]   [k-map]"; PRE = "FineCuts_tk_s_nor [k]"
+ROW = "FineCuts_tk [norm] [k]   [k-map]"; PRE = "FineCuts_tk [norm] [k]"
 for w in top("FigureWindow"): w.close()
 pump(2)
 ov = bz_overlay(PRE)

@@ -463,7 +463,11 @@ def sort_list(by: str = "name"):
         return str(record.get("kind") or "").lower()
 
     if by == "kind":
-        key = lambda item: (kind_of(item), _natural_key(name_of(item)))  # noqa: E731
+        # By what the data now is: the last processing tag of the name
+        # ("[norm]", "[E-E_F]", "[k]" ...), in processing order, the
+        # measurements as read first; then cut / map ..., then the name.
+        from arpes_viewer.tools.runtime.naming import type_sort_key
+        key = lambda item: type_sort_key(name_of(item), kind_of(item))  # noqa: E731
     else:
         key = lambda item: _natural_key(name_of(item))                  # noqa: E731
     selected = {id(item) for item in widget.selectedItems()}
@@ -613,8 +617,10 @@ def show_list_menu(position):
             ("name", "Sort by name",
              "Order every row of the list by its name (Cut_9 before Cut_10)."),
             ("kind", "Sort by data type",
-             "Group the rows by kind (cut, map, k-map...), each group by "
-             "name.")):
+             "Group the rows by what was last done to them -- the last tag "
+             "in square brackets of the name ([norm], [E-E_F], [k] ...), in "
+             "processing order, measurements as read first -- then by kind "
+             "(cut, map ...) and name.")):
         action = QAction(text, menu)
         action.setToolTip(tip)
         menu.addAction(action)
@@ -2498,7 +2504,7 @@ def combine_selected(ask=None, dialog_hook=None):
         elif dialog.mode() == "stack":
             role, axis_name, unit, values = dialog.axis()
             label = unique_name(f"{names[order[0]]} + {len(names) - 1} "
-                                f"[{axis_name or 'stack'}]")
+                                f"[combined {axis_name or 'stack'}]")
             result = nxs_jobs.busy_work(win, "Stacking the datasets",
                                         combined_dataset, datasets, order, role,
                                         axis_name, unit, values, label,
@@ -2509,7 +2515,7 @@ def combine_selected(ask=None, dialog_hook=None):
                 QMessageBox.information(win, title, f"Cannot join: {plan}")
                 return None
             label = unique_name(f"{names[order[0]]} + {len(names) - 1} "
-                                f"[joined]")
+                                f"[combined joined]")
             result = nxs_jobs.busy_work(win, "Joining the datasets",
                                         joined_dataset, datasets, order,
                                         dialog.join_axis(), dialog.overlap(),

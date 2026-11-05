@@ -31,6 +31,7 @@ from PyQt5.QtWidgets import (QSizePolicy, QWidget, QMainWindow, QVBoxLayout, QHB
                              QGroupBox, QMessageBox, QProgressDialog, QStyle,
                              QInputDialog)
 
+from arpes_viewer.tools.runtime.naming import tag_for
 from arpes_viewer.ui.common.screen import fits_screen
 
 import arpes_viewer.tools.processing.process as P
@@ -510,9 +511,10 @@ class ProcessDialog(QDialog):
     #: datasets this panel produced, for the launcher to list
     datasetsCreated = pyqtSignal(list)
 
-    SUFFIXES = {"smooth": "_sm", "derivative": "_d2", "curvature": "_cur",
-                "gradient": "_grad", "background": "_bg", "fermi": "_fd",
-                "despike": "_fix", "symmetry": "_symm"}
+    #: the tag each operation's result is named with (tools.runtime.naming)
+    SUFFIXES = {key: f" [{tag_for(key)}]" for key in (
+        "smooth", "derivative", "curvature", "gradient", "background",
+        "fermi", "despike", "symmetry")}
 
     #: the tabs, by the name the launcher's tool buttons open them with
     TABS = ("smooth", "derivative", "curvature", "background", "symmetry")
@@ -1153,7 +1155,7 @@ class ProcessDialog(QDialog):
             self.datasetsCreated.emit(created)
             self.note.setText(
                 f"Added {len(created)} dataset(s) ending in "
-                f"“{self.SUFFIXES.get(key, '_proc')}” to the list.")
+                f"“{self.SUFFIXES.get(key, f' [{tag_for(key)}]')}” to the list.")
         return created
 
     def _wrap(self, data, name, key, params, values, axes):

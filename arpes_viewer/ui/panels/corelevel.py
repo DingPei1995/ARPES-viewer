@@ -1028,7 +1028,7 @@ class CoreLevelWindow(QMainWindow):
         b = self.binding()
         order = np.argsort(b)
         ref = self.reference
-        name = f"{self.label} [core-level EDC]"
+        name = f"{self.label} [EDC core-level]"
         data = curve_dataset(
             "edc", b[order], self.intensity[order][:, None], ["EDC"],
             x_label="Binding energy (eV)",

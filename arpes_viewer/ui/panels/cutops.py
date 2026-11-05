@@ -447,7 +447,7 @@ class CutArithmeticDialog(QDialog):
 
     # -- leaving -----------------------------------------------------------
     def _result_name(self, suffix: str) -> str:
-        base = f"{self.name_a} {suffix}"
+        base = f"{self.name_a} [{suffix}]"
         taken = set(self.existing_names() or ())
         if base not in taken:
             return base

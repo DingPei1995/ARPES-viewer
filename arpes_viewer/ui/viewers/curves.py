@@ -484,7 +484,7 @@ class CurveWindow(FunctionsMenuMixin, QMainWindow):
             if key == "bin":
                 factor, how = self.bin_factor.value(), self.bin_how.currentData()
                 x2, v2, n2 = C.rebin(x, values, names, factor, how)
-                return self._emit(x2, v2, n2, suffix=f"bin{factor}",
+                return self._emit(x2, v2, n2, suffix=f"bin {factor}",
                                   step="bin",
                                   parameters={"factor": factor, "how": how})
             if key == "normalise":
@@ -525,7 +525,7 @@ class CurveWindow(FunctionsMenuMixin, QMainWindow):
                 if not added:
                     raise ValueError("every channel either has a σ already or "
                                      "is not raw counts")
-                return self._emit(x, v2, n2, suffix="σ", step="poisson_sigma",
+                return self._emit(x, v2, n2, suffix="sigma", step="poisson_sigma",
                                   parameters={"added": ", ".join(added)})
             raise ValueError(f"unknown operation {key!r}")
         except ValueError as exc:

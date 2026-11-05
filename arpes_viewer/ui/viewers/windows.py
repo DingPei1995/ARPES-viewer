@@ -289,7 +289,8 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
 
     def _slice_name(self, suffix: str) -> str:
         label = self.slice_label()
-        stem = f"{self.filename} [{suffix}]"
+        # tagged as a slice (tools.runtime.naming), with the panel it is
+        stem = f"{self.filename} [slice {suffix}]"
         return f"{stem} {label}" if label else stem
 
     def save_slice_to_list(self):
@@ -501,7 +502,7 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
         unit = _unit_of(labels.get(energy_name, "")) or "eV"
         labels[energy_name] = f"E - E_F ({unit})"
 
-        name = f"{self.filename} [E-Ef]"
+        name = f"{self.filename} [E-E_F]"
         naming = getattr(self, "existing_names", None)
         taken = set(naming()) if callable(naming) else set()
         if name in taken:
@@ -544,7 +545,7 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
         labels = dict(scan.labels)
         unit = _unit_of(labels.get("z", "")) or "eV"
         labels["z"] = f"E - E_F ({unit})"
-        name = f"{self.filename} [E-Ef]"
+        name = f"{self.filename} [E-E_F]"
         naming = getattr(self, "existing_names", None)
         taken = set(naming()) if callable(naming) else set()
         if name in taken:
@@ -6728,11 +6729,11 @@ class DataOperationsDialog(QDialog):
         tab = self.tabs.currentIndex() if self.operation is None else self.operation
         try:
             if tab == 0:
-                operation, suffix, prefix = self._apply_truncate, "_tk", "trunc"
+                operation, suffix, prefix = self._apply_truncate, " [crop]", "trunc"
             elif tab == 1:
-                operation, suffix, prefix = self._apply_normalise, "_s_nor", "snorm"
+                operation, suffix, prefix = self._apply_normalise, " [norm]", "snorm"
             else:
-                operation, suffix, prefix = self._apply_compress, "_comb", "compress"
+                operation, suffix, prefix = self._apply_compress, " [bin]", "compress"
             settings = operation(None, probe=True)
         except ValueError as exc:
             QMessageBox.warning(self, self.windowTitle(), str(exc))

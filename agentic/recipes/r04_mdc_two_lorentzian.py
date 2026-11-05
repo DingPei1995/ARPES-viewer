@@ -3,7 +3,7 @@
 # Writes agentic/out/mdc_fit.json (positions, errors, widths, curves) for plotting/reporting.
 import json, re, os, numpy as np
 from arpes_viewer.tools.spectra import peaks as PK
-ROWS = r"Cut_LH_(\d+)K \[k G15\] \[E-Ef\]_s_nor$"       # normalised, k-converted cuts to fit
+ROWS = r"Cut_LH_(\d+)K \[k G15\] \[E-E_F\] \[norm\]$"       # normalised, k-converted cuts to fit
 E0, HW = -0.1, 0.010                                    # MDC at E - E_F = E0, integrated +-HW (eV)
 KLO, KHI = -1.0, -0.4                                   # fit range (1/A)
 SEEDS = {"A": (-0.85, 0.10), "B": (-0.66, 0.06)}        # start centre, width (ASK the user / inspect first)

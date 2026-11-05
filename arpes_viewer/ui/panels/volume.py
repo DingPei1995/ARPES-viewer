@@ -35,6 +35,7 @@ from PyQt5.QtWidgets import (QSizePolicy, QWidget, QMainWindow, QVBoxLayout, QHB
                              QGroupBox, QMessageBox, QProgressDialog, QSlider,
                              QFileDialog, QScrollArea, QInputDialog)
 
+from arpes_viewer.tools.runtime.naming import tag_for
 from arpes_viewer.ui.common.screen import fits_screen
 from arpes_viewer.tools.output import colormaps
 import arpes_viewer.tools.processing.process as P
@@ -1845,8 +1846,10 @@ class VolumeProcessDialog(QDialog):
 
     datasetsCreated = pyqtSignal(list)
 
-    SUFFIXES = {"smooth": "_sm", "derivative": "_d2", "curvature": "_cur",
-                "normalise": "_nor", "symmetry": "_symm", "despike": "_fix"}
+    #: the tag each operation's result is named with (tools.runtime.naming)
+    SUFFIXES = {key: f" [{tag_for(key)}]" for key in (
+        "smooth", "derivative", "curvature", "normalise", "symmetry",
+        "despike")}
 
     #: what each of the launcher's tool buttons opens this panel as: the
     #: plane-wise operations it offers (indices of PLANE_OPERATIONS), or
@@ -2288,7 +2291,7 @@ class VolumeProcessDialog(QDialog):
                                      P.Step(key, params, source=name))
                 created.append(MemoryData(
                     data.kind, tuple(axes), out, dict(data.scan.labels),
-                    source_label=f"{name}{self.SUFFIXES.get(key, '_proc')}",
+                    source_label=f"{name}{self.SUFFIXES.get(key, f' [{tag_for(key)}]')}",
                     parameters=params, prefix=f"proc.{key}",
                     source_path=getattr(data, "path", ""), source_info=info,
                     source_motors=dict(data.scan.fourd_info)))

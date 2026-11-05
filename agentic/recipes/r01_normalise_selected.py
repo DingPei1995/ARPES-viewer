@@ -1,5 +1,5 @@
 # Recipe: normalise every row whose list text starts with PREFIX by its total intensity,
-# using the viewer's own "Self-normalise" dialog (result rows get the suffix _s_nor).
+# using the viewer's own "Self-normalise" dialog (result rows get the suffix  [norm]).
 # Drop into agentic/viewer_cmd/ (live viewer). Adapt PREFIX / the axes ticked, test on one row first.
 from PyQt5 import QtWidgets
 PREFIX = "Cut_"                      # rows to normalise, matched against the start of the list text

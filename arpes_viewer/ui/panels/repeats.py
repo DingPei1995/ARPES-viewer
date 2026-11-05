@@ -316,7 +316,7 @@ class RepeatsDialog(QDialog):
                     enter=self._enter_sum)
 
     def _default_name(self):
-        base = f"{self.names[0]} ×{len(self.names)} summed"
+        base = f"{self.names[0]} [combined ×{len(self.names)} summed]"
         taken = set(self._existing())
         name, n = base, 2
         while name in taken:

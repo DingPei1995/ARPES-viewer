@@ -179,6 +179,11 @@ def build_prompt(mode: str, data: str, results: str, options=(),
              "and pass energy should agree within a few meV; if they do not, "
              "or two edges fit, show me and ask once, then apply the answer "
              "to the rest.",
+             "Name processed rows the program's way: the source's name, then "
+             "one tag in square brackets per step, oldest first, from the "
+             "table of L.naming() (e.g. 'Map80eV [norm] [E-E_F] [k]'); a "
+             "new_name of your own follows the same rule, so the list sorts "
+             "by what was last done.",
              "Keep the list readable: do chains of steps in one call where "
              "the operation offers it (map_to_k / cut_to_k with ef= and "
              "normalise_axes=), so only final rows are listed, named clearly; "
