@@ -585,6 +585,23 @@ def _best_effort_transpose_3d(arr: np.ndarray, axis_lengths: dict) -> np.ndarray
 # --------------------------------------------------------------------------
 # Case 3 / 4: deflector-angle scan (k-space "Cut" or "Map")
 # --------------------------------------------------------------------------
+def _measured_part(values):
+    """A per-step record without the steps a stopped scan never reached.
+
+    The datasets are written at the length the scan planned; the steps not
+    measured keep the fill value -- 0 -- or NaN. Cut from the end so that
+    the constant-calibration check of :func:`scalar0` sees the steps that
+    were measured, not a scale that "drops to zero". A record that is the
+    fill value throughout is left as it is."""
+    values = np.asarray(values)
+    if values.ndim != 1 or values.size < 2 or values.dtype.kind not in "fiu":
+        return values
+    real = np.isfinite(values) & (values != 0)
+    if not real.any():
+        return values
+    return values[:int(np.nonzero(real)[0][-1]) + 1]
+
+
 def _parse_case34(f: h5py.File, g: str, e_idx: tuple, x_idx: tuple, v_idx: str) -> NxsScan:
     """``e_idx``/``x_idx`` are the ('data_NN','data_NN','data_NN') triplets
     for (escale) and (xscale) that differ between case 3 (01-03 / 04-06) and
@@ -592,12 +609,16 @@ def _parse_case34(f: h5py.File, g: str, e_idx: tuple, x_idx: tuple, v_idx: str) 
     data_11)."""
     deflx = squeeze_to_1d(f[f"{g}/scan_data/actuator_1_1"][()], "actuator_1_1 (deflx)")
 
-    escalemin = scalar0(f[f"{g}/scan_data/{e_idx[0]}"][()], f"{e_idx[0]} (escalemin)")
-    escalemult = scalar0(f[f"{g}/scan_data/{e_idx[1]}"][()], f"{e_idx[1]} (escalemult)")
-    escalemax = scalar0(f[f"{g}/scan_data/{e_idx[2]}"][()], f"{e_idx[2]} (escalemax)")
-    xscalemin = scalar0(f[f"{g}/scan_data/{x_idx[0]}"][()], f"{x_idx[0]} (xscalemin)")
-    xscalemult = scalar0(f[f"{g}/scan_data/{x_idx[1]}"][()], f"{x_idx[1]} (xscalemult)")
-    xscalemax = scalar0(f[f"{g}/scan_data/{x_idx[2]}"][()], f"{x_idx[2]} (xscalemax)")
+    def scale(name, what):
+        return scalar0(_measured_part(f[f"{g}/scan_data/{name}"][()]),
+                       f"{name} ({what})")
+
+    escalemin = scale(e_idx[0], "escalemin")
+    escalemult = scale(e_idx[1], "escalemult")
+    escalemax = scale(e_idx[2], "escalemax")
+    xscalemin = scale(x_idx[0], "xscalemin")
+    xscalemult = scale(x_idx[1], "xscalemult")
+    xscalemax = scale(x_idx[2], "xscalemax")
 
     escale = inclusive_range(escalemin, escalemult, escalemax)
     xscale = inclusive_range(xscalemin, xscalemult, xscalemax)

@@ -17,6 +17,41 @@ file is the record of how it got that way.
 An AI agent started in one step, and driven through documented operations
 instead of the program's internals.
 
+**Later, 2026-11-05 (same version): a map whose scan was stopped before
+its end opens as far as it went, from every beamline.**
+
+- **The reported ANTARES map**: a 151-step deflector map stopped part-way.
+  Its HDF5 datasets have the planned length; the unmeasured images are zeros
+  and the deflector readback NaN there, so the cut viewer stopped with
+  "Cannot set range [nan, nan]". It now opens with the steps that were
+  measured.
+- **One rule for every loader** (`loader/incomplete.py`, applied by
+  `registry.load` to every `map` and `kz_map`): from the end of the scanned
+  axis, the steps never measured (no counts, or no value of the scanned
+  axis) are cut, then any last step whose total intensity is below half the
+  median of the five before it (stopped part-way through its sweeps). Weak
+  steps inside a scan are the sample and stay; a slow trend is followed,
+  since each step is judged against its neighbours; two steps are always
+  kept. What was cut, and why, is in `info` (`incomplete.*`) and the status
+  bar. The program's own saved datasets are never trimmed;
+  `LoadOptions(trim_incomplete=False)` reads every frame.
+- **Nothing read for it**: a map left in its file stays there
+  (`LazyCube.head` / `LazyArray.head`); only the frames judged are read.
+- **CASSIOPEE: the intensity decides, not the parameter file.** A spectrum
+  without its `_i` file used to be left out whatever it held, and one with
+  its `_i` file but stopped part-way was kept. The first is now read, with
+  its step from the even steps of the others
+  (`cassiopee.unpaired_members`), and judged by its intensity like every
+  other; one still being written, and so unreadable, is left out
+  (`cassiopee.unreadable_members`).
+- **ANTARES scale records** (`data_01`–`data_06`) are read over the
+  measured steps only, so a stopped map no longer warns of a "drifting
+  calibration" because of its zero-filled tail.
+- **An image with no finite value is drawn blank** instead of raising inside
+  pyqtgraph.
+
+**The release itself, 2026-11-04:**
+
 - **`L`: the program's documented operations, for every agent route.**
   About fifty operations on the named rows of the main list
   (`arpes_viewer/ui/common/live.py`): the list, looking at data without the

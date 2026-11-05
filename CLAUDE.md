@@ -6,7 +6,11 @@
   into one simplified summary headed `## 1.2 — 1.2.0 to 1.2.5, <first
   date> to <last date>`, placed after the new entry and before the older
   summaries. See *Versions and the changelog* in `docs/DEVELOPER.md`.
-- **Version.** Bump `arpes_viewer/version.py` and the places
+- **Version and user guide: only on request.** Do not change the version
+  number or the user guides (`docs/guide/`, `docs/USER_GUIDE_*.md`,
+  `docs/pdf/`) unless the user asks for it. Changes made meanwhile go into
+  the current version's changelog entry. When a version change *is* asked
+  for, bump `arpes_viewer/version.py` and the places
   `test/test_version_consistency.py` checks together.
 - **Tests.** `python -m pytest` from the repository root, before pushing.
 - **The agent's reference (maintenance after every UI or tool change).**

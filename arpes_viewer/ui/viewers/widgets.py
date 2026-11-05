@@ -684,8 +684,20 @@ def _options_key(options):
     key = (getattr(options, "loader", None),
            tuple(options.permutation) if getattr(options, "permutation", None) else None,
            getattr(options, "axis0_role", "angle") or "angle",
-           getattr(options, "axis0_label", "") or "")
-    return None if key == (None, None, "angle", "") else key
+           getattr(options, "axis0_label", "") or "",
+           bool(getattr(options, "trim_incomplete", True)))
+    return None if key == (None, None, "angle", "", True) else key
+
+
+def _drawable(image):
+    """An image pyqtgraph can draw: one with no finite value at all (a frame
+    a stopped scan never measured, all NaN) is shown blank, as zeros. Drawn
+    as it is, its automatic levels are [nan, nan] and pyqtgraph raises
+    "Cannot set range [nan, nan]" from inside the viewer."""
+    array = np.asarray(image)
+    if array.size and array.dtype.kind in "fc" and not np.isfinite(array).any():
+        return np.zeros(array.shape)
+    return image
 
 
 class NxsData:
@@ -720,6 +732,8 @@ class NxsData:
                     (".nxs", ".h5", ".hdf5", ".hdf", ".nx5")):
                 raise
             self.scan = load_soleil_nxs(nxs_path, entry=entry)
+            from arpes_viewer.loader.incomplete import trim_incomplete
+            trim_incomplete(self.scan)
         self.kind = self.scan.kind
         # Where the measurement was first read: every dataset made from it
         # copies this info forward, so a figure of a k-converted, cut-out
@@ -2328,7 +2342,7 @@ class SpatialImageView(_InteractiveImageBase):
     def _render(self, auto_range=False):
         # _image2d is (row, col) = (y, x), so the display factors come back
         # in that order too.
-        image = self._for_display(self._image2d)
+        image = _drawable(self._for_display(self._image2d))
         fy, fx = self._display_factors
         self.setImage(image,
                       pos=self._image_origin(),
@@ -2393,7 +2407,7 @@ class FrameImageView(_InteractiveImageBase):
     def _render(self, auto_range=False):
         # last_frame is (x, y); it is transposed for row-major drawing, so
         # the first display factor is the x one.
-        image = self._for_display(self._last_frame)
+        image = _drawable(self._for_display(self._last_frame))
         fx, fy = self._display_factors
         self.setImage(image.T,
                       pos=self._image_origin(),

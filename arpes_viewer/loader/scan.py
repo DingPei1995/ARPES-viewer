@@ -244,6 +244,35 @@ class _HandleRegistry:
 HANDLES = _HandleRegistry()
 
 
+def _first_axis_key(sel, n: int):
+    """A selection along the first axis of an array cut to its first ``n``
+    entries, made absolute -- what a lazy array limited by ``head`` hands
+    to the file. Negative indices count from ``n``, not from the end of the
+    dataset, and an index past ``n`` is an IndexError, as on the cut array."""
+    if isinstance(sel, (int, np.integer)):
+        i = int(sel)
+        if i < 0:
+            i += n
+        if not 0 <= i < n:
+            raise IndexError(f"index {int(sel)} is out of range for {n} frames")
+        return i
+    if isinstance(sel, slice):
+        start, stop, step = sel.indices(n)
+        if step > 0:
+            return slice(start, stop, step)
+        return list(range(start, stop, step))
+    index = np.asarray(sel)
+    if index.dtype == bool:
+        if index.size != n:
+            raise IndexError(f"a boolean index of {index.size} for {n} frames")
+        return np.nonzero(index)[0]
+    index = index.astype(int)
+    index = np.where(index < 0, index + n, index)
+    if index.size and (index.min() < 0 or index.max() >= n):
+        raise IndexError(f"an index is out of range for {n} frames")
+    return index
+
+
 class LazyCube:
     """A 4D cube that stays on disk, presented in (y, x, k, E) order.
 
@@ -260,12 +289,24 @@ class LazyCube:
     finished with (``NxsData`` does this).
     """
 
-    def __init__(self, dataset, perm: "tuple[int, ...]"):
+    def __init__(self, dataset, perm: "tuple[int, ...]", frames: int = None):
         self._dset = dataset
         self._perm = perm
-        self.shape = tuple(dataset.shape[ax] for ax in perm)
+        shape = [dataset.shape[ax] for ax in perm]
+        #: How many of the first axis' entries are shown (see head); None
+        #: for all of them.
+        self._frames = None if frames is None else int(frames)
+        if self._frames is not None:
+            shape[0] = self._frames
+        self.shape = tuple(shape)
         self.dtype = dataset.dtype
         self.ndim = len(self.shape)
+
+    def head(self, frames: int) -> "LazyCube":
+        """The first ``frames`` entries of the first axis, still on disk:
+        what is left of a scan stopped before its end
+        (:mod:`loader.incomplete`)."""
+        return LazyCube(self._dset, self._perm, frames)
 
     def __len__(self):
         return self.shape[0]
@@ -285,6 +326,8 @@ class LazyCube:
 
     def __getitem__(self, key):
         key = self._normalise(key)
+        if self._frames is not None:
+            key = (_first_axis_key(key[0], self._frames),) + key[1:]
         # Reorder the selection into the dataset's own axis order, read, then
         # put the surviving axes back into (y, x, k, E) order.
         src_key = [None] * self.ndim
@@ -340,21 +383,43 @@ class LazyArray:
     closed this can no longer be read.
     """
 
-    def __init__(self, dataset):
+    def __init__(self, dataset, frames: int = None):
         self._dset = dataset
-        self.shape = tuple(dataset.shape)
+        shape = list(dataset.shape)
+        self._frames = None if frames is None or not shape else int(frames)
+        if self._frames is not None:
+            shape[0] = self._frames
+        self.shape = tuple(shape)
         self.dtype = dataset.dtype
         self.ndim = len(self.shape)
         self.size = int(np.prod(self.shape)) if self.shape else 1
         self.nbytes = self.size * self.dtype.itemsize
 
+    def head(self, frames: int) -> "LazyArray":
+        """The first ``frames`` entries of the first axis, still on disk
+        (see :meth:`LazyCube.head`)."""
+        return LazyArray(self._dset, frames)
+
     def __len__(self):
         return self.shape[0] if self.shape else 0
 
     def __getitem__(self, key):
+        if self._frames is None:
+            return self._dset[key]
+        if not isinstance(key, tuple):
+            key = (key,)
+        positions = [i for i, sel in enumerate(key) if sel is Ellipsis]
+        if positions:
+            i = positions[0]
+            key = key[:i] + (slice(None),) * (self.ndim - len(key) + 1) + key[i + 1:]
+        if not key:
+            key = (slice(None),)
+        key = (_first_axis_key(key[0], self._frames),) + tuple(key[1:])
         return self._dset[key]
 
     def materialise(self) -> np.ndarray:
+        if self._frames is not None:
+            return self._dset[:self._frames]
         return self._dset[()]
 
     def __array__(self, dtype=None):

@@ -64,7 +64,13 @@ which is read from the small `_i` parameter files that sit beside them:
 | neither | cut index | `map` |
 
 The stepped axis is straightened to an even grid; the motor readbacks are
-kept in `info` as `cassiopee.axis0_measured`.
+kept in `info` as `cassiopee.axis0_measured`. A spectrum without its `_i`
+file (the last one of a stopped map, usually) is still read: its step comes
+from the even steps of the others (`cassiopee.unpaired_members`, NaN in the
+readbacks), and whether it was measured to the end is decided by its
+intensity, as for every beamline (see *Scans stopped before their end*
+below). One that cannot be read at all -- still being written -- is left
+out (`cassiopee.unreadable_members`).
 
 A **kz map** stacks the members on the first spectrum's energy axis, referred
 to the Fermi level (`E - E_F = E_kin - hv + phi`) as the lab's
@@ -285,6 +291,30 @@ and `.txt` (its text export). Both are read by **SOLEIL CASSIOPEE spin
   deflector map is refused, since it is 4-D.
 - Every header field is kept in `info` as `mbs.<field>`; the spin channels'
   labels as `spin.component.<n>`.
+
+### Scans stopped before their end (every beamline)
+
+A scan stopped by hand, by a beam loss or by a crash leaves a file of the
+size it *planned*: at ANTARES the unmeasured images are zeros and the
+deflector readback 0 or NaN; elsewhere NaN, or a missing file. The step
+running at the moment it stopped may be there with part of its sweeps.
+`registry.load` hands every `map` and `kz_map` to
+`loader/incomplete.py`, which cuts from the **end** of the scanned axis:
+
+1. the steps never measured -- no counts (all zero or NaN), or no finite
+   value of the scanned axis;
+2. then, repeatedly, a last step whose total intensity is below half
+   (`WEAK_FRACTION`) of the median of the five (`REFERENCE_FRAMES`) steps
+   before it.
+
+At least two steps are kept; weak steps in the middle of a scan are the
+sample and stay; a slow trend across the scan is followed, since each step
+is compared with its neighbours. A map left in its file stays there
+(`LazyCube.head`, `LazyArray.head`: only the frames looked at are read).
+What was cut is in `info`: `incomplete.frames_dropped`, `.frames_kept`,
+`.frames_planned` and `.note` (`"steps 101-151 (no counts)"`), which the
+status bar shows. The program's own saved datasets are never trimmed, and
+`LoadOptions(trim_incomplete=False)` reads every frame the file holds.
 
 ## Data kinds
 

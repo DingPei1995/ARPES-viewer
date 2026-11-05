@@ -261,6 +261,8 @@ class NativeLoader(Loader):
     patterns = ("*.nxs", "*.h5", "*.hdf5")
     #: Above every beamline loader: this one *knows*, the others guess.
     priority = 100
+    #: A saved dataset holds what someone chose to keep; never trimmed.
+    trims_incomplete = False
 
     def can_open(self, path: str) -> bool:
         """True if any top-level entry carries the native marker."""

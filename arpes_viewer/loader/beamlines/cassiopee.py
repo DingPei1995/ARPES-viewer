@@ -575,15 +575,16 @@ def series_members(path: str):
 
 def paired_members(path: str):
     """The members of the series that have their ``_i`` file, and the names
-    of those left out for not having one.
+    of those that do not.
 
-    A map stopped before it finished -- or one still being measured -- has
-    a last spectrum whose parameter file was never written. Without that one
-    file the stepped angle cannot be read for the whole series, and the map
-    used to fall back to an index axis. The spectra that do have their
-    parameters are the measurement; the one without is left out, and named,
-    so nobody wonders where it went. With fewer than two paired members
-    nothing is left out: the series is then a pile of spectra either way.
+    A map stopped before it finished -- or one still being measured -- can
+    have a last spectrum whose parameter file was never written. What the
+    series stepped is then read from the members that have one
+    (:func:`series_kind`); :func:`load_series` still reads the others, with
+    their step taken from the even steps of the rest, and leaves it to the
+    intensity check (:mod:`loader.incomplete`) to say whether they were
+    measured to the end. With fewer than two paired members every member
+    counts as paired: the series is then a pile of spectra either way.
     """
     members = series_members(path)
     paired = [m for m in members if parameter_path(m[1])]
@@ -658,11 +659,15 @@ def _even_steps(values: np.ndarray) -> np.ndarray:
     The readbacks are kept in ``info`` (``cassiopee.axis0_measured``), so
     nothing is thrown away and the spread can be checked.
     """
-    values = np.asarray(values, dtype=float)
-    if values.size < 2:
-        return values
+    values = np.asarray([np.nan if v is None else v for v in values],
+                        dtype=float)
     index = np.arange(values.size, dtype=float)
-    slope, intercept = np.polyfit(index, values, 1)
+    known = np.isfinite(values)
+    if known.sum() < 2:
+        return values
+    # A member without its parameter file has no readback; the line through
+    # the others gives the step it was measured at.
+    slope, intercept = np.polyfit(index[known], values[known], 1)
     return index * slope + intercept
 
 
@@ -674,8 +679,12 @@ def _stepped_axis(thetas, photon_energies, count):
     conversion refuses a photon-energy axis, for one).
     """
     def varies(values):
-        finite = [v for v in values if v is not None and np.isfinite(v)]
-        return len(finite) == len(values) and len(set(np.round(finite, 6))) > 1
+        # Members without a parameter file (None) are left to the others;
+        # a value that is there but not a number means the files disagree.
+        known = [v for v in values if v is not None]
+        finite = [v for v in known if np.isfinite(v)]
+        return (len(finite) == len(known) and len(finite) >= 2
+                and len(set(np.round(finite, 6))) > 1)
 
     if varies(thetas):
         return (_even_steps(thetas), "angle",
@@ -735,17 +744,32 @@ def load_series(path: str, median_filter: bool = False, progress=None,
     ``progress`` is an optional ``callable(done, total, label)``; reading a
     hundred 6 MB text files is slow enough to be worth reporting.
     """
-    members, dropped = paired_members(path)
+    paired, unpaired = paired_members(path)
+    members = series_members(path) if unpaired else paired
     if not members:
         raise ValueError(
             f"{os.path.basename(path)} is not part of a numbered "
             f"<base>_<n>_ROI<n>_ series")
 
     frames, energies, thetas, photon_energies, first = [], [], [], [], None
-    for position, (index, member) in enumerate(members):
+    unreadable = []
+    unpaired_names = set(unpaired)
+    for position, (index, member) in enumerate(list(members)):
         if progress is not None:
             progress(position, len(members), os.path.basename(member))
-        region, parameters = _member_scan(member, median_filter)
+        if os.path.basename(member) in unpaired_names:
+            # A spectrum without its parameter file may still be being
+            # written: one that cannot be read is left out, not an error.
+            try:
+                region, parameters = _member_scan(member, median_filter)
+                if first is not None and \
+                        region.values.shape != first[0].values.shape:
+                    raise ValueError("a different shape")
+            except Exception:                           # noqa: BLE001
+                unreadable.append(os.path.basename(member))
+                continue
+        else:
+            region, parameters = _member_scan(member, median_filter)
         if first is None:
             first = (region, parameters)
         elif region.values.shape[0] != first[0].values.shape[0]:
@@ -759,9 +783,18 @@ def load_series(path: str, median_filter: bool = False, progress=None,
         photon_energies.append(parameters.get(
             "photon_energy_eV", region.info.get("photon_energy_eV")))
 
+    if unreadable:
+        members = [m for m in members
+                   if os.path.basename(m[1]) not in unreadable]
+        unpaired = [name for name in unpaired if name not in unreadable]
     region, parameters = first
     stepped, role, label, series = _stepped_axis(thetas, photon_energies,
                                                  len(members))
+    if unpaired and series == "hv":
+        # Each member is referred to E_F by its own photon energy: the one
+        # without a parameter file gets the step it was measured at.
+        photon_energies = [stepped[i] if value is None else value
+                           for i, value in enumerate(photon_energies)]
     notes = {}
     frames, energies = _common_energy_length(
         frames, energies, members, series, notes)
@@ -793,20 +826,26 @@ def load_series(path: str, median_filter: bool = False, progress=None,
     scan.info["axis0.role"] = role
     scan.info["cassiopee.series"] = series
     scan.info["cassiopee.members"] = len(members)
-    if dropped:
-        scan.info["cassiopee.dropped_members"] = ", ".join(dropped)
-        scan.info["cassiopee.dropped_reason"] = (
+    if unpaired:
+        scan.info["cassiopee.unpaired_members"] = ", ".join(unpaired)
+        scan.info["cassiopee.unpaired_note"] = (
             "no _i parameter file beside it (the scan was stopped or is "
-            "still running)")
+            "still running); its step is taken from the even steps of the "
+            "others, and whether it was measured to the end is judged by "
+            "its intensity (incomplete.*)")
+    if unreadable:
+        scan.info["cassiopee.unreadable_members"] = ", ".join(unreadable)
 
     # What the motors actually read back, beside the even axis that replaced
     # them (see _even_steps). Keeping both means the straightening can be
     # checked, and undone, by whoever needs to.
     measured = thetas if series == "theta" else (
         photon_energies if series == "hv" else None)
-    if measured is not None and all(
+    if measured is not None and any(
             value is not None and np.isfinite(value) for value in measured):
-        measured = np.asarray(measured, dtype=float)
+        # A member without its parameter file has no readback: NaN there.
+        measured = np.asarray([np.nan if value is None else value
+                               for value in measured], dtype=float)
         scan.info["cassiopee.axis0_measured"] = measured
         wobble = float(np.max(np.abs(measured - stepped)))
         scan.info["cassiopee.axis0_readback_spread"] = f"{wobble:.4g}"

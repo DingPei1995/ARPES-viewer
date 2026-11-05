@@ -1125,8 +1125,11 @@ def load_selected(item=None):
     info.KindLabel.setText(f"kind: {current_data.kind}")
     fill_data_info(current_data)
     fill_info_table(current_data.scan.info, current_data.scan.fourd_info)
-    ui.statusbar.showMessage(f"{current_label()}: {current_data.kind} "
-                              f"-- double-click to open it")
+    note = current_data.scan.info.get("incomplete.note") \
+        if isinstance(current_data.scan.info, dict) else None
+    ui.statusbar.showMessage(
+        f"{current_label()}: {current_data.kind} -- {note}" if note else
+        f"{current_label()}: {current_data.kind} -- double-click to open it")
     return current_data
 
 

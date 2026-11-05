@@ -744,14 +744,65 @@ def test_the_permutation_option_works_on_an_assembled_series(tmp_path):
 
 
 def test_an_unfinished_map_keeps_its_angle_axis(tmp_path):
-    """The last spectrum of a stopped map has no ``_i`` file: it is left out
-    and named, and the rest is still a theta map, not an index pile."""
+    """The last spectrum of a stopped map has no ``_i`` file. The series is
+    still a theta map, not an index pile, and the spectrum -- measured to
+    the end, by its intensity -- is kept, its angle taken from the even
+    steps of the others and named as such."""
     from arpes_viewer.loader.beamlines.cassiopee import load_series, series_kind
     paths = make_series(str(tmp_path), count=5,
                         thetas=[-2.0, -1.0, 0.0, 1.0, 2.0])
     os.remove(str(tmp_path / "Map80eV_Phi18_5_i.txt"))
     assert series_kind(paths[0]) == "theta"
-    scan = load_series(paths[0])
+    scan = registry.load(paths[0], "series")
+    assert scan.value.shape[0] == 5
+    assert scan.x == pytest.approx([-2.0, -1.0, 0.0, 1.0, 2.0])
+    assert "Map80eV_Phi18_5_ROI1_.txt" in scan.info["cassiopee.unpaired_members"]
+    assert "incomplete.note" not in scan.info
+    assert np.isnan(scan.info["cassiopee.axis0_measured"][-1])
+    assert load_series(paths[0]).value.shape[0] == 5
+
+
+def _rewrite_member(folder, index, values, base="Map80eV_Phi18"):
+    angle = np.linspace(-15.0, 15.0, 5)
+    energy = np.linspace(115.6, 116.0, 4)
+    write_spectrum(os.path.join(folder, f"{base}_{index}_ROI1_.txt"),
+                   energy, angle, values)
+
+
+def test_a_last_spectrum_stopped_part_way_is_left_out(tmp_path):
+    """Its _i file is there, but it holds a fraction of the counts of the
+    ones before it: the intensity, not the parameter file, decides."""
+    paths = make_series(str(tmp_path), count=5,
+                        thetas=[-2.0, -1.0, 0.0, 1.0, 2.0])
+    for index in range(1, 6):
+        _rewrite_member(str(tmp_path), index,
+                        np.full((5, 4), 10.0 if index < 5 else 1.5))
+    scan = registry.load(paths[0], "series")
     assert scan.value.shape[0] == 4
     assert scan.x == pytest.approx([-2.0, -1.0, 0.0, 1.0])
-    assert "Map80eV_Phi18_5_ROI1_.txt" in scan.info["cassiopee.dropped_members"]
+    assert scan.info["incomplete.frames_dropped"] == 1
+    assert "step 5" in scan.info["incomplete.note"]
+    assert scan.info["cassiopee.axis0_measured"].size == 4
+
+
+def test_a_weak_spectrum_without_its_i_file_is_left_out(tmp_path):
+    paths = make_series(str(tmp_path), count=5,
+                        thetas=[-2.0, -1.0, 0.0, 1.0, 2.0])
+    for index in range(1, 6):
+        _rewrite_member(str(tmp_path), index,
+                        np.full((5, 4), 10.0 if index < 5 else 0.0))
+    os.remove(str(tmp_path / "Map80eV_Phi18_5_i.txt"))
+    scan = registry.load(paths[0], "series")
+    assert scan.value.shape[0] == 4
+    assert "no counts" in scan.info["incomplete.note"]
+
+
+def test_an_unreadable_spectrum_without_its_i_file_is_left_out(tmp_path):
+    """One still being written cannot be read; the map opens without it."""
+    paths = make_series(str(tmp_path), count=4, thetas=[0.0, 1.0, 2.0, 3.0])
+    with open(paths[-1], "w") as handle:
+        handle.write("[Region 1]\nRegion Name=fixed_cut\n")
+    os.remove(str(tmp_path / "Map80eV_Phi18_4_i.txt"))
+    scan = registry.load(paths[0], "series")
+    assert scan.value.shape[0] == 3
+    assert "Map80eV_Phi18_4_ROI1_.txt" in scan.info["cassiopee.unreadable_members"]

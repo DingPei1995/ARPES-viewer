@@ -92,6 +92,10 @@ class LoadOptions:
     axis0_role: str = None             # a key of AXIS_ROLES; None -> as read
     axis0_label: str = ""              # overrides the role's own label
     extra: dict = field(default_factory=dict)
+    #: Cut the frames at the end of a map that the scan never measured, or
+    #: stopped part-way through (loader.incomplete). On by default; off
+    #: reads every frame the file holds.
+    trim_incomplete: bool = True
 
 
 class Loader:
@@ -122,6 +126,10 @@ class Loader:
     description = ""
     patterns = ("*.nxs",)
     priority = 0
+    #: Whether a map read by this loader is checked for frames the scan
+    #: never measured (loader.incomplete). Off for the program's own saved
+    #: format: what it holds is what someone chose to keep.
+    trims_incomplete = True
 
     def can_open(self, path: str) -> bool:
         raise NotImplementedError
@@ -211,6 +219,10 @@ def load(path: str, entry: str = None, options: LoadOptions = None,
     else:
         scan = loader.load(path, entry)
     scan.info.setdefault("loader.name", loader.name)
+    if options.trim_incomplete and getattr(loader, "trims_incomplete", True):
+        # Before the options: the scanned axis is still the first one.
+        from arpes_viewer.loader.incomplete import trim_incomplete
+        trim_incomplete(scan)
     return apply_options(scan, options)
 
 
