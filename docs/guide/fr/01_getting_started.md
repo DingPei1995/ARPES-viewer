@@ -151,6 +151,15 @@ installation sont lus, et les hypothèses qu'imposent leurs formats, sont dans
 [la référence des lecteurs](../../../arpes_viewer/loader/README.md), qui
 explique aussi comment ajouter une ligne de lumière.
 
+**Une carte dont le balayage a été arrêté avant la fin** -- à la main, par
+une perte du faisceau, un plantage du contrôle-commande -- s'ouvre jusqu'où
+elle est allée, quelle que soit l'installation. Les pas jamais mesurés
+(aucun coup, ou aucune valeur de l'axe balayé) et un dernier pas nettement
+plus faible que ceux d'avant (moins de la moitié : arrêté en cours
+d'acquisition) sont laissés de côté ; la barre d'état et le panneau
+Information (`incomplete.note`) disent combien et pourquoi. Les pas faibles
+au milieu d'un balayage viennent de l'échantillon et ne sont jamais touchés.
+
 ## 1.5 Types de données
 
 | Type | Axes | Ce que c'est |
@@ -162,6 +171,55 @@ explique aussi comment ajouter une ligne de lumière.
 | `kz_map_k` | k_z × k∥ × E | ce balayage converti en impulsion |
 | `spem_4d`, `spem_1d` | x (× y) × angle × E | balayages en espace réel |
 | `edc`, `mdc`, `spin_edc` | E (ou k) × canaux | courbes, avec canaux σ facultatifs |
+
+### Noms des données traitées
+
+Chaque résultat est une nouvelle ligne nommée d'après sa source, avec une
+étiquette entre crochets ajoutée par étape, la plus ancienne d'abord :
+`Map80eV [norm] [E-E_F] [k]` est Map80eV normalisée, rapportée à E_F, puis
+convertie en impulsion. Les étiquettes, dans l'ordre habituel d'un
+traitement (`arpes_viewer/tools/runtime/naming.py`) :
+
+| Étiquette | Faite par | Ce qui a été fait |
+|---|---|---|
+| `[combined …]` | Combine…, somme de balayages répétés | jeux joints, empilés ou sommés |
+| `[degrid] / [grid]` | Remove detector grid… | grille du détecteur retirée / la grille elle-même |
+| `[det]` | Correction du détecteur | trapèze et régions corrigés |
+| `[crop]` | Truncate…, `L.crop` | réduit à une plage de ses axes |
+| `[bin]` | Compress…, `L.bin` | points sommés par blocs |
+| `[despike]` | Smooth… (pics) | pics retirés |
+| `[norm]` | Self-normalise…, `L.normalise` | chaque spectre ou plan divisé par son total ou son maximum |
+| `[bg]` | Background subtraction… | fond soustrait |
+| `[E-E_F]` | Ajustement du niveau de Fermi (décalage), `L.shift_energy` | énergie rapportée au niveau de Fermi |
+| `[dFD]` | Ajustement du niveau de Fermi (division) | divisé par la fonction de Fermi–Dirac |
+| `[FS corr]` | Straighten bands (FS correction) | bandes redressées le long de la fente |
+| `[sm]` | Smooth… | lissé |
+| `[symm]` | Symmetrise… | symétrisé |
+| `[k]` | Conversion en k (coupe / carte) | converti en impulsion |
+| `[kz]` | Conversion en kz | balayage en hν converti en k_z |
+| `[d2] / [grad] / [cur]` | Second derivative… / Curvature… | dérivée seconde, gradient, courbure |
+| `[ridge]` | Détection des crêtes | positions des bandes |
+| `[arb cut]` | Coupe arbitraire dans une carte | coupe le long d'une ligne choisie |
+| `[slice …]` | Save slice to list (visualiseur) | plan ou coupe sorti d'un visualiseur |
+| `[EDC …] / [MDC …]` | EDC / MDC d'un visualiseur vers la liste | courbe extraite, avec sa position |
+| `[shifted] / [sigma]` | visualiseur de courbes | courbe décalée / son incertitude de Poisson |
+| `[fit]` | ajustement de courbe | résultat d'ajustement |
+| `[LD] [CD] [diff] [asym] [ratio] [sum]` | Cut arithmetic… | deux coupes combinées |
+| `[calc]` | Bandes calculées | un calcul, pas une mesure |
+
+**Tri.** Clic droit sur la liste → **Sort by data type** regroupe les lignes
+par leur **dernière** étiquette -- la dernière opération faite -- dans
+l'ordre de ce tableau : les mesures telles que lues d'abord, puis `[crop]`,
+`[norm]`, `[E-E_F]`, `[k]`… ; une étiquette absente du tableau vient
+ensuite. Dans un groupe, les lignes sont classées par type (coupe,
+carte…), puis par nom, les nombres comparés comme des nombres. **Sort by
+name** ignore l'ordre des étiquettes. Les noms des versions précédentes
+sont lus de la même façon : `_s_nor` vaut `[norm]`, `_tk` `[crop]`,
+`_comb` `[bin]`, `_sm`, `_d2`, `_cur` `[sm]`, `[d2]`, `[cur]`, et `[E-Ef]`
+`[E-E_F]`. Une ligne renommée à la main ne garde sa place que si elle
+garde ses étiquettes. Un agent IA suit la même règle, aussi pour les noms
+qu'il choisit ([§7.6](#76-les-règles-de-travail-de-lagent)) ; `L.naming()` lui
+donne le tableau.
 
 ## 1.6 Configurer un agent IA
 

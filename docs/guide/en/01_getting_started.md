@@ -143,6 +143,14 @@ assumptions their formats force, is in
 [the loaders' reference](../../../arpes_viewer/loader/README.md); adding a
 beamline is explained there too.
 
+**A map whose scan was stopped before its end** -- by hand, a beam loss, a
+crash of the control software -- opens as far as it went, from every
+facility. The steps never measured (no counts, or no value of the scanned
+axis) and a last step clearly weaker than the ones before it (below half
+of them: stopped part-way through its sweeps) are left out; the status bar
+and the Information panel (`incomplete.note`) say how many and why. Weak
+steps in the middle of a scan are the sample and are never touched.
+
 ## 1.5 Data kinds
 
 | Kind | Axes | What it is |
@@ -154,6 +162,52 @@ beamline is explained there too.
 | `kz_map_k` | k_z × k∥ × E | that scan converted to momentum |
 | `spem_4d`, `spem_1d` | x (× y) × angle × E | real-space scans |
 | `edc`, `mdc`, `spin_edc` | E (or k) × channels | curves, with optional σ channels |
+
+### Names of processed data
+
+Every result is a new row named after its source, with one tag in square
+brackets added per step, oldest first: `Map80eV [norm] [E-E_F] [k]` is
+Map80eV, normalised, referred to E_F, then converted to momentum. The tags,
+in the order a processing usually runs (`arpes_viewer/tools/runtime/naming.py`):
+
+| Tag | Made by | What was done |
+|---|---|---|
+| `[combined …]` | Combine…, sum of repeated scans | datasets joined, stacked or summed into one |
+| `[degrid] / [grid]` | Remove detector grid… | the detector's grid removed / the grid itself |
+| `[det]` | Detector correction | keystone and region corrections |
+| `[crop]` | Truncate…, `L.crop` | cut to a range of its axes |
+| `[bin]` | Compress…, `L.bin` | points summed in blocks |
+| `[despike]` | Smooth… (spike removal) | spikes removed |
+| `[norm]` | Self-normalise…, `L.normalise` | each spectrum or plane divided by its own total or peak |
+| `[bg]` | Background subtraction… | background subtracted |
+| `[E-E_F]` | Fermi edge fit (offset), `L.shift_energy` | energy referred to the Fermi level |
+| `[dFD]` | Fermi edge fit (divide) | divided by the Fermi–Dirac function |
+| `[FS corr]` | Straighten bands (FS correction) | bands straightened along the slit |
+| `[sm]` | Smooth… | smoothed |
+| `[symm]` | Symmetrise… | mirrored or rotated |
+| `[k]` | k conversion (cut / map) | converted to momentum |
+| `[kz]` | kz conversion | photon-energy scan converted to k_z |
+| `[d2] / [grad] / [cur]` | Second derivative… / Curvature… | second derivative, gradient, curvature |
+| `[ridge]` | Ridge detection | band positions |
+| `[arb cut]` | Arbitrary cut in a map | a cut along a line of one's own |
+| `[slice …]` | Save slice to list (a viewer) | a plane or cut taken out of a viewer |
+| `[EDC …] / [MDC …]` | a viewer's EDC / MDC to the list | a curve taken out, with where |
+| `[shifted] / [sigma]` | the curve viewer | a shifted curve / its Poisson uncertainty |
+| `[fit]` | the curve fit | a fit result |
+| `[LD] [CD] [diff] [asym] [ratio] [sum]` | Cut arithmetic… | two cuts combined |
+| `[calc]` | Calculated bands | a calculation, not a measurement |
+
+**Sorting.** Right-click the list → **Sort by data type** groups the rows by
+their **last** tag -- what was done to them last -- in the order of this
+table: measurements as read first, then `[crop]`, `[norm]`, `[E-E_F]`,
+`[k]` ...; a tag not in the table comes after. Inside a group the rows are
+ordered by kind (cut, map ...), then by name, numbers compared as numbers.
+**Sort by name** ignores the tags' order. Names from older versions are
+read the same way: `_s_nor` counts as `[norm]`, `_tk` as `[crop]`, `_comb`
+as `[bin]`, `_sm`, `_d2`, `_cur` as `[sm]`, `[d2]`, `[cur]`, and `[E-Ef]`
+as `[E-E_F]`. A row renamed by hand keeps its place only if it keeps its
+tags. An AI agent follows the same rule, also for names of its own
+([§7.6](#76-the-working-rules-the-agent-follows)); `L.naming()` gives it the table.
 
 ## 1.6 Setting up an AI agent
 

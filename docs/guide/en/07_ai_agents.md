@@ -224,6 +224,7 @@ repeats them. You can add your own, or override one, in your request.
 |---|---|
 | After adding the data, compare the rows with the folder and report what was left out, not recognised or warned about | single spectra in a map's folder, and files no reader takes, must not pass unnoticed |
 | Say which part of a row name comes from the file name and which from recorded metadata; mark guesses | names are what everyone reads afterwards |
+| Name a processed row after its source plus one tag in square brackets per step, from the table of `L.naming()` (`Map80eV [norm] [E-E_F] [k]`), also for names of its own | the list sorts by what was done ([§1.5](#15-data-kinds)) |
 | Look for an operation (`L.help()`, `L.tools()`, `L.functions()`) before computing anything; never edit the program's internal tables; if an operation is missing, say which and ask | results stay reproducible, with their history |
 | Fermi level: fit raw data, per row, on that row's own axis (`L.fermi_edge_search`), draw each fit; rows of the same photon and pass energy must agree; when the data cannot decide, ask once | the steepest drop is not always the edge; one window does not fit every axis |
 | Chain steps in one call (`L.map_to_k(row, ef=…, normalise_axes=(1, 2))`) so only final rows are listed; remove rows only when you agree | a list you can still read |

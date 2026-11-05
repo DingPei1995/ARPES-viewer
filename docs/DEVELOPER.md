@@ -22,7 +22,7 @@ arpes_viewer/        the package itself
     processing/      2-D / 3-D operations, combining, de-gridding
     spectra/         EDCs/MDCs, spin, fits, core levels
     output/          export, the figure model, colormaps
-    runtime/         memory, system stand-ins, the error logs
+    runtime/         memory, system stand-ins, the error logs, result names
   agent/             the MCP server for AI agents                 (no Qt)
   ui/                the windows                                  (Qt)
     launcher/        the main window, the Loader window, the list's menu
@@ -86,6 +86,7 @@ subpackages group modules by what they are for.
 | `output/igor.py` | Igor Pro export: `.itx` text and `.ibw` binary waves with scaling, units and notes. |
 | `output/explog.py` | The experiment log: its format, each dataset's row (scanned ranges included), continuing a CSV log after its last record, and reformatting it in place. |
 | `runtime/memory.py`, `runtime/system.py` | Memory use, and the stand-ins for the lab's `tools_packages`. |
+| `runtime/naming.py` | How a result is named: its source's name plus one bracketed tag per step, from the ordered table `TAGS` (`tagged`, `tag_for`); `tags_in` reads old and new names, and `type_sort_key` is what **Sort by data type** orders the list by. A new operation adds its tag here (and in `STEP_TAGS`), and names its result with `tagged`. |
 | **`arpes_viewer/agent/`** | |
 | `agent/server.py` | The MCP server (`arpes-viewer-mcp`, `python -m arpes_viewer.agent`): every tool, its description and argument schema. |
 | `agent/workspace.py` | The headless operations behind the tools: open with the loaders, describe, curves and pictures (PNG written without Pillow), Fermi fit, k conversions, crop, save; the zone and CIFs. |

@@ -207,7 +207,7 @@ fd.offset_energy_axis(whole_map=True)    # use whole_map=False for single cuts
 dlg.grab().save(HERE + r"\shots\stepNN_name.png")
 ```
 
-**Checking the result.** Ask Claude to write each command's printed output to `out\` (done automatically above), to name every new row clearly (e.g. `<file>_s_nor [k] [E-Ef]`), and to summarise what changed in the main list after each step so that you can audit it on screen 2.
+**Checking the result.** Ask Claude to write each command's printed output to `out\` (done automatically above), to name every new row clearly the program's way -- the source's name plus one tag in square brackets per step, from the table of `L.naming()` (e.g. `<file> [norm] [E-E_F] [k]`) -- and to summarise what changed in the main list after each step so that you can audit it on screen 2.
 
 ## 7. A typical session
 

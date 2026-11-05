@@ -83,6 +83,12 @@ its end opens as far as it went, from every beamline.**
 - **Agents name rows the same way**: the rule is in the agent reference's
   working rules and in the AI assistant's prompt, and `L.naming()` returns
   the table.
+- **Documents.** The user guide (en, fr, zh, and its PDFs): Part 1 §1.5
+  gains *Names of processed data* -- every tag, what makes it and what it
+  means, and how **Sort by data type** orders by them; §1.4 says how a map
+  whose scan was stopped opens; §2.1 and the agent's rules (§7.6) follow.
+  The developer, tools, UI and agentic-workflow references name
+  `tools/runtime/naming.py` and the rule.
 
 **The release itself, 2026-11-04:**
 

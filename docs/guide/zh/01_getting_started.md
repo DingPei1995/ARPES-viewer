@@ -119,6 +119,8 @@ python devtools/figure_tests.py docs/images [存放 .afig 文件的文件夹]
 数据集可以保存为本程序自己的 `.nxs`（可再次打开），或 Igor Pro 文本（`.itx`）。各线站文件的读法
 及其格式带来的假设见[读取器参考文档](../../../arpes_viewer/loader/README.md)，其中也说明了如何添加新线站。
 
+**扫描中途被中断的 map**（手动停止、束流丢失、控制软件崩溃）对所有线站都按实际测到的部分打开：从未测量的步（没有计数，或扫描轴没有数值）以及最后一步中强度明显低于前面各步的（不到其一半：采集中途被停）会被去掉；状态栏和 Information 面板（`incomplete.note`）说明去掉了几步以及原因。扫描中间的弱步来自样品本身，从不处理。
+
 ## 1.5 数据类型
 
 | 类型 | 轴 | 含义 |
@@ -130,6 +132,39 @@ python devtools/figure_tests.py docs/images [存放 .afig 文件的文件夹]
 | `kz_map_k` | k_z × k∥ × E | 转换到动量空间的光子能量扫描 |
 | `spem_4d`、`spem_1d` | x（× y）× 角度 × E | 实空间扫描 |
 | `edc`、`mdc`、`spin_edc` | E（或 k）× 通道 | 曲线，可带 σ 误差通道 |
+
+### 处理后数据的命名
+
+每个处理结果都是列表中的新条目，名称为原数据名加上每一步处理的方括号标签，按处理先后排列：`Map80eV [norm] [E-E_F] [k]` 表示 Map80eV 先归一化，再以 E_F 为能量零点，最后转换到动量空间。标签按通常的处理顺序排列（`arpes_viewer/tools/runtime/naming.py`）：
+
+| 标签 | 由什么产生 | 做了什么 |
+|---|---|---|
+| `[combined …]` | Combine…、重复扫描求和 | 多个数据拼接、堆叠或求和 |
+| `[degrid] / [grid]` | Remove detector grid… | 去除探测器网格 / 网格本身 |
+| `[det]` | 探测器校正 | 梯形与区域校正 |
+| `[crop]` | Truncate…、`L.crop` | 按坐标范围截取 |
+| `[bin]` | Compress…、`L.bin` | 按块求和（合并点） |
+| `[despike]` | Smooth…（去尖峰） | 去除尖峰 |
+| `[norm]` | Self-normalise…、`L.normalise` | 每条谱或每个平面除以自身总强度或峰值 |
+| `[bg]` | Background subtraction… | 扣除背底 |
+| `[E-E_F]` | Fermi edge fit（平移）、`L.shift_energy` | 能量以费米能级为零点 |
+| `[dFD]` | Fermi edge fit（相除） | 除以费米–狄拉克函数 |
+| `[FS corr]` | Straighten bands (FS correction) | 沿狭缝方向拉直能带 |
+| `[sm]` | Smooth… | 平滑 |
+| `[symm]` | Symmetrise… | 对称化 |
+| `[k]` | k 转换（cut / map） | 转换到动量空间 |
+| `[kz]` | kz 转换 | 光子能量扫描转换到 k_z |
+| `[d2] / [grad] / [cur]` | Second derivative… / Curvature… | 二阶导数、梯度、曲率 |
+| `[ridge]` | 脊线识别 | 能带位置 |
+| `[arb cut]` | map 中的任意方向 cut | 沿自选直线的 cut |
+| `[slice …]` | Save slice to list（查看器） | 从查看器取出的平面或 cut |
+| `[EDC …] / [MDC …]` | 查看器的 EDC / MDC 加入列表 | 取出的曲线，附位置 |
+| `[shifted] / [sigma]` | 曲线查看器 | 平移后的曲线 / 其泊松误差 |
+| `[fit]` | 曲线拟合 | 拟合结果 |
+| `[LD] [CD] [diff] [asym] [ratio] [sum]` | Cut arithmetic… | 两条 cut 的运算结果 |
+| `[calc]` | 计算能带 | 计算结果，不是测量 |
+
+**排序。** 在列表上右键 → **Sort by data type** 按名称中的**最后一个**标签（即最后一步处理）分组，组的先后按上表顺序：未处理的测量数据在最前，然后是 `[crop]`、`[norm]`、`[E-E_F]`、`[k]`……；不在表中的标签排在最后。组内先按数据类型（cut、map……），再按名称排序（数字按数值比较）。**Sort by name** 不考虑标签顺序。旧版本的名称同样能识别：`_s_nor` 视为 `[norm]`，`_tk` 为 `[crop]`，`_comb` 为 `[bin]`，`_sm`、`_d2`、`_cur` 为 `[sm]`、`[d2]`、`[cur]`，`[E-Ef]` 为 `[E-E_F]`。手动改名时保留标签，排序位置才不变。AI 智能体遵循同一规则，包括它自己起的名字（[§7.6](#76-智能体遵循的工作规则)）；`L.naming()` 会给出这张表。
 
 ## 1.6 配置 AI 智能体
 

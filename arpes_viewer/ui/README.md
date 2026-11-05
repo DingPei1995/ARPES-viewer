@@ -10,7 +10,9 @@ read its metadata, **double-click** to open it in its own window.
 Right-click a row (or a selection) for the three ways of opening it:
 **Open**, **Open slit cut** and **Open scan-axis cut** (a map's cut in a
 window of its own, without its contour on screen), and for **Sort by name**
-/ **Sort by data type**, which reorder the whole list (`app.sort_list`). The
+/ **Sort by data type** (by the last bracketed processing tag of the name,
+in the order of `tools/runtime/naming.py`), which reorder the whole list
+(`app.sort_list`). The
 search box above the list hides the rows that do not hold every word typed
 (`app.filter_list`); `selected_keys()` leaves hidden rows out, so nothing out
 of sight is acted on. Everything else done to the rows -- **Experiment

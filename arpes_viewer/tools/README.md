@@ -30,6 +30,12 @@ What each analysis does and what it assumes. The computations are in this folder
   backgrounds, symmetrisation, despiking.
 - **Crop / bin / normalise** -- truncate, self-normalise, compress, on
   several datasets at once when they really are the same format.
+- **Names of results** (`runtime/naming.py`) -- every result is named after
+  its source plus one tag in square brackets per step, oldest first
+  (`Map80eV [norm] [E-E_F] [k]`), from one ordered table of tags in
+  processing order; the list's **Sort by data type** groups by the last
+  tag in that order. Older suffixes (`_s_nor`, `_sm`, `[E-Ef]` ...) are read
+  as the tags they mean.
 - **Combining datasets** -- *Stack* cuts into a map along a new axis (a
   photon-energy series of angle cuts becomes a kz map; cuts that share one
   axis are stacked on the range they all cover), *Join* cuts, maps, kz maps

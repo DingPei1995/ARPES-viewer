@@ -40,8 +40,9 @@ modifiés.
 **Le menu contextuel** contient les façons d'ouvrir les lignes :
 **Open**, **Open slit cut** et **Open scan-axis cut** (pour une carte), et
 deux façons d'ordonner toute la liste : **Sort by name** (`Cut_9` avant
-`Cut_10`) et **Sort by data type** (groupées par type, chaque groupe par
-nom). Une entrée qui ne convient pas à la sélection est grisée, et son
+`Cut_10`) et **Sort by data type** (groupées par la dernière étiquette de
+traitement du nom -- `[norm]`, `[E-E_F]`, `[k]`… -- dans l'ordre du
+traitement, puis par type et nom ; voir [§1.5](#15-types-de-données)). Une entrée qui ne convient pas à la sélection est grisée, et son
 infobulle en donne la raison.
 
 **La recherche** (au-dessus de la liste) n'affiche que les lignes dont le

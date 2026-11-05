@@ -49,7 +49,9 @@ buttons grey out when they do not fit the selection.
 the rows whose name or kind holds every word typed (`map 80K`); clear it to
 see them all. Hidden rows are deselected, so nothing out of sight is acted
 on. Right-click the list → **Sort by name** (`Cut_9` before `Cut_10`) or
-**Sort by data type** (cuts, maps, k-maps… each group by name).
+**Sort by data type** (grouped by the last processing tag of the name --
+`[norm]`, `[E-E_F]`, `[k]` ... -- in processing order, then by kind and
+name; see [§1.5](#15-data-kinds)).
 
 ## 2.2 Loading data
 
