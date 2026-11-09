@@ -172,6 +172,10 @@ class AgentBridge(QTcpServer):
         #: ``[(time, op, ok, detail)]`` of the requests answered, newest
         #: last, for the AI assistant window to show
         self.history = []
+        #: the same requests in full -- ``{"time", "op", "args", "ok",
+        #: "result"}`` -- so the steps can be saved as a script
+        #: (:mod:`ui.common.agentsteps`); kept in memory only
+        self.record = []
 
     def listen_local(self) -> bool:
         from arpes_viewer.agent import bridge as config
@@ -236,9 +240,10 @@ class AgentBridge(QTcpServer):
         try:
             result = handler(**args)
         except Exception as exc:                            # noqa: BLE001
-            self._note(op, False, detail or str(exc)[:80])
+            self._note(op, False, detail or str(exc)[:80], args,
+                       f"{type(exc).__name__}: {exc}")
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}, None
-        self._note(op, True, detail)
+        self._note(op, True, detail, args, result)
         if isinstance(result, tuple) and len(result) == 2 and callable(result[1]):
             return {"ok": True, "result": result[0]}, result[1]
         return {"ok": True, "result": result}, None
@@ -247,12 +252,25 @@ class AgentBridge(QTcpServer):
     READ_ONLY = ("status", "rows", "windows", "screenshot", "figure",
                  "api_help")
 
-    def _note(self, op, ok, detail=""):
+    def _note(self, op, ok, detail="", args=None, result=None):
         import time as _time
         if op in self.READ_ONLY:
             return
-        self.history.append((_time.time(), op, bool(ok), detail))
+        now = _time.time()
+        self.history.append((now, op, bool(ok), detail))
         del self.history[:-200]
+        if isinstance(result, tuple) and len(result) == 2 and callable(result[1]):
+            result = result[0]
+        if isinstance(result, dict):
+            # a picture sent back with a reply is not part of the record
+            result = {key: value for key, value in result.items()
+                      if key not in ("png", "png_data")}
+            if set(result) == {"output"}:
+                result = result["output"]
+        self.record.append({"time": now, "op": op, "args": dict(args or {}),
+                            "ok": bool(ok),
+                            "result": "" if result is None else str(result)[:4000]})
+        del self.record[:-5000]
 
     # -- the operations ------------------------------------------------------
     def _rows(self):

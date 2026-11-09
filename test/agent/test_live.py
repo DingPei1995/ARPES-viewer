@@ -100,6 +100,13 @@ def test_the_operations_work_on_named_rows(program, tmp_path):
     smoothed = L.smooth(shifted, [0.5, 0.01])
     second = L.derivative(shifted, axis=1, order=2)
     curved = L.curvature(shifted, mode="y", a0=1.0)
+    valleys = L.minimum_gradient(shifted, floor=0.1)
+    assert valleys.endswith("[grad]")
+    assert L.data(valleys).values.shape == data_shape
+    assert any("gradient" in str(v) and "form=ratio" in str(v)
+               for v in L.metadata(valleys, "proc.step").values())
+    of_a_map = L.minimum_gradient("map1", form="modulus")
+    assert L.data(of_a_map).values.shape == (DEFL.size, SLIT.size, EKIN.size)
     binned = L.bin(shifted, [2, 1])
     assert L.describe(binned)["axes"][0]["points"] == SLIT.size // 2
     for row in (smoothed, second, curved):
@@ -646,3 +653,99 @@ def test_naming_gives_the_ordered_tag_table(program):
     assert "[norm]" in rule and "[E-E_F]" in rule and "[k]" in rule
     assert rule.index("[norm]") < rule.index("[E-E_F]") < rule.index("[k]")
     assert len(TAGS) == rule.count("\n  [")
+
+
+def test_the_steps_are_saved_as_one_script(program, tmp_path, monkeypatch):
+    """Everything the agent ran -- command files and MCP requests -- as one
+    Python file: the record of the processing, and a script that runs
+    again. A failed step is kept as comments."""
+    from arpes_viewer.ui.common import agentsteps, assistant
+    from arpes_viewer.ui.common.live import Live
+    monkeypatch.setenv("ARPES_VIEWER_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setattr(program, "_agent_bridge", None, raising=False)
+    data = tmp_path / "beamtime"
+    data.mkdir()
+    results = tmp_path / "results"
+    dialog = assistant.AssistantDialog(program)
+    assert dialog.save_script(str(tmp_path / "none.py")) is None   # nothing yet
+    assert not (tmp_path / "none.py").exists()
+    dialog.data_edit.setText(str(data))
+    dialog.results_edit.setText(str(results))
+    text = dialog.copy_and_start()
+    assert "session_script" in text and os.path.join(str(results), "agent_steps.py") in text
+    folder = program._command_folder
+    dialog.mode_mcp.setChecked(True)                     # and an MCP app too
+    bridge = program._agent_bridge
+    try:
+        queue = os.path.join(folder.folder, "viewer_cmd")
+        with open(os.path.join(queue, "01_smooth.py"), "w", encoding="utf-8") as f:
+            f.write("made = L.smooth('cut1', [0.5, 0.01])\nprint('made', made)\n")
+        folder.poll()
+        with open(os.path.join(queue, "02_broken.py"), "w", encoding="utf-8") as f:
+            f.write("L.smooth('no such row', [1, 1])\n")
+        folder.poll()
+        ask = lambda op, **args: bridge.answer(json.dumps(
+            {"token": bridge.token, "op": op, "args": args}))[0]
+        assert ask("api", operation="minimum_gradient",
+                   args={"_args": ["cut1"], "floor": 0.1})["ok"]
+        assert ask("python", code="print(len(L.rows()))")["ok"]
+        assert ask("status")["ok"]                         # looking: not a step
+
+        steps = agentsteps.steps(program)
+        assert [s["name"] for s in steps] == [
+            "01_smooth.py", "02_broken.py", "api minimum_gradient", "python"]
+        assert [s["ok"] for s in steps] == [True, False, True, True]
+        assert steps[2]["code"] == "print(L.minimum_gradient('cut1', floor=0.1))"
+
+        saved = dialog.save_script(str(results / "steps.py"))
+        assert saved["steps"] == 4 and saved["failed"] == 1
+        assert "Saved" in dialog.message.text()
+        with open(saved["path"], encoding="utf-8") as handle:
+            script = handle.read()
+        compile(script, saved["path"], "exec")             # it is Python
+        assert "made = L.smooth('cut1', [0.5, 0.01])" in script
+        assert "#     L.smooth('no such row', [1, 1])" in script   # commented
+        assert "FAILED" in script and "#   made cut1 [sm]" in script
+        assert script.index("01_smooth.py") < script.index("api minimum_gradient")
+
+        # and it runs again, as a command file of its own
+        rows = len(Live(program).rows())
+        with open(os.path.join(queue, "03_again.py"), "w", encoding="utf-8") as f:
+            f.write(script)
+        folder.poll()
+        with open(os.path.join(folder.folder, "out", "cmd_03_again.log"),
+                  encoding="utf-8") as handle:
+            log = handle.read()
+        assert "Traceback" not in log, log
+        assert len(Live(program).rows()) == rows + 2       # smooth, gradient
+
+        # the agent can ask for it itself
+        answer = Live(program).session_script(str(results / "by_agent.py"),
+                                              with_output=False)
+        assert answer["steps"] == 5 and os.path.exists(answer["path"])
+        with open(answer["path"], encoding="utf-8") as handle:
+            bare = handle.read()
+        # (step 5 is the script itself, comments and all, so count them)
+        full = agentsteps.script(program)
+        assert bare.count("# It printed:") < full.count("# It printed:")
+        compile(bare, answer["path"], "exec")
+    finally:
+        folder.stop()
+        program._command_folder = None
+        bridge.stop()
+        program._agent_bridge = None
+    dialog.close()
+
+
+def test_bridge_requests_as_python():
+    from arpes_viewer.ui.common.agentsteps import bridge_code
+    assert bridge_code("add_files", {"paths": "D:/Data"}) == \
+        "print(L.add_files('D:/Data'))"
+    assert bridge_code("select", {"names": ["a", "b"]}) == "L.select('a', 'b')"
+    assert bridge_code("run_tool", {"action": "mdcfit"}) == \
+        "print(L.run_tool('mdcfit'))"
+    assert bridge_code("render_figure", {"path": "f.png", "window": "Fig"}) == \
+        "print(L.figure_render(path='f.png', title='Fig'))"
+    assert bridge_code("api", {"operation": "rows"}) == "print(L.rows())"
+    assert bridge_code("python", {"code": "x = 1\n"}) == "x = 1"
+    assert bridge_code("something_else", {"a": 1}).startswith("#")

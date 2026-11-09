@@ -173,6 +173,18 @@ class Live:
                 "windows": self.windows(),
                 "command_folder": getattr(self.A, "_agent_folder", "") or ""}
 
+    @operation("Start here")
+    def session_script(self, path: str, with_output: bool = True) -> dict:
+        """Write every step run so far in this session -- command files
+        and MCP requests, oldest first -- as one Python script at ``path``:
+        each step's code, when it ran, whether it failed (those are kept
+        as comments) and, with ``with_output``, what it printed. The record
+        of the whole processing, and a script that does it again. Call it
+        at the end, as a step of its own (the step calling it is not yet
+        in the record). Returns ``{"path", "steps", "failed"}``."""
+        from arpes_viewer.ui.common import agentsteps
+        return agentsteps.save(self.A, path, with_output=with_output)
+
     # ==================================================================
     # The list
     # ==================================================================
@@ -857,6 +869,35 @@ class Live:
                            axis=-1)
         return self._derive(name, out, data.axes, "curvature",
                             {"mode": mode, "a0": a0}, new_name)
+
+    @operation("Processing")
+    @_keeps_selection
+    def minimum_gradient(self, name: str, form: str = "ratio",
+                         floor: float = 0.05, ratio: float = 1.0,
+                         new_name: str = "") -> str:
+        """The minimum-gradient picture of a cut, or of every
+        constant-energy plane of a map: bands are where the intensity's
+        gradient is smallest. ``form`` "ratio" is I/|grad I| (the usual
+        one: slow intensity changes cancel, empty regions stay dark),
+        "inverse" 1/|grad I|, "modulus" |grad I| itself (bands dark).
+        ``floor`` caps the brightness of flat patches (a fraction of the
+        gradient's RMS; lower it on smoothed data); ``ratio`` above 1
+        weighs the second axis less. First derivatives only, so less
+        noisy than ``derivative`` or ``curvature`` -- but smooth noisy
+        data first (``smooth``). A picture to find bands on, not a
+        quantity: take numbers from a fit. Returns the new row."""
+        from arpes_viewer.tools.processing.process import minimum_gradient
+        data = self.data(name)
+        values = np.asarray(data.values, dtype=float)
+        options = {"form": form, "floor": floor, "ratio": ratio}
+        if values.ndim == 2:
+            out = minimum_gradient(values, data.axes, **options)
+        else:
+            out = np.stack([minimum_gradient(values[..., i], data.axes[:2],
+                                             **options)
+                            for i in range(values.shape[-1])], axis=-1)
+        return self._derive(name, out, data.axes, "gradient", options,
+                            new_name)
 
     @operation("Processing")
     @_keeps_selection

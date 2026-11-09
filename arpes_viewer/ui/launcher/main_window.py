@@ -456,6 +456,11 @@ TOOLS = {
     "curvature": ("Curvature...",
              "The 1D or 2D curvature (Zhang et al.), which follows the band "
              "better than a second derivative."),
+    "gradient": ("Minimum gradient...",
+             "I/|\u2207I|: bands as the valleys of the intensity's gradient "
+             "(He, Wang and Shen). First derivatives only, so less noise "
+             "than a second derivative or the curvature; neither axis is "
+             "favoured, and shoulders show."),
     "symmetry": ("Symmetrise...",
              "Mirror a cut about a line; for a map, mirror or rotate its "
              "constant-energy planes."),
@@ -590,7 +595,7 @@ TOOL_SECTIONS = (
     )),
     ("Advanced", (
         ("2D && 3D \u2014 cuts, maps", ("smooth", "derivative", "curvature",
-                                       "symmetry", "ridge")),
+                                       "gradient", "symmetry", "ridge")),
         ("2D only \u2014 cuts", ("stack", "mdcfit", "edcfit", "arithmetic")),
         ("3D only \u2014 maps", ("slicefig", "slices3d", "notch3d",
                                   "projection3d", "stack3d")),

@@ -1848,8 +1848,8 @@ class VolumeProcessDialog(QDialog):
 
     #: the tag each operation's result is named with (tools.runtime.naming)
     SUFFIXES = {key: f" [{tag_for(key)}]" for key in (
-        "smooth", "derivative", "curvature", "normalise", "symmetry",
-        "despike")}
+        "smooth", "derivative", "curvature", "gradient", "normalise",
+        "symmetry", "despike")}
 
     #: what each of the launcher's tool buttons opens this panel as: the
     #: plane-wise operations it offers (indices of PLANE_OPERATIONS), or
@@ -1857,6 +1857,7 @@ class VolumeProcessDialog(QDialog):
     STARTS = {"smooth": ((0, 1, 2), "Smooth"),
               "derivative": ((3, 4), "Second derivative"),
               "curvature": ((5, 6, 7), "Curvature"),
+              "gradient": ((10, 11, 12), "Minimum gradient"),
               "symmetry": (None, "Symmetrise")}
 
     def __init__(self, datasets, parent=None, colormap="gray", flip=False,
@@ -1983,11 +1984,12 @@ class VolumeProcessDialog(QDialog):
         for index in choices:
             self.plane_operation.addItem("", index)
         form.addRow("Operation", self._watch(self.plane_operation))
-        if self.start in ("derivative", "curvature"):
+        if self.start in ("derivative", "curvature", "gradient"):
             from arpes_viewer.ui.panels.process import smooth_first_hint
             form.insertRow(0, smooth_first_hint(
-                "A second derivative" if self.start == "derivative"
-                else "The curvature", presmooth=False,
+                {"derivative": "A second derivative",
+                 "curvature": "The curvature",
+                 "gradient": "A gradient"}[self.start], presmooth=False,
                 smoothed=all(P.is_smoothed(d) for _, d in self.datasets)))
 
         self.plane_width_u = spin(0.0, 0.0, 1e4, 0.001, 5)
@@ -2000,6 +2002,12 @@ class VolumeProcessDialog(QDialog):
         self.plane_a0.setRange(1e-6, 1e6)
         self.plane_a0.setValue(1.0)
         form.addRow("a₀", self._watch(self.plane_a0))
+        self.plane_floor = spin(0.05, 0.001, 10.0, 0.01, 3)
+        self.plane_floor.setToolTip(
+            "Minimum gradient: the gradient is not allowed below this "
+            "fraction of its own RMS in each plane, which caps how bright a "
+            "flat patch gets. Lower for a sharper line on smoothed data.")
+        form.addRow("Floor (× RMS of |∇I|)", self._watch(self.plane_floor))
         self.plane_norm_mode = QComboBox()
         self.plane_norm_mode.addItems(["area", "max", "mean"])
         form.addRow("Normalise to", self._watch(self.plane_norm_mode))
@@ -2007,10 +2015,12 @@ class VolumeProcessDialog(QDialog):
         self._plane_changed()
         # Only the settings this window's operations use.
         used = {"smooth": (self.plane_width_u, self.plane_width_v),
-                "derivative": (), "curvature": (self.plane_a0,)}.get(self.start)
+                "derivative": (), "curvature": (self.plane_a0,),
+                "gradient": (self.plane_floor,)}.get(self.start)
         if used is not None:
             for widget in (self.plane_width_u, self.plane_width_v,
-                           self.plane_a0, self.plane_norm_mode):
+                           self.plane_a0, self.plane_floor,
+                           self.plane_norm_mode):
                 if widget not in used:
                     widget.setVisible(False)
                     form.labelForField(widget).setVisible(False)
@@ -2027,7 +2037,9 @@ class VolumeProcessDialog(QDialog):
         "Gaussian smooth", "Savitzky-Golay smooth", "Remove spikes",
         "Second derivative along {u}", "Second derivative along {v}",
         "Curvature 2D", "Curvature 1D along {u}", "Curvature 1D along {v}",
-        "Normalise each line along {u}", "Normalise each line along {v}")
+        "Normalise each line along {u}", "Normalise each line along {v}",
+        "Minimum gradient I / |∇I|", "Minimum gradient 1 / |∇I|",
+        "Gradient modulus |∇I|")
 
     def _plane_changed(self, *_):
         """Relabel the operations and widths with the new plane's axes, and
@@ -2098,6 +2110,7 @@ class VolumeProcessDialog(QDialog):
         widths = (self.plane_width_u.value(), self.plane_width_v.value())
         a0 = self.plane_a0.value()
         mode = self.plane_norm_mode.currentText()
+        floor = self.plane_floor.value()
         params = {"planes": self.labels[dim],
                   "operation": self.plane_operation.currentText()}
 
@@ -2118,6 +2131,10 @@ class VolumeProcessDialog(QDialog):
                 return P.curvature(plane, axes, mode="x", a0=a0)
             if choice == 7:
                 return P.curvature(plane, axes, mode="y", a0=a0)
+            if choice in (10, 11, 12):
+                return P.minimum_gradient(
+                    plane, axes, form=P.GRADIENT_FORMS[choice - 10],
+                    floor=floor)
             return P.normalise(plane, axes, 0 if choice == 8 else 1, mode=mode)
 
         if choice in (0, 1):
@@ -2126,9 +2143,12 @@ class VolumeProcessDialog(QDialog):
             params["a0"] = a0
         if choice in (8, 9):
             params["mode"] = mode
+        if choice in (10, 11):
+            params["floor"] = floor
         key = {0: "smooth", 1: "smooth", 2: "despike", 3: "derivative",
                4: "derivative", 5: "curvature", 6: "curvature",
-               7: "curvature", 8: "normalise", 9: "normalise"}[choice]
+               7: "curvature", 8: "normalise", 9: "normalise",
+               10: "gradient", 11: "gradient", 12: "gradient"}[choice]
         return key, params, dim, run
 
     def _mirror_angles(self):

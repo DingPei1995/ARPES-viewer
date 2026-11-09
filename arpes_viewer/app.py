@@ -719,6 +719,7 @@ def run_list_action(name):
         "smooth": lambda: open_processing("smooth"),
         "derivative": lambda: open_processing("derivative"),
         "curvature": lambda: open_processing("curvature"),
+        "gradient": lambda: open_processing("gradient"),
         "symmetry": lambda: open_processing("symmetry"),
         "background": lambda: open_processing("background"),
         "degrid": open_degrid,

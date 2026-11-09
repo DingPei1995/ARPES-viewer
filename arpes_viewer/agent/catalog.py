@@ -249,7 +249,7 @@ Results are plain dicts, lists and strings. An error says what was wrong
 | Look without reading the screen | `L.picture(row, x, y, path)`, `L.profile(row, along, ranges, summary=True)` |
 | Fermi level, E - E_F | `L.fermi_edge_search(row)` (the candidate edges on that row's axis), `L.fermi_edge(row, window, picture=path)`, `L.shift_energy(row, ef)`; kz map: `L.kz_align_fermi(...)` |
 | Clean up | `L.crop`, `L.bin`, `L.normalise` (after the Fermi fit), `L.smooth`, `L.background` |
-| Second derivative, curvature, symmetrise | `L.derivative`, `L.curvature`, `L.symmetrise` |
+| Second derivative, curvature, minimum gradient, symmetrise | `L.derivative`, `L.curvature`, `L.minimum_gradient`, `L.symmetrise` |
 | Dichroism, difference, ratio of two cuts | `L.cut_arithmetic(a, b, operation="asymmetry", normalise="total")` |
 | To momentum | `L.cut_to_k`, `L.map_to_k` (both take `ef=` and `normalise_axes=`: one call, one row), `L.kz_to_k` (V0 from `gamma_hv`) |
 | The Brillouin zone | `L.brillouin_zone`, `L.bz_overlay(row, ...)`, `L.bz3d_picture(path, ..., labels="G, L")` |

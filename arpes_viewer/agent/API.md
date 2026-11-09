@@ -35,7 +35,7 @@ Results are plain dicts, lists and strings. An error says what was wrong
 | Look without reading the screen | `L.picture(row, x, y, path)`, `L.profile(row, along, ranges, summary=True)` |
 | Fermi level, E - E_F | `L.fermi_edge_search(row)` (the candidate edges on that row's axis), `L.fermi_edge(row, window, picture=path)`, `L.shift_energy(row, ef)`; kz map: `L.kz_align_fermi(...)` |
 | Clean up | `L.crop`, `L.bin`, `L.normalise` (after the Fermi fit), `L.smooth`, `L.background` |
-| Second derivative, curvature, symmetrise | `L.derivative`, `L.curvature`, `L.symmetrise` |
+| Second derivative, curvature, minimum gradient, symmetrise | `L.derivative`, `L.curvature`, `L.minimum_gradient`, `L.symmetrise` |
 | Dichroism, difference, ratio of two cuts | `L.cut_arithmetic(a, b, operation="asymmetry", normalise="total")` |
 | To momentum | `L.cut_to_k`, `L.map_to_k` (both take `ef=` and `normalise_axes=`: one call, one row), `L.kz_to_k` (V0 from `gamma_hv`) |
 | The Brillouin zone | `L.brillouin_zone`, `L.bz_overlay(row, ...)`, `L.bz3d_picture(path, ..., labels="G, L")` |
@@ -95,6 +95,16 @@ list of what it can do, so nothing has to be found in the source.
 
 The program's version, how many rows the list has, which windows
 are open, and where the agent's folders are.
+
+#### `L.session_script(path, with_output=True)`
+
+Write every step run so far in this session -- command files
+and MCP requests, oldest first -- as one Python script at ``path``:
+each step's code, when it ran, whether it failed (those are kept
+as comments) and, with ``with_output``, what it printed. The record
+of the whole processing, and a script that does it again. Call it
+at the end, as a step of its own (the step calling it is not yet
+in the record). Returns ``{"path", "steps", "failed"}``.
 
 ### The list
 
@@ -281,6 +291,20 @@ row.
 Curvature of a 2-D cut or map plane: ``mode`` "2d" (isotropic),
 "x" or "y" (one-dimensional along that axis); ``a0`` the
 dimensionless free parameter. Returns the new row.
+
+#### `L.minimum_gradient(name, form='ratio', floor=0.05, ratio=1.0, new_name='')`
+
+The minimum-gradient picture of a cut, or of every
+constant-energy plane of a map: bands are where the intensity's
+gradient is smallest. ``form`` "ratio" is I/|grad I| (the usual
+one: slow intensity changes cancel, empty regions stay dark),
+"inverse" 1/|grad I|, "modulus" |grad I| itself (bands dark).
+``floor`` caps the brightness of flat patches (a fraction of the
+gradient's RMS; lower it on smoothed data); ``ratio`` above 1
+weighs the second axis less. First derivatives only, so less
+noisy than ``derivative`` or ``curvature`` -- but smooth noisy
+data first (``smooth``). A picture to find bands on, not a
+quantity: take numbers from a fit. Returns the new row.
 
 #### `L.background(name, method='percentile', axis=1, new_name='', **options)`
 
@@ -537,6 +561,7 @@ The tool panel's buttons, for what has no operation of its own above. The window
 | `smooth` | Smooth... | cuts or maps | Gaussian, Savitzky-Golay or moving-average smoothing, with spike removal. A map is smoothed plane by plane, on the plane you pick. |
 | `derivative` | Second derivative... | cuts or maps | -d²I/dE² or -d²I/dk² after a pre-smooth, to sharpen the bands. |
 | `curvature` | Curvature... | cuts or maps | The 1D or 2D curvature (Zhang et al.), which follows the band better than a second derivative. |
+| `gradient` | Minimum gradient... | cuts or maps | I/\|∇I\|: bands as the valleys of the intensity's gradient (He, Wang and Shen). First derivatives only, so less noise than a second derivative or the curvature; neither axis is favoured, and shoulders show. |
 | `symmetry` | Symmetrise... | cuts or maps | Mirror a cut about a line; for a map, mirror or rotate its constant-energy planes. |
 | `ridge` | Ridge detection... | cuts or maps | Trace the bands as ridges of the intensity: the Hessian of the smoothed image, kept where it curves down across the band and the slope across it changes sign. Sharper than a second derivative, with no false double lines; the ridge points can be listed or saved for a fit. A map is done plane by plane. |
 | `stack` | Stack plot (EDC / MDC)... | a cut | A waterfall of EDCs or MDCs across the cut. |
@@ -595,7 +620,7 @@ Qt-free functions, for a computation of your own on `L.data(row).values` / `.axe
 
 - **`spectra.corelevel`** -- A quick core-level check of a cut, as plain numpy/scipy with no Qt: which element and orbital each peak of the angle-integrated EDC comes from. `assign`, `candidates_near`, `check`, `common_elements`, `describe_candidates`, `detect_scale`, `element_lines`, `expected_fermi_level`, `find_peaks`, `info_number`, `integrated_edc`, `locate_fermi_edge`, `parse_elements`, `peak_at`, `photon_energy_of`, `reference_lines`, `suggest_shift`, `work_function_of`
 - **`spectra.curves`** -- One-dimensional data: EDCs, MDCs, spin EDCs -- as tables, with no Qt. `channel_names`, `crop`, `curve_info`, `data_channels`, `is_sigma`, `looks_like_counts`, `normalise`, `rebin`, `shift_x`, `sigma_name`, `sigma_of`, `subtract_background`, `table`, `value_label`, `with_poisson_sigma`
-- **`spectra.dispersion`** -- What comes out of a fitted band: the dispersion, the Fermi velocity, the effective mass, and the self-energy. `bare_band_from_anchors`, `fit_dispersion`, `kramers_kronig`, `line_crossing`, `self_energy`, `window_scan`
+- **`spectra.dispersion`** -- What comes out of a fitted band: the dispersion, the Fermi velocity, the effective mass, and the self-energy. `bare_band_from_anchors`, `bare_band_line`, `fermi_crossing`, `fit_dispersion`, `kramers_kronig`, `line_crossing`, `self_energy`, `suggest_bare_velocity`, `window_scan`
 - **`spectra.fermi`** -- Fermi-edge fitting, as plain numpy/scipy with no Qt -- the same split as ``tools.momentum.kspace`` and ``tools.processing.analysis``. `broadened_fermi`, `divide_fermi`, `edge_candidates`, `edge_problems`, `fermi_edge_model`, `fermi_function`, `fit_channels`, `fit_fermi_edge`, `initial_guess`, `levels_along`, `steepest_drop`
 - **`spectra.peaks`** -- MDC and EDC peak fitting, with no Qt: a band model that carries its own identity and the energy range it exists over, hand-placed seeds interpolated into a star. `fit_line`, `fit_series`, `peak_profile`, `suggest_seed`
 - **`spectra.spin`** -- Spin polarisation from the channels of a spin-resolved EDC, with no Qt. `analyse`, `axes_available`, `channels_from_info`, `design_report`, `pairs`, `parse_channel`, `parse_channels`
@@ -610,7 +635,7 @@ Qt-free functions, for a computation of your own on `L.data(row).values` / `.axe
 - **`processing.dataops`** -- Three bulk operations, as plain numpy functions with no Qt: **truncate**, **self-normalisation** and **compress** (binning -- resampling is deliberately left ou. `axis_index`, `axis_summary`, `compress`, `normalise_presets`, `resolve_bounds`, `same_format`, `self_normalize`, `truncate`
 - **`processing.degrid`** -- Removing the detector grid from ARPES images, with no Qt. `degrid_cut_notch`, `degrid_cut_with_grid`, `degrid_map`, `estimate_map_grid`, `find_regions`, `fit_to`, `grid_contrast`, `illuminated_box`, `model_from_pattern`, `not_pixel_locked`
 - **`processing.detector`** -- Corrections made on the detector's own pixels, before anything else: a trapezoidal (keystone) image made rectangular again, and dead or bad regions patched from. `apply_to`, `detector_frames`, `find_bad_regions`, `keystone_correct`, `not_on_detector`, `patch_regions`
-- **`processing.process`** -- The 2-D data operations, as plain numpy functions with no Qt: smoothing, derivatives, curvature, symmetrisation, background subtraction, normalisation and despi. `axis_step`, `box_smooth`, `curvature`, `derivative`, `despike`, `divide_fermi_edge`, `gaussian_smooth`, `gradient_enhance`, `history_of`, `is_smoothed`, `laplacian`, `normalise`, `normalise_unit`, `percentile_background`, `polynomial_background`, `record_step`, `savgol_smooth`, `shirley_background`, `subtract_background`, `suggest_a0`, `symmetrise`, `symmetry_operations`, `tags_of`, `tougaard_background`
+- **`processing.process`** -- The 2-D data operations, as plain numpy functions with no Qt: smoothing, derivatives, curvature, symmetrisation, background subtraction, normalisation and despi. `axis_step`, `box_smooth`, `curvature`, `derivative`, `despike`, `divide_fermi_edge`, `gaussian_smooth`, `gradient_enhance`, `gradient_modulus`, `history_of`, `is_smoothed`, `laplacian`, `minimum_gradient`, `normalise`, `normalise_unit`, `percentile_background`, `polynomial_background`, `record_step`, `savgol_smooth`, `shirley_background`, `subtract_background`, `suggest_a0`, `symmetrise`, `symmetry_operations`, `tags_of`, `tougaard_background`
 - **`processing.repeats`** -- One measurement taken in several batches, added back together. `diagnose`, `energy_shift`, `flag_changed`, `grid_plan`, `sum_repeats`
 - **`processing.ridge`** -- Bands traced as ridges of the intensity. `default_sigmas`, `ridge_cube`, `ridges`
 - **`processing.stackcuts`** -- Several cuts stacked into one cube along an axis the user names. `axis_label`, `compatibility`, `kind_for_role`, `stack`, `stack_axis`, `truncated_frames`, `truncation_plan`

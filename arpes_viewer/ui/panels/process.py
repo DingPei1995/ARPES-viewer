@@ -517,10 +517,11 @@ class ProcessDialog(QDialog):
         "fermi", "despike", "symmetry")}
 
     #: the tabs, by the name the launcher's tool buttons open them with
-    TABS = ("smooth", "derivative", "curvature", "background", "symmetry")
+    TABS = ("smooth", "derivative", "curvature", "gradient", "background",
+            "symmetry")
     #: each operation's window title, when it is opened alone
     TITLES = {"smooth": "Smooth", "derivative": "Second derivative",
-              "curvature": "Curvature",
+              "curvature": "Curvature", "gradient": "Minimum gradient",
               "background": "Background subtraction",
               "symmetry": "Symmetrise"}
 
@@ -563,6 +564,7 @@ class ProcessDialog(QDialog):
             (self._smooth_tab(), "Smooth"),
             (self._derivative_tab(), "Derivative"),
             (self._curvature_tab(), "Curvature"),
+            (self._gradient_tab(), "Minimum gradient"),
             (self._background_tab(), "Background subtraction"),
             (self._symmetry_tab(), "Symmetrise"))
         # Each operation has its own button in the launcher's tool panel,
@@ -713,8 +715,7 @@ class ProcessDialog(QDialog):
         self.curv_mode = QComboBox()
         self.curv_mode.addItems(["2D (isotropic)",
                                  f"1D along {self._short(1)}",
-                                 f"1D along {self._short(0)}",
-                                 "Gradient enhancement I/|∇I|"])
+                                 f"1D along {self._short(0)}"])
         self.curv_mode.setToolTip(
             "2D for a Fermi surface or constant-energy map; 1D along the "
             "energy axis for a dispersion.")
@@ -758,6 +759,59 @@ class ProcessDialog(QDialog):
             "kept -- clip it in the display levels if you do not want it.</i>")
         note.setWordWrap(True)
         form.addRow("", note)
+        return page
+
+    def _gradient_tab(self):
+        page = QWidget()
+        form = QFormLayout(page)
+        what = QLabel(
+            "Along a band's crest the intensity is flat, so the modulus of "
+            "its gradient |∇I| is smallest there. This shows that valley: "
+            "it needs first derivatives only (less noise than a second "
+            "derivative or the curvature), favours neither axis (a band is "
+            "followed through a turning point), and a shoulder shows too. "
+            "It marks every flat place -- also the floor between two bands "
+            "-- so read it beside the data.")
+        what.setWordWrap(True)
+        form.addRow(what)
+        form.addRow(smooth_first_hint("A gradient", smoothed=self.smoothed))
+        self.grad_form = QComboBox()
+        self.grad_form.addItems(["I / |∇I|  (recommended)",
+                                 "1 / |∇I|",
+                                 "|∇I|  (bands are dark)"])
+        self.grad_form.setToolTip(
+            "I / |∇I|: the intensity over its own gradient. A matrix "
+            "element or flux that varies slowly cancels, and empty regions "
+            "stay dark.\n"
+            "1 / |∇I|: the valley alone; every flat region is bright, the "
+            "empty ones too.\n"
+            "|∇I|: the gradient itself, bands as dark lines; nothing is "
+            "divided, so use it to check the other two.")
+        form.addRow("Show", self._watch(self.grad_form))
+        self.grad_floor = spin(0.05, 0.001, 10.0, 0.01, 3)
+        self.grad_floor.setToolTip(
+            "The gradient is not allowed below this fraction of its own "
+            "RMS, which caps how bright a perfectly flat patch gets. Lower "
+            "for a sharper line on clean or smoothed data, higher on noisy "
+            "data. Not used for |∇I| itself.")
+        form.addRow("Floor (× RMS of |∇I|)", self._watch(self.grad_floor))
+        self.grad_ratio = spin(1.0, 0.01, 100.0, 0.1, 3)
+        self.grad_ratio.setToolTip(
+            f"1 weighs the two axes alike (both are mapped to [0,1] "
+            f"first). Above 1 the slope along {self._short(1)} counts for "
+            f"less, below 1 for more.")
+        form.addRow("Anisotropy ratio", self._watch(self.grad_ratio))
+        self.grad_smooth_x = spin(self._span(0) / 60, 0.0, self._span(0),
+                                  self._span(0) / 200, 5)
+        self.grad_smooth_y = spin(self._span(1) / 60, 0.0, self._span(1),
+                                  self._span(1) / 200, 5)
+        if self.smoothed:
+            self.grad_smooth_x.setValue(0.0)
+            self.grad_smooth_y.setValue(0.0)
+        form.addRow(f"Pre-smooth along {self.labels[0]}",
+                    self._watch(self.grad_smooth_x))
+        form.addRow(f"Pre-smooth along {self.labels[1]}",
+                    self._watch(self.grad_smooth_y))
         return page
 
     def _background_tab(self):
@@ -903,6 +957,7 @@ class ProcessDialog(QDialog):
             "Smooth": self._smooth_operation,
             "Derivative": self._derivative_operation,
             "Curvature": self._curvature_operation,
+            "Minimum gradient": self._gradient_operation,
             "Background subtraction": self._background_operation,
             "Symmetrise": self._symmetry_operation,
         }
@@ -960,19 +1015,34 @@ class ProcessDialog(QDialog):
         a0 = self.curv_a0.value()
         ratio = self.curv_ratio.value()
         widths = (self.curv_smooth_x.value(), self.curv_smooth_y.value())
-        mode = ["2d", "y", "x"][choice] if choice < 3 else None
-        params = ({"mode": mode, "a0": a0, "ratio": ratio,
-                   "smooth_x": widths[0], "smooth_y": widths[1]} if mode
-                  else {"smooth_x": widths[0], "smooth_y": widths[1]})
+        mode = ["2d", "y", "x"][choice]
+        params = {"mode": mode, "a0": a0, "ratio": ratio,
+                  "smooth_x": widths[0], "smooth_y": widths[1]}
 
         def run(values, axes):
             out = values
             if any(w > 0 for w in widths):
                 out = P.gaussian_smooth(out, axes, widths)
-            if mode is None:
-                return P.gradient_enhance(out, axes), axes
             return P.curvature(out, axes, mode=mode, a0=a0, ratio=ratio), axes
-        return ("curvature" if mode else "gradient"), params, run
+        return "curvature", params, run
+
+    def _gradient_operation(self):
+        form = P.GRADIENT_FORMS[self.grad_form.currentIndex()]
+        floor = self.grad_floor.value()
+        ratio = self.grad_ratio.value()
+        widths = (self.grad_smooth_x.value(), self.grad_smooth_y.value())
+        params = {"form": form, "ratio": ratio,
+                  "smooth_x": widths[0], "smooth_y": widths[1]}
+        if form != "modulus":
+            params["floor"] = floor
+
+        def run(values, axes):
+            out = values
+            if any(w > 0 for w in widths):
+                out = P.gaussian_smooth(out, axes, widths)
+            return P.minimum_gradient(out, axes, form=form, floor=floor,
+                                      ratio=ratio), axes
+        return "gradient", params, run
 
     def _background_operation(self):
         choice = self.bkg_kind.currentIndex()
@@ -1060,7 +1130,7 @@ class ProcessDialog(QDialog):
 
     def _suggest_a0(self):
         choice = self.curv_mode.currentIndex()
-        mode = ["2d", "y", "x"][choice] if choice < 3 else "2d"
+        mode = ["2d", "y", "x"][choice]
         widths = (self.curv_smooth_x.value(), self.curv_smooth_y.value())
         values = self.preview_values
         if any(w > 0 for w in widths):

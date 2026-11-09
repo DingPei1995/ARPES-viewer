@@ -1576,62 +1576,333 @@ class DispersionWindow(QMainWindow):
                 "A self-energy comes from MDC widths. Refit as MDCs.")
             return None
         try:
-            result = DISP.self_energy(self.series, self.fit,
-                                      band=self.band_choice.currentIndex())
+            window = SelfEnergyWindow(self.series, self.label, self,
+                                      band=self.band_choice.currentIndex(),
+                                      dispersion=self.fit)
         except Exception as exc:
             QMessageBox.warning(self, "Self-energy", str(exc))
             return None
-        window = SelfEnergyWindow(result, self.label, self)
+        window.datasetsCreated.connect(self.datasetsCreated)
         window.show()
         self._sigma = window
         return window
 
 
 class SelfEnergyWindow(QMainWindow):
-    """``Re Sigma`` and ``Im Sigma``, with the Kramers-Kronig check."""
+    """``Re Sigma`` and ``Im Sigma`` of one fitted band, against a bare
+    band that is chosen here and stated, with the Kramers-Kronig check.
 
-    def __init__(self, result: DISP.SelfEnergy, label: str, parent=None):
+    The bare band is the one assumption a self-energy rests on, so it is a
+    control of this window rather than whatever was last fitted in the
+    dispersion window: a straight line through the measured band at two
+    energies (E_F and a deep one, the usual statement), a straight line of
+    a given velocity through the measured k_F (from a calculation, or the
+    one the Kramers-Kronig relation between the two curves picks), or the
+    dispersion window's own fit.
+    """
+
+    datasetsCreated = pyqtSignal(list)
+
+    #: the bare bands offered, in the order of the combo box
+    BARE = ("anchors", "velocity", "dispersion")
+
+    def __init__(self, series, label: str, parent=None, band: int = 0,
+                 dispersion=None):
         super().__init__(parent)
-        self.result = result
+        self.series, self.label, self.band = series, label, int(band)
+        self.dispersion = dispersion
+        self.result = None
         self.setWindowTitle(f"Self-energy — {label}")
-        self.resize(760, 560)
+        self.resize(1100, 760)
+        k, energy, _error = series.band(self.band)
+        if k.size < 5:
+            raise ValueError("this band has fewer than five fitted lines")
+        deepest = float(energy[np.argmax(np.abs(energy))])
+
         central = QWidget()
         layout = QVBoxLayout(central)
 
-        real = pg.PlotWidget()
-        real.setLabel("left", "Re Σ (eV)")
-        real.setLabel("bottom", "E − E_F (eV)")
-        real.plot(result.energy, result.real, pen=None, symbol="o", symbolSize=4,
-                  symbolBrush="#bd4921", symbolPen=None)
-        real.addItem(pg.ErrorBarItem(
-            x=result.energy, y=result.real,
-            height=2 * np.nan_to_num(result.real_error), pen=pg.mkPen("#bd4921")))
-        if result.kk_real is not None:
-            real.plot(result.energy, result.kk_real,
-                      pen=pg.mkPen("#0d7377", width=2, style=Qt.DashLine))
-        strip_stock_menu(real.getPlotItem())
-        layout.addWidget(real)
+        form = QHBoxLayout()
+        self.bare_choice = QComboBox()
+        self.bare_choice.addItems([
+            "Straight line through the band at two energies",
+            "Straight line of a given velocity, through k_F",
+            "The Dispersion window's fit"])
+        self.bare_choice.setToolTip(
+            "The bare band is an assumption, not a measurement: Re Σ is the "
+            "measured band's distance from it, and Im Σ the measured width "
+            "times its slope. State which one was used.")
+        if dispersion is None:
+            self.bare_choice.model().item(2).setEnabled(False)
+        form.addWidget(QLabel("Bare band"))
+        form.addWidget(self.bare_choice)
+        self.anchor_a = spin(0.0, -1e4, 1e4, 0.005, 4, " eV")
+        self.anchor_b = spin(deepest, -1e4, 1e4, 0.005, 4, " eV")
+        for box in (self.anchor_a, self.anchor_b):
+            box.setToolTip("An energy at which the bare band meets the "
+                           "measured one (the measured k there is read off "
+                           "a line through the nearest fitted points).")
+        self.anchor_label = QLabel("meeting the band at")
+        form.addWidget(self.anchor_label)
+        form.addWidget(self.anchor_a)
+        form.addWidget(self.anchor_b)
+        self.velocity = spin(1.0, -1e4, 1e4, 0.05, 4, " eV·Å")
+        self.velocity.setToolTip("dE/dk of the bare band, with its sign.")
+        self.velocity_label = QLabel("dE/dk")
+        form.addWidget(self.velocity_label)
+        form.addWidget(self.velocity)
+        self.suggest_button = QPushButton("Suggest (Kramers-Kronig)")
+        self.suggest_button.setToolTip(
+            "The velocity for which Re Σ and the Kramers-Kronig transform "
+            "of Im Σ agree best. Both depend on this one number, so "
+            "requiring them to be a pair fixes it without a calculation. "
+            "Only to be trusted when the fitted range reaches well past "
+            "the kink, to where Im Σ has levelled off.")
+        self.suggest_button.clicked.connect(self.suggest_velocity)
+        form.addWidget(self.suggest_button)
+        form.addStretch(1)
+        layout.addLayout(form)
 
-        imaginary = pg.PlotWidget()
-        imaginary.setLabel("left", "Im Σ (eV)")
-        imaginary.setLabel("bottom", "E − E_F (eV)")
-        imaginary.setXLink(real)
-        imaginary.plot(result.energy, result.imaginary, pen=None, symbol="o",
-                       symbolSize=4, symbolBrush="#0d7377", symbolPen=None)
-        imaginary.addItem(pg.ErrorBarItem(
+        form = QHBoxLayout()
+        self.ef = spin(0.0, -1e4, 1e4, 0.001, 4, " eV")
+        self.ef.setToolTip("E_F on this cut's energy axis: 0 for a cut on "
+                           "E − E_F.")
+        form.addWidget(QLabel("E_F at"))
+        form.addWidget(self.ef)
+        self.resolution = spin(0.0, 0.0, 10.0, 0.001, 4, " Å⁻¹")
+        folded = float(getattr(getattr(series, "settings", None),
+                               "resolution", 0.0) or 0.0)
+        self.resolution.setToolTip(
+            "The momentum resolution (FWHM), removed from the fitted widths "
+            "in quadrature before Im Σ is taken. Leave 0 if the fit already "
+            "had it in its line shape"
+            + (f" (this fit did: {folded:.4g})." if folded > 0 else "."))
+        form.addWidget(QLabel("Momentum resolution to remove"))
+        form.addWidget(self.resolution)
+        form.addStretch(1)
+        layout.addLayout(form)
+
+        split = QSplitter(Qt.Horizontal)
+        self.band_plot = pg.PlotWidget()
+        self.band_plot.setLabel("bottom", series.x_label or "k (Å⁻¹)")
+        self.band_plot.setLabel("left", series.y_label or "E (eV)")
+        strip_stock_menu(self.band_plot.getPlotItem())
+        split.addWidget(self.band_plot)
+        right = QSplitter(Qt.Vertical)
+        self.real_plot = pg.PlotWidget()
+        self.real_plot.setLabel("left", "Re Σ (eV)")
+        self.real_plot.setLabel("bottom", "E (eV)")
+        strip_stock_menu(self.real_plot.getPlotItem())
+        right.addWidget(self.real_plot)
+        self.imaginary_plot = pg.PlotWidget()
+        self.imaginary_plot.setLabel("left", "|Im Σ| (eV)")
+        self.imaginary_plot.setLabel("bottom", "E (eV)")
+        self.imaginary_plot.setXLink(self.real_plot)
+        strip_stock_menu(self.imaginary_plot.getPlotItem())
+        right.addWidget(self.imaginary_plot)
+        split.addWidget(right)
+        split.setSizes([420, 680])
+        layout.addWidget(split, 1)
+
+        self.note = QLabel("")
+        self.note.setWordWrap(True)
+        self.note.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        layout.addWidget(self.note)
+
+        buttons = QHBoxLayout()
+        for text, slot, tip in (
+                ("Self-energy to list", self.export,
+                 "Add Re Σ, |Im Σ| (each with its error) and the "
+                 "Kramers-Kronig curve to the main list, as curves against "
+                 "energy."),
+                ("Save table...", self.save_table,
+                 "Write the same columns, with the fitted k and width, as "
+                 "a CSV file.")):
+            button = QPushButton(text)
+            button.setToolTip(tip)
+            button.clicked.connect(slot)
+            buttons.addWidget(button)
+        buttons.addStretch(1)
+        layout.addLayout(buttons)
+        self.setCentralWidget(central)
+
+        try:
+            k_f, v_f, _dk, _dv = DISP.fermi_crossing(
+                *series.band(self.band)[:2],
+                k_error=series.band(self.band)[2], ef=0.0)
+            self.velocity.setValue(v_f)
+        except (ValueError, np.linalg.LinAlgError):
+            pass
+        self.bare_choice.currentIndexChanged.connect(self.refresh)
+        for box in (self.anchor_a, self.anchor_b, self.velocity, self.ef,
+                    self.resolution):
+            box.setKeyboardTracking(False)
+            box.valueChanged.connect(self.refresh)
+        self.refresh()
+
+    # -- the bare band ---------------------------------------------------------
+    def bare_kind(self) -> str:
+        return self.BARE[self.bare_choice.currentIndex()]
+
+    def bare_band(self):
+        """The bare band the controls describe (a ``Dispersion``)."""
+        k, energy, error = self.series.band(self.band)
+        kind = self.bare_kind()
+        if kind == "dispersion" and self.dispersion is not None:
+            return self.dispersion
+        if kind == "velocity":
+            k_f, _v, _dk, _dv = DISP.fermi_crossing(k, energy, k_error=error,
+                                                    ef=self.ef.value())
+            return DISP.bare_band_line(k_f, self.velocity.value(),
+                                       ef=self.ef.value())
+        return DISP.bare_band_from_anchors(
+            k, energy, [self.anchor_a.value(), self.anchor_b.value()])
+
+    def bare_description(self) -> str:
+        kind = self.bare_kind()
+        if kind == "velocity":
+            return (f"a straight line of dE/dk = {self.velocity.value():.4g} "
+                    f"eV·Å through the measured k_F")
+        if kind == "dispersion":
+            return "the dispersion fit (order "f"{self.dispersion.order})"
+        return (f"a straight line through the measured band at "
+                f"{self.anchor_a.value():.4g} and {self.anchor_b.value():.4g} eV")
+
+    def suggest_velocity(self):
+        """Set the velocity that makes Re Σ and Im Σ a Kramers-Kronig pair."""
+        try:
+            velocity, _mismatch, _kf, _vf = DISP.suggest_bare_velocity(
+                self.series, band=self.band,
+                resolution=self.resolution.value(), ef=self.ef.value())
+        except Exception as exc:
+            self.note.setText(f"<span style='color:#b00'>{exc}</span>")
+            return None
+        self.velocity.blockSignals(True)
+        self.velocity.setValue(velocity)
+        self.velocity.blockSignals(False)
+        if self.bare_kind() != "velocity":
+            self.bare_choice.setCurrentIndex(self.BARE.index("velocity"))
+        else:
+            self.refresh()
+        return velocity
+
+    # -- the result ----------------------------------------------------------------
+    def refresh(self, *_):
+        kind = self.bare_kind()
+        for widget in (self.anchor_label, self.anchor_a, self.anchor_b):
+            widget.setVisible(kind == "anchors")
+        for widget in (self.velocity_label, self.velocity):
+            widget.setVisible(kind == "velocity")
+        for plot in (self.band_plot, self.real_plot, self.imaginary_plot):
+            plot.clear()
+        try:
+            bare = self.bare_band()
+            result = DISP.self_energy(self.series, bare, band=self.band,
+                                      resolution=self.resolution.value(),
+                                      ef=self.ef.value())
+        except Exception as exc:
+            self.result = None
+            self.note.setText(f"<span style='color:#b00'>{exc}</span>")
+            return None
+        self.result = result
+
+        self.band_plot.plot(result.k, result.energy, pen=None, symbol="o",
+                            symbolSize=4, symbolBrush="#bd4921", symbolPen=None)
+        reach = 0.1 * float(np.ptp(result.k) or 1.0)
+        grid = np.linspace(result.k.min() - reach, result.k.max() + reach, 200)
+        self.band_plot.plot(grid, bare.value(grid),
+                            pen=pg.mkPen("#0d7377", width=2))
+        self.band_plot.addItem(pg.InfiniteLine(
+            pos=result.ef, angle=0, pen=pg.mkPen("#888", style=Qt.DotLine)))
+
+        self.real_plot.plot(result.energy, result.real, pen=None, symbol="o",
+                            symbolSize=4, symbolBrush="#bd4921", symbolPen=None)
+        self.real_plot.addItem(pg.ErrorBarItem(
+            x=result.energy, y=result.real,
+            height=2 * np.nan_to_num(result.real_error),
+            pen=pg.mkPen("#bd4921")))
+        order = np.argsort(result.energy)
+        self.real_plot.plot(result.energy[order], result.kk_real[order],
+                            pen=pg.mkPen("#0d7377", width=2, style=Qt.DashLine))
+        self.imaginary_plot.plot(result.energy, result.imaginary, pen=None,
+                                 symbol="o", symbolSize=4,
+                                 symbolBrush="#0d7377", symbolPen=None)
+        self.imaginary_plot.addItem(pg.ErrorBarItem(
             x=result.energy, y=result.imaginary,
             height=2 * np.nan_to_num(result.imaginary_error),
             pen=pg.mkPen("#0d7377")))
-        strip_stock_menu(imaginary.getPlotItem())
-        layout.addWidget(imaginary)
 
         consistency = result.consistency()
-        note = QLabel(
-            f"Dashed: the Kramers-Kronig transform of Im Σ, shifted to the "
-            f"mean of Re Σ. Mismatch {consistency:.2f} "
-            f"({'consistent' if consistency < 0.3 else 'inconsistent'}) — the "
-            f"two are not independent, so a bare band chosen to enlarge a "
-            f"kink fails this.")
-        note.setWordWrap(True)
-        layout.addWidget(note)
-        self.setCentralWidget(central)
+        lines = [f"<b>Bare band</b> (green, left): {self.bare_description()}."]
+        lines += result.summary()
+        lines.append(
+            f"Dashed: Re Σ worked out from |Im Σ| by the Kramers-Kronig "
+            f"relation (assuming |Im Σ| is the same above E_F as below, and "
+            f"stays at its last value beyond the fitted range); no constant "
+            f"is fitted. Mismatch {consistency:.2f} of the size of Re Σ "
+            f"({'consistent' if consistency < 0.3 else 'inconsistent'}): "
+            f"the two curves are not independent, so a bare band chosen to "
+            f"enlarge a kink fails this.")
+        self.note.setText("<br>".join(lines))
+        return result
+
+    # -- keeping it ------------------------------------------------------------------
+    def columns(self):
+        """``[(name, values)]`` of the table, in energy order."""
+        result = self.result
+        return [("Re Σ", result.real), ("σ Re Σ", result.real_error),
+                ("|Im Σ|", result.imaginary), ("σ |Im Σ|", result.imaginary_error),
+                ("Re Σ from KK", result.kk_real)]
+
+    def parameters(self) -> dict:
+        result = self.result
+        lam, lam_error, window = result.coupling()
+        out = {"band": self.series.names[self.band],
+               "bare_band": self.bare_description(),
+               "bare_coefficients": [float(c) for c in result.bare.coefficients],
+               "ef": result.ef, "resolution_removed": self.resolution.value(),
+               "k_f": result.k_f, "v_f": result.v_f,
+               "lambda": lam, "lambda_error": lam_error,
+               "lambda_window": window, "kk_mismatch": result.consistency()}
+        return out
+
+    def export(self):
+        """Re Σ, |Im Σ| and the Kramers-Kronig curve as a curve dataset."""
+        if self.result is None:
+            return None
+        from arpes_viewer.ui.viewers.curves import curve_dataset
+        import arpes_viewer.tools.spectra.curves as C
+        x, values, names = C.table(self.result.energy, self.columns())
+        data = curve_dataset(
+            "edc", x, values, names, x_label=self.series.y_label or "E (eV)",
+            value_label="Self-energy (eV)",
+            name=f"{self.label}_{self.series.names[self.band]} [self-energy]",
+            step="self_energy", parameters=self.parameters(),
+            prefix="proc.self_energy", source=self.label)
+        self.datasetsCreated.emit([data])
+        return data
+
+    def save_table(self, path=None):
+        if self.result is None:
+            return None
+        if not path:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Save the self-energy",
+                f"{self.label}_self_energy.csv", "CSV (*.csv)")
+        if not path:
+            return None
+        result = self.result
+        columns = ([("energy", result.energy), ("k", result.k),
+                    ("fwhm", result.width)] + self.columns())
+        order = np.argsort(result.energy)
+        table = np.column_stack([np.asarray(c, float)[order] for _n, c in columns])
+        header = ",".join(name.replace("Σ", "Sigma").replace("σ ", "err_")
+                          .replace("|", "").replace(" ", "_")
+                          for name, _c in columns)
+        notes = "\n".join(f"# {key}: {value}"
+                          for key, value in self.parameters().items())
+        np.savetxt(path, table, delimiter=",",
+                   header=notes + "\n" + header, comments="")
+        from arpes_viewer.ui.common.paths import native
+        self.note.setText(f"Saved {table.shape[0]} rows to {native(path)}")
+        return path

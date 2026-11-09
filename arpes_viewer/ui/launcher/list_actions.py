@@ -32,8 +32,8 @@ PLANES = frozenset({"cut"}) | CUBES
 
 #: The filters that work on a cut and on a map alike, but through two
 #: different panels -- so a selection has to be one or the other.
-PROCESSING = frozenset({"smooth", "derivative", "curvature", "symmetry",
-                        "ridge"})
+PROCESSING = frozenset({"smooth", "derivative", "curvature", "gradient",
+                        "symmetry", "ridge"})
 
 #: action -> (how many rows: "one", "two", "many" (two or more), "any", or
 #: "optional" (none, or any number), the kinds it takes
@@ -64,6 +64,7 @@ RULES = {
     "smooth": ("any", PLANES, "cuts or maps"),
     "derivative": ("any", PLANES, "cuts or maps"),
     "curvature": ("any", PLANES, "cuts or maps"),
+    "gradient": ("any", PLANES, "cuts or maps"),
     "symmetry": ("any", PLANES, "cuts or maps"),
     "background": ("any", frozenset({"cut"}), "cuts"),
     # Only on the detector's own pixels: a map in momentum has been

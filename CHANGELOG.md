@@ -17,6 +17,72 @@ file is the record of how it got that way.
 An AI agent started in one step, and driven through documented operations
 instead of the program's internals.
 
+**Later, 2026-11-09 (same version): a minimum-gradient window, a
+self-energy that states its bare band, and the agent's steps saved as one
+script.**
+
+- **Minimum gradient** (tool panel → Advanced, cuts and maps;
+  `tools.processing.process.minimum_gradient`, `L.minimum_gradient`). Along
+  a band's crest the intensity is flat, so the modulus of its gradient is
+  smallest there (He, Wang and Shen, Rev. Sci. Instrum. 88, 073903 (2017)).
+  Three pictures of that valley: `I/|∇I|` (the default: a slowly varying
+  matrix element cancels, empty regions stay dark), `1/|∇I|`, and `|∇I|`
+  itself. First derivatives only, so less noise than the second derivative
+  or the curvature; neither axis is favoured, so a band is followed through
+  its turning point. Axes and intensity are mapped to [0, 1] first, as for
+  the curvature, with a floor on the divisor and an anisotropy ratio. It
+  marks every flat place, the floor between two bands included, and the
+  window says so. `I/|∇I|` used to be a fourth mode hidden in the Curvature
+  window, for cuts only, with no settings; that entry is gone, and
+  `gradient_enhance` remains as a name for the ratio form. A map is done
+  plane by plane, on the planes chosen.
+- **The Kramers-Kronig check of the self-energy was wrong, and is
+  replaced.** It integrated `Im Σ/(E′ − E)` over the fitted range only,
+  with the magnitude of `Im Σ` where the retarded (negative) one belongs,
+  and then moved the curve to the mean of `Re Σ`: on a model with a known
+  answer it had the wrong sign below the kink and logarithmic spikes at
+  the ends of the range. `dispersion.kramers_kronig` now takes `|Im Σ|` as
+  the same on both sides of E_F and constant beyond the last fitted energy,
+  integrates the straight lines between the points exactly (uneven spacing,
+  no error from the pole), and fits no constant: a constant `Im Σ` gives no
+  `Re Σ`, and `Re Σ` is zero at E_F. Checked against the integral done by
+  brute force (0.2 meV on a 35 meV `Re Σ`).
+- **The bare band is a control of the Self-energy window**, not whatever
+  the Dispersion window last fitted (a line or parabola through the
+  measured band itself, against which `Re Σ` averages to zero by
+  construction). Three choices, each written into the result: a straight
+  line through the measured band at two energies (E_F and the deepest
+  fitted one to start with; the k at each is read off a line through the
+  nearest fitted points, so an anchor at E_F is reached when the fit stops
+  a few meV below it); a straight line of a typed velocity through the
+  measured k_F; or the Dispersion window's fit, as before. **Suggest
+  (Kramers-Kronig)** finds the velocity for which `Re Σ` and the transform
+  of `Im Σ` agree best -- both depend on that one number, so requiring
+  them to be a pair fixes it without a calculation
+  (`dispersion.suggest_bare_velocity`); it needs a fitted range that
+  reaches past the kink to where `Im Σ` has levelled off, and the tooltip
+  says so. E_F and a momentum resolution to remove from the widths are
+  controls too.
+- **What is read off the two curves** (`SelfEnergy.summary`): the measured
+  k_F and v_F, `v_bare/v_F − 1`, the coupling `λ = −dRe Σ/dE` at E_F with
+  its error and the window it was taken over, the energy where `|Re Σ|` is
+  largest (or that the range shows no maximum), `|Im Σ|` at E_F with the
+  lifetime and the mean free path. **Self-energy to list** keeps `Re Σ`,
+  `|Im Σ|`, their errors and the Kramers-Kronig curve as curves against
+  energy; **Save table...** writes them with the fitted k and width, the
+  bare band in the header.
+- **Save the steps as a script...** (AI assistant window;
+  `ui/common/agentsteps.py`, `L.session_script(path)`). Every step the
+  agent ran, oldest first, as one Python file: the code, when it ran,
+  whether it failed (those are kept as comments) and what it printed. The
+  command folder already kept each step's file in `viewer_done/` and its
+  output in `out/`, but as separate files; requests through MCP were kept
+  in memory only, as one line each, and were gone with the program -- the
+  bridge now keeps each request in full for this. Copied into `viewer_cmd/`
+  the file runs again. A new option of the prompt, on by default, has the
+  agent write it as its last step (`agent_steps.py` in the results folder).
+  Steps done by hand are not in it: they are in each dataset's history.
+
 **Later, 2026-11-05 (same version): the SGM4 reader follows the
 beamline's Igor loader (`SGM4loader_v7W9.ipf`).** The scanned axes are
 read from `ScanDetails/dimensions` and `Dim<n>_name/_start/_step/_length`

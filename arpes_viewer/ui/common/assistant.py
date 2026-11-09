@@ -67,6 +67,11 @@ OPTIONS = (
      "At the end write a report in the folder {report} (Markdown, and PDF if "
      "you can): the data, each step with its parameters and where each came "
      "from, the figures, and what is uncertain."),
+    ("script", "Save every step as one Python script at the end", True,
+     "At the end, as a last step of its own, call the operation "
+     "session_script with the path {script}: it writes every step you ran, "
+     "in order, as one Python script (the record of the processing, which "
+     "can be run again)."),
     ("slides", "Make slides (PPTX) of the key figures", False,
      "At the end make a slide deck {slides}: one slide "
      "per key figure with a two-line caption."),
@@ -105,7 +110,8 @@ def build_prompt(mode: str, data: str, results: str, options=(),
     reference = reference_path()
     places = {"usage_log": os.path.join(results, "usage_log.md"),
               "report": os.path.join(results, "report"),
-              "slides": os.path.join(results, "slides", "summary.pptx")}
+              "slides": os.path.join(results, "slides", "summary.pptx"),
+              "script": os.path.join(results, "agent_steps.py")}
     chosen = [text.format(**places) for key, _label, _on, text in OPTIONS
               if key in set(options)]
     read_first = (f"Before anything else read {reference}: it lists every "
@@ -476,8 +482,18 @@ class AssistantDialog(QDialog):
         self.pause_button.clicked.connect(self.toggle_pause)
         open_results = QPushButton("Open results")
         open_results.clicked.connect(self._open_results)
+        self.save_button = QPushButton("Save the steps as a script...")
+        self.save_button.setToolTip(
+            "Write everything the agent ran, in order, as one Python file: "
+            "each step's code, when it ran, whether it failed and what it "
+            "printed. A record of the whole processing, and a script that "
+            "does it again (copied into the command folder's viewer_cmd, "
+            "the program runs it). Steps run through MCP are kept in memory "
+            "only, so save them before closing the program.")
+        self.save_button.clicked.connect(lambda: self.save_script())
         row.addWidget(self.status, stretch=1)
         row.addWidget(self.pause_button)
+        row.addWidget(self.save_button)
         row.addWidget(open_results)
         column.addLayout(row)
         split = QSplitter(Qt.Vertical)
@@ -738,6 +754,35 @@ class AssistantDialog(QDialog):
                                                 edit.text())
         if path:
             edit.setText(native(path))
+
+    def save_script(self, path: str = ""):
+        """Write the agent's steps as one Python script (asks where when
+        no ``path`` is given). Returns what :func:`agentsteps.save` does,
+        or None."""
+        from arpes_viewer.ui.common import agentsteps
+        if not agentsteps.steps(self.app):
+            self.message.setText("No step has been run yet: there is "
+                                 "nothing to save.")
+            return None
+        if not path:
+            start = self.folders()[1] or os.path.expanduser("~")
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Save the agent's steps as a script",
+                os.path.join(start, agentsteps.default_name()),
+                "Python (*.py)")
+        if not path:
+            return None
+        try:
+            saved = agentsteps.save(self.app, path)
+        except OSError as exc:
+            self.message.setText(f"<span style='color:#c00'>Could not save: "
+                                 f"{exc}</span>")
+            return None
+        failed = (f" ({saved['failed']} failed, kept as comments)"
+                  if saved["failed"] else "")
+        self.message.setText(f"<b>Saved</b> {saved['steps']} step(s){failed} "
+                             f"to {native(saved['path'])}")
+        return saved
 
     def _open_results(self):
         folder = self.folders()[1]

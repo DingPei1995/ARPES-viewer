@@ -392,33 +392,101 @@ def suggest_a0(values, axes, *, mode: str = "2d", factor: float = 1.0) -> float:
     return float(max(scale, 1e-9) * float(factor))
 
 
-def gradient_enhance(values, axes, *, floor: float = 0.05, window=None,
-                     normalise: bool = True):
-    """``I / |grad I|``, a contrast trick, made safe.
+#: What :func:`minimum_gradient` can return, in the order the panels offer.
+GRADIENT_FORMS = ("ratio", "inverse", "modulus")
 
-    The modulus is ``sqrt(I_x^2 + I_y^2)`` on the normalised axes, so it is
-    isotropic. The divisor goes to zero wherever the image is flat, which
-    would make the flattest -- usually emptiest -- parts brightest, so the
-    divisor is floored at ``floor`` times its own RMS.
 
-    It stays a display trick with no absolute meaning, which is why the
-    panel offers curvature first.
+def gradient_modulus(values, axes, *, ratio: float = 1.0, window=None,
+                     poly: int = None, normalise: bool = True):
+    """``|grad I| = sqrt(I_x^2 + (I_y / ratio)^2)`` and the intensity it
+    was taken from, as ``(modulus, intensity)``.
+
+    With ``normalise`` both axes and the intensity are mapped to [0, 1]
+    first, as for :func:`curvature` and for the same reason: a slope in
+    counts per eV and one in counts per A^-1 cannot be added, and on the
+    unit square "the gradient" means the same on the next dataset.
+    ``ratio`` above 1 weights the second axis less (below 1, more), for a
+    picture whose features are much sharper along one axis.
     """
     values = _as_2d(values)
     if normalise:
         work, _, _ = normalise_unit(values)
         work_axes = [np.linspace(0.0, 1.0, values.shape[0]),
                      np.linspace(0.0, 1.0, values.shape[1])]
+        if window is not None:
+            spans = [abs(float(np.asarray(a, float)[-1] - np.asarray(a, float)[0]))
+                     or 1.0 for a in axes[:2]]
+            window = (float(window[0]) / spans[0], float(window[1]) / spans[1])
     else:
-        work, work_axes = values, [np.asarray(a, float) for a in axes]
+        work, work_axes = values, [np.asarray(a, float) for a in axes[:2]]
     wx = None if window is None else window[0]
     wy = None if window is None else window[1]
-    ix = derivative(work, work_axes, 0, 1, window=wx, negate=False)
-    iy = derivative(work, work_axes, 1, 1, window=wy, negate=False)
-    grad = np.sqrt(ix ** 2 + iy ** 2)
+    ix = derivative(work, work_axes, 0, 1, window=wx, poly=poly, negate=False)
+    iy = derivative(work, work_axes, 1, 1, window=wy, poly=poly, negate=False)
+    return np.sqrt(ix ** 2 + (iy / max(float(ratio), 1e-12)) ** 2), work
+
+
+def minimum_gradient(values, axes, *, form: str = "ratio", floor: float = 0.05,
+                     ratio: float = 1.0, window=None, poly: int = None,
+                     normalise: bool = True):
+    """The minimum-gradient picture of a cut or a constant-energy map
+    (He, Wang and Shen, Rev. Sci. Instrum. 88, 073903 (2017)).
+
+    Along the crest of a band the intensity is stationary across the band
+    and changes only slowly along it, so the modulus of its gradient,
+    ``|grad I|``, is smallest there: the band is a *valley* of the
+    gradient, flanked by the two slopes of the peak. Three pictures of
+    that valley are offered (``form``):
+
+    ``"ratio"``
+        ``I / |grad I|``. Dividing the intensity by its own gradient
+        cancels whatever multiplies both slowly -- a matrix element that
+        changes across the band, the photon flux -- so a weak part of a
+        band comes out as clearly as a strong one, and an empty region
+        (no intensity, though no gradient either) stays dark. The one to
+        use.
+    ``"inverse"``
+        ``1 / |grad I|``. The valley alone. Every flat region is bright,
+        the empty ones included, so it is only readable where there is
+        signal everywhere.
+    ``"modulus"``
+        ``|grad I|`` itself: bands are dark lines between bright slopes.
+        Nothing is divided, so nothing is amplified -- the picture to
+        check the other two against.
+
+    It needs only first derivatives, where a second derivative and the
+    curvature need second ones, so it amplifies noise less; and it does
+    not single out one axis, so a band is followed through a turning
+    point where an EDC or MDC derivative loses it. What it marks is every
+    place the intensity is flat: a crest, but also the floor between two
+    bands and a plateau (a shoulder shows where a second derivative shows
+    nothing, which is its use). So read it beside the data, and take
+    numbers from a fit.
+
+    ``floor`` guards the division: the gradient is not allowed below
+    ``floor`` times its own RMS, which caps how bright a perfectly flat
+    patch can get. Lower it for a sharper line on clean (or smoothed)
+    data, raise it on noisy data. NaNs stay NaN.
+    """
+    if form not in GRADIENT_FORMS:
+        raise ValueError(f"form {form!r} is not one of "
+                         + ", ".join(GRADIENT_FORMS))
+    grad, work = gradient_modulus(values, axes, ratio=ratio, window=window,
+                                  poly=poly, normalise=normalise)
+    if form == "modulus":
+        return grad
     guard = max(float(floor), 1e-6) * _rms(grad)
     with np.errstate(invalid="ignore", divide="ignore"):
-        return work / np.maximum(grad, guard)
+        divisor = np.maximum(grad, guard)
+        return (work if form == "ratio" else 1.0) / divisor
+
+
+def gradient_enhance(values, axes, *, floor: float = 0.05, window=None,
+                     normalise: bool = True):
+    """``I / |grad I|``: :func:`minimum_gradient` in its ``"ratio"`` form,
+    under the name it had before it got a window of its own."""
+    return minimum_gradient(values, axes, form="ratio", floor=floor,
+                            window=window, normalise=normalise)
 
 
 # ==========================================================================
