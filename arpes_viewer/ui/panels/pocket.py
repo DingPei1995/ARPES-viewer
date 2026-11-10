@@ -583,6 +583,7 @@ class PocketDialog(QDialog):
             "k_f_min": r_low, "k_f_min_angle": float(np.degrees(a_low)),
             "k_f_max": r_high, "k_f_max_angle": float(np.degrees(a_high)),
             "mean_width": float(np.nanmedian(self.contour.width[self.contour.ok])),
+            "scatter": self.contour.scatter(self.fitted),
             "carrier": "electron" if self.carrier.currentIndex() == 0 else "hole",
             "notice": PK.NOTICE})
         if self.series is not None:
@@ -611,6 +612,14 @@ class PocketDialog(QDialog):
             lines.append("<span style='color:#b00'>Many rays were dropped: "
                          "look at them (One ray), and close the ring around "
                          "this band or give a symmetry.</span>")
+        if n["scatter"] > 0.25:
+            lines.append(
+                f"<span style='color:#b00'>The rays lie "
+                f"{n['scatter']:.2f} of a peak width off the contour: it "
+                f"does not describe them. If k_F against angle shows two "
+                f"levels, two bands are inside the ring -- close the ring "
+                f"around one. Otherwise raise Harmonics, or centre on the "
+                f"contour.</span>")
         counted = (f"For a quasi-2D sample: n = {n['density'] / 1e12:.4g} ± "
                    f"{n['density_error'] / 1e12:.2g} × 10¹² cm⁻² "
                    f"({n['spin']} per k × {n['pockets']} pocket(s))")

@@ -2,7 +2,7 @@
 
 *[English version](USER_GUIDE_en.md) · [中文版](USER_GUIDE_zh.md)*
 
-*Dernière mise à jour : 4 novembre 2026 — pour ARPES viewer v1.3.2*
+*Dernière mise à jour : 10 novembre 2026 — pour ARPES viewer v1.3.3*
 
 La version et sa date figurent dans la barre de titre de la fenêtre principale
 et sur sa dernière ligne. Rapports de bogues, questions et dernière version :
@@ -90,6 +90,7 @@ références à côté du code : [lecture des données](../arpes_viewer/loader/R
 - [5.5 Arithmétique de coupes : dichroïsme et division par une référence](#55-arithmétique-de-coupes--dichroïsme-et-division-par-une-référence)
 - [5.6 Figure en série de tranches](#56-figure-en-série-de-tranches)
 - [5.7 Les vues 3D](#57-les-vues-3d)
+- [5.8 Poche de Fermi (quasi-2D, en test)](#58-poche-de-fermi-quasi-2d-en-test)
 
 **[Partie 6 — Le panneau d'outils : onglet Figure](#partie-6--le-panneau-doutils--onglet-figure)**
 
@@ -321,7 +322,7 @@ traitement (`arpes_viewer/tools/runtime/naming.py`) :
 | `[symm]` | Symmetrise… | symétrisé |
 | `[k]` | Conversion en k (coupe / carte) | converti en impulsion |
 | `[kz]` | Conversion en kz | balayage en hν converti en k_z |
-| `[d2] / [grad] / [cur]` | Second derivative… / Curvature… | dérivée seconde, gradient, courbure |
+| `[d2] / [grad] / [cur]` | Second derivative… / Minimum gradient… / Curvature… | dérivée seconde, gradient minimum, courbure |
 | `[ridge]` | Détection des crêtes | positions des bandes |
 | `[arb cut]` | Coupe arbitraire dans une carte | coupe le long d'une ligne choisie |
 | `[slice …]` | Save slice to list (visualiseur) | plan ou coupe sorti d'un visualiseur |
@@ -1295,7 +1296,7 @@ l'image dans Illustrator.
 
 # Partie 5 — Le panneau d'outils : onglet Advanced
 
-L'onglet **Advanced** regroupe l'analyse qui suit : filtres d'affinement des bandes et symétrisation, détection de crêtes, empilements, ajustements MDC et EDC, arithmétique de coupes, figure en série de tranches et vues 3D.
+L'onglet **Advanced** regroupe l'analyse qui suit : filtres d'affinement des bandes et symétrisation, détection de crêtes, empilements, ajustements MDC et EDC avec la self-énergie, arithmétique de coupes, figure en série de tranches, vues 3D, et l'analyse des poches de Fermi pour les échantillons quasi bidimensionnels (en test).
 
 ## 5.1 Lissage, dérivées, courbure et symétrisation
 
@@ -1308,12 +1309,28 @@ une ou plusieurs coupes (ou cartes) sélectionnées :
 | Advanced | **Smooth...** | lissage gaussien, Savitzky–Golay ou moyenne glissante, avec suppression des pics facultative |
 | Advanced | **Second derivative...** | −d²I/dE² ou −d²I/dk² après un pré-lissage, pour affiner les bandes |
 | Advanced | **Curvature...** | courbure 1D ou 2D (Zhang et al.), qui suit la bande mieux qu'une dérivée seconde |
+| Advanced | **Minimum gradient...** | I/\|∇I\| : les bandes comme vallées du gradient de l'intensité — dérivées premières seulement, donc moins de bruit ; les épaulements apparaissent |
 | Advanced | **Symmetrise...** | miroir d'une coupe par rapport à une droite ; pour une carte, miroir ou rotation de ses plans à énergie constante |
 
 Chaque résultat est un nouveau jeu de données qui garde la trace des étapes
 qui l'ont produit.
 
 ![La fenêtre de courbure](images/process_dialog.png)
+
+**Gradient minimum (Minimum gradient).** Le long de la crête d'une bande
+l'intensité est plate, donc le module de son gradient |∇I| y est minimal
+(He, Wang et Shen, Rev. Sci. Instrum. 88, 073903 (2017)). La fenêtre montre
+cette vallée de trois façons : **I / |∇I|** (à utiliser : une intensité qui
+varie lentement le long de la bande se compense, et les régions vides
+restent sombres), **1 / |∇I|**, ou **|∇I|** lui-même (les bandes en lignes
+sombres ; rien n'est divisé, c'est donc le contrôle des deux autres). Il ne
+demande que des dérivées premières, donc moins de bruit qu'une dérivée
+seconde ou la courbure ; il ne privilégie aucun axe, donc une bande est
+suivie à travers son extremum ; et un épaulement apparaît. **Floor** limite
+la brillance d'une zone parfaitement plate (à baisser sur des données
+lissées pour une ligne plus fine). Il marque *tout* endroit plat — y
+compris le creux entre deux bandes — à lire donc à côté des données, les
+nombres venant d'un ajustement.
 
 - **Source** et **Result** sont affichés côte à côte, sur la même échelle,
   pour voir quand un réglage a « mangé » la bande. Ils se déplacent et
@@ -1436,8 +1453,8 @@ la fenêtre quand elle est trop courte (Ctrl + molette zoome l'image).
    fond, pas, puis **Fit the series**. Les positions ajustées sont tracées
    sur l'image, avec une taille proportionnelle à l'amplitude.
 4. **Dispersion...** ajuste la bande : **v_F** (droite), **m\*** (parabole) —
-   et vérifie jusqu'où l'ajustement reste stable. **Self-energy...** donne
-   Re Σ et Im Σ.
+   et vérifie jusqu'où l'ajustement reste stable. **Self-energy...** ouvre
+   la fenêtre décrite plus bas.
 
 ![Fenêtre de dispersion](images/dispersion_window.png)
 
@@ -1452,6 +1469,40 @@ Dirac d'un cône ajusté par ses deux flancs, ou tout croisement de deux
 bandes. Un point ajusté dont l'erreur s'est effondrée (un pic ajusté à
 largeur nulle) ne prend plus tout le poids de l'ajustement de la
 dispersion : aucun point ne compte plus que dix points typiques.
+
+### Self-énergie
+
+**Self-energy...** (fenêtre Dispersion, ajustements MDC seulement) fait
+d'une bande ajustée **Re Σ** et **|Im Σ|** en fonction de l'énergie : Re Σ
+est la distance de la bande mesurée à une *bande nue*, et |Im Σ| la moitié
+de la largeur ajustée multipliée par la pente de la bande nue.
+
+![La fenêtre de self-énergie](images/self_energy_window.png)
+
+- **Bare band** — la seule hypothèse sur laquelle tout repose ; elle se
+  choisit donc ici et est écrite dans le résultat : une **droite passant
+  par la bande à deux énergies** (E_F et l'énergie ajustée la plus profonde
+  au départ), une **droite de vitesse donnée** passant par le k_F mesuré
+  (issue d'un calcul, par exemple), ou **l'ajustement de la fenêtre
+  Dispersion**.
+- **Suggest (Kramers-Kronig)** trouve la vitesse nue pour laquelle Re Σ et
+  la transformée de Kramers-Kronig de |Im Σ| s'accordent le mieux. Les deux
+  dépendent de ce seul nombre : exiger qu'elles forment une paire le fixe
+  sans calcul. À ne croire que si la plage ajustée va bien au-delà du
+  kink, là où |Im Σ| s'est stabilisé.
+- **E_F at** et **Momentum resolution to remove** (retirée des largeurs en
+  quadrature ; laisser 0 si l'ajustement avait la résolution dans sa forme
+  de raie).
+- **Ligne en tirets** : Re Σ déduite de |Im Σ| par la relation de
+  Kramers-Kronig, en prenant |Im Σ| identique au-dessus et au-dessous de
+  E_F et constante au-delà de la plage ajustée. Aucune constante n'est
+  ajustée : la comparaison teste donc la bande nue, et une bande nue
+  choisie pour grossir un kink y échoue.
+- **Sous les graphes** : k_F et v_F mesurés, v_bare/v_F − 1, le couplage
+  λ = −dRe Σ/dE à E_F, l'énergie où |Re Σ| est maximale (le kink), |Im Σ| à
+  E_F avec la durée de vie et le libre parcours moyen.
+- **Self-energy to list** ajoute les courbes à la liste principale ; **Save
+  table...** les écrit en CSV avec la bande nue dans l'en-tête.
 
 ## 5.5 Arithmétique de coupes : dichroïsme et division par une référence
 
@@ -1569,6 +1620,71 @@ de l'évolution d'une bande.
   étiquettes à la fenêtre ou au panneau de figure (sans marge fixe),
   espacent leurs graduations selon la place de chaque axe, et écrivent
   indices et exposants dans les titres d'axe (`E - E_F`, `k_x`).
+
+## 5.8 Poche de Fermi (quasi-2D, en test)
+
+> **En test** (nouveau dans la 1.3.3) : vérifiez chaque nombre sur l'image,
+> et signalez ce qui paraît faux.
+>
+> **Échantillons quasi bidimensionnels seulement.** L'aire d'un contour
+> dans une carte en k n'est une propriété de la surface de Fermi que si les
+> bandes ne dispersent pas selon k_z — un état de surface, une monocouche,
+> un matériau lamellaire dont la surface de Fermi est un cylindre. Une
+> carte est alors toute la surface de Fermi. Pour une surface de Fermi
+> tridimensionnelle, la carte est une nappe courbe qui la traverse, à un
+> k_z fixé par l'énergie de photon et élargi par la profondeur
+> d'échappement : le contour n'est pas une orbite extrémale, et les nombres
+> ci-dessous ne signifient rien. Le programme ne peut pas distinguer les
+> deux cas.
+
+Sélectionnez une carte convertie en moment (une carte en k, en E − E_F) et
+appuyez sur panneau d'outils → Advanced → **Fermi pocket (quasi-2D)...**.
+
+![La fenêtre de poche de Fermi](images/fermi_pocket.png)
+
+1. **The plane.** L'énergie à laquelle le contour est tracé (E_F au départ)
+   et la demi-largeur sur laquelle on moyenne.
+2. **The pocket.** Faites glisser la cible rouge sur un point à l'intérieur
+   de la poche (ou tapez-le), et réglez **Look between** pour que les deux
+   cercles en tirets contiennent la bande de cette poche et aucune autre.
+   Un rayon part du centre à chacun des **Rays** angles, et un pic ajusté
+   le long de ce rayon y donne k_F (points jaunes ; les croix rouges sont
+   les rayons écartés, et l'onglet **One ray** montre n'importe quel rayon
+   avec son ajustement). Le contour (bleu) est une série de Fourier du
+   rayon en fonction de l'angle, jusqu'à **Harmonics** ; **Symmetry** ne
+   garde que les harmoniques permises par un axe d'ordre n passant par le
+   centre, ce qui comble aussi les lacunes des données. **Centre on the
+   contour** déplace le centre au milieu du contour ; l'aire ne dépend pas
+   du centre.
+3. **Counting.** *States per k* (2 pour une bande dégénérée en spin, 1
+   quand chaque spin a son propre contour), le nombre de *poches
+   équivalentes dans la zone*, la *maille dans le plan* a, b, γ (pour les
+   porteurs par maille), et s'il s'agit d'une poche d'électrons ou de
+   trous.
+
+Ce qui en sort, sous les images :
+
+- l'**aire** avec son erreur, l'étendue de k_F le long du contour et le
+  nombre de rayons gardés ;
+- pour un échantillon quasi-2D : la **densité de porteurs**
+  n = g N A/(2π)², la fraction de la zone de Brillouin et les **porteurs
+  par maille** (ce que compte le théorème de Luttinger), et la **fréquence
+  des oscillations quantiques** F = (ħ/2πe) A ;
+- **Area against energy** trace la même poche à une série d'énergies et
+  ajuste une droite : la **masse cyclotron** m_c = (ħ²/2π) dA/dE — positive
+  pour une poche d'électrons, qui grandit avec l'énergie, négative pour une
+  poche de trous —, l'aire à E_F lue sur la droite (sans le biais que la
+  coupure de Fermi donne à un plan pris à E_F même), la vitesse de Fermi
+  moyenne, et l'énergie à laquelle la droite atteint une aire nulle.
+
+**Keep this pocket** l'ajoute à un tableau qui compte plusieurs poches
+ensemble, électrons moins trous. **Contour to list** ajoute k_F en fonction
+de l'angle (et l'aire en fonction de l'énergie) à la liste principale ;
+**Save table...** écrit le tout en CSV.
+
+Les erreurs données sont statistiques (la dispersion des rayons). La
+fenêtre en énergie, la conversion en moment (travail de sortie, position de
+Γ) et la résolution n'y sont pas, et sont en général plus grandes.
 
 ---
 
@@ -2200,6 +2316,8 @@ Cliquez sur **AI assistant...** en haut du panneau d'outils.
      étape ;
    - *Hide the sample's real identity* dans tout ce qui est écrit ;
    - *Write a report*, *Make slides* ;
+   - *Save every step as one Python script at the end* (coché par défaut) :
+     l'agent écrit `agent_steps.py` dans le dossier des résultats ;
    - *Keep the list tidy* : proposer à la fin de retirer les lignes
      intermédiaires.
 
@@ -2234,6 +2352,15 @@ Cliquez sur **AI assistant...** en haut du panneau d'outils.
   dans la liste telle quelle, vous pouvez donc regarder des données pendant
   qu'il travaille, et les fenêtres qu'il n'ouvre que pour les piloter
   n'apparaissent jamais sur vos écrans.
+- **Save the steps as a script...** écrit tout ce que l'agent a exécuté,
+  dans l'ordre, en un seul fichier Python : le code de chaque étape, son
+  heure, si elle a échoué (celles-là sont gardées en commentaires) et ce
+  qu'elle a affiché. C'est la trace de tout le traitement, et il se
+  relance : copiez-le dans `<results>/_agent/viewer_cmd` d'un programme
+  démarré sur ce dossier de résultats. Les étapes envoyées par MCP ne sont
+  gardées qu'en mémoire : enregistrez-les avant de fermer le programme. Les
+  étapes faites à la main n'y sont pas ; elles sont dans l'historique de
+  chaque jeu de données (*Experiment info*).
 - **Open results** ouvre le dossier des résultats : les fichiers de commandes
   et journaux de l'agent dans `_agent`, les images et figures qu'il a écrites.
 
@@ -2542,7 +2669,7 @@ Si le programme ne démarre pas du tout, le journal du lanceur
 ## 8.4 Versions et mises à jour
 
 La barre de titre et la dernière ligne du panneau principal montrent la
-version et sa date (`ARPES viewer v1.3.2 (updated 2026-11-04)`). Ce qui a
+version et sa date (`ARPES viewer v1.3.3 (updated 2026-11-10)`). Ce qui a
 changé à chaque version, et pourquoi, est dans le
 [CHANGELOG](../CHANGELOG.md).
 

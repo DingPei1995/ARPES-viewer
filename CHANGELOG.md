@@ -12,274 +12,116 @@ file is the record of how it got that way.
 
 ---
 
+## 1.3.3 — 2026-11-10
+
+A Fermi-pocket analysis for quasi-two-dimensional samples (under test), a
+minimum-gradient window, a self-energy that states its bare band, and the
+agent's steps saved as one script.
+
+- **Fermi pocket (quasi-2D)...** (tool panel → Advanced, k-maps;
+  `tools/spectra/pocket.py`, `ui/panels/pocket.py`, `L.fermi_pocket`).
+  **Under test, and only for quasi-two-dimensional samples**: the window,
+  the button's tip, every result and the agent's operation say so. The
+  area of a contour in one map is a property of the Fermi surface only
+  when the bands do not disperse along k_z; for a three-dimensional Fermi
+  surface the map is one curved, k_z-smeared sheet through it and the
+  numbers mean nothing. The program cannot tell the two apart.
+  - *The contour.* From a point inside the pocket, rays go out at equal
+    angles; a Lorentzian on a straight background fitted along each, inside
+    a ring the user sets, gives k_F there with an error. A ray that
+    disagrees with its neighbours is fitted again near them and dropped if
+    it still disagrees; a peak needs data on both sides, five times the
+    ray's noise, and 2 % of the plane's range. The radius against angle is
+    a Fourier series (optionally with only the harmonics an n-fold axis
+    allows), and the area follows from its coefficients exactly, with an
+    error from their covariance. The area does not depend on the centre.
+  - *What the area gives.* Carrier density `g N A/(2π)²`, the fraction of
+    the zone and carriers per in-plane cell (Luttinger's count), the
+    quantum-oscillation frequency `(ħ/2πe) A`; from the area at several
+    energies the cyclotron mass `(ħ²/2π) dA/dE` (its sign says electron or
+    hole pocket), the area at E_F off the line, the mean Fermi velocity.
+    Several pockets are counted together, electrons minus holes.
+  - *What it warns of.* Fewer than a third of the rays finding a band is
+    refused; rays lying more than a quarter of a peak width off the
+    contour (two bands in the ring, too few harmonics) are pointed out.
+    The errors are statistical only, and the window says so.
+  - Checked on a synthetic warped pocket of known area and mass (area
+    within 1 %, mass within 2-3 %, electron and hole), not yet on
+    measured data.
+- **Minimum gradient...** (tool panel → Advanced, cuts and maps;
+  `process.minimum_gradient`, `L.minimum_gradient`). Along a band's crest
+  the intensity's gradient is smallest (He, Wang and Shen, Rev. Sci.
+  Instrum. 88, 073903 (2017)): `I/|∇I|` (the default), `1/|∇I|` or `|∇I|`,
+  on axes and intensity mapped to [0, 1], with a floor and an anisotropy
+  ratio. First derivatives only; neither axis favoured. It replaces the
+  `I/|∇I|` mode that was hidden in the Curvature window, for cuts only.
+- **Self-energy.** The Kramers-Kronig check was wrong (it integrated over
+  the fitted range only, with the wrong sign, and moved the curve to the
+  mean of Re Σ): `dispersion.kramers_kronig` now takes |Im Σ| as the same
+  on both sides of E_F and constant beyond the range, integrates exactly,
+  and fits no constant. The bare band is chosen in the window and written
+  into the result -- a line through the band at two energies, a line of a
+  typed velocity through the measured k_F, or the Dispersion window's fit
+  -- and **Suggest (Kramers-Kronig)** finds the velocity that makes the two
+  curves a pair. Reported: k_F, v_F, `v_bare/v_F − 1`, λ, the kink energy,
+  |Im Σ| at E_F with lifetime and mean free path. To the list, or CSV.
+- **Save the steps as a script...** (AI assistant; `ui/common/agentsteps.py`,
+  `L.session_script`). Every step the agent ran -- command files and MCP
+  requests, which were kept in memory as one line each -- as one Python
+  file with times, failures (as comments) and output; it runs again from
+  `viewer_cmd/`. A prompt option, on by default, has the agent write it at
+  the end. Steps done by hand are in each dataset's history, not here.
+- **Documents.** The user guides (en, zh, fr): §5.1 minimum gradient, §5.4
+  the self-energy window, the new §5.8 Fermi pocket with its notice, §7.3
+  and §7.4 the saved script. `devtools/guide_screenshots.py` follows the
+  1.3.2 row names again and takes the two new windows.
+
 ## 1.3.2 — 2026-11-04
 
 An AI agent started in one step, and driven through documented operations
-instead of the program's internals.
+instead of the program's internals; with later work up to 2026-11-05.
 
-**Later, 2026-11-09 (same version): a minimum-gradient window, a
-self-energy that states its bare band, and the agent's steps saved as one
-script.**
-
-- **Minimum gradient** (tool panel → Advanced, cuts and maps;
-  `tools.processing.process.minimum_gradient`, `L.minimum_gradient`). Along
-  a band's crest the intensity is flat, so the modulus of its gradient is
-  smallest there (He, Wang and Shen, Rev. Sci. Instrum. 88, 073903 (2017)).
-  Three pictures of that valley: `I/|∇I|` (the default: a slowly varying
-  matrix element cancels, empty regions stay dark), `1/|∇I|`, and `|∇I|`
-  itself. First derivatives only, so less noise than the second derivative
-  or the curvature; neither axis is favoured, so a band is followed through
-  its turning point. Axes and intensity are mapped to [0, 1] first, as for
-  the curvature, with a floor on the divisor and an anisotropy ratio. It
-  marks every flat place, the floor between two bands included, and the
-  window says so. `I/|∇I|` used to be a fourth mode hidden in the Curvature
-  window, for cuts only, with no settings; that entry is gone, and
-  `gradient_enhance` remains as a name for the ratio form. A map is done
-  plane by plane, on the planes chosen.
-- **The Kramers-Kronig check of the self-energy was wrong, and is
-  replaced.** It integrated `Im Σ/(E′ − E)` over the fitted range only,
-  with the magnitude of `Im Σ` where the retarded (negative) one belongs,
-  and then moved the curve to the mean of `Re Σ`: on a model with a known
-  answer it had the wrong sign below the kink and logarithmic spikes at
-  the ends of the range. `dispersion.kramers_kronig` now takes `|Im Σ|` as
-  the same on both sides of E_F and constant beyond the last fitted energy,
-  integrates the straight lines between the points exactly (uneven spacing,
-  no error from the pole), and fits no constant: a constant `Im Σ` gives no
-  `Re Σ`, and `Re Σ` is zero at E_F. Checked against the integral done by
-  brute force (0.2 meV on a 35 meV `Re Σ`).
-- **The bare band is a control of the Self-energy window**, not whatever
-  the Dispersion window last fitted (a line or parabola through the
-  measured band itself, against which `Re Σ` averages to zero by
-  construction). Three choices, each written into the result: a straight
-  line through the measured band at two energies (E_F and the deepest
-  fitted one to start with; the k at each is read off a line through the
-  nearest fitted points, so an anchor at E_F is reached when the fit stops
-  a few meV below it); a straight line of a typed velocity through the
-  measured k_F; or the Dispersion window's fit, as before. **Suggest
-  (Kramers-Kronig)** finds the velocity for which `Re Σ` and the transform
-  of `Im Σ` agree best -- both depend on that one number, so requiring
-  them to be a pair fixes it without a calculation
-  (`dispersion.suggest_bare_velocity`); it needs a fitted range that
-  reaches past the kink to where `Im Σ` has levelled off, and the tooltip
-  says so. E_F and a momentum resolution to remove from the widths are
-  controls too.
-- **What is read off the two curves** (`SelfEnergy.summary`): the measured
-  k_F and v_F, `v_bare/v_F − 1`, the coupling `λ = −dRe Σ/dE` at E_F with
-  its error and the window it was taken over, the energy where `|Re Σ|` is
-  largest (or that the range shows no maximum), `|Im Σ|` at E_F with the
-  lifetime and the mean free path. **Self-energy to list** keeps `Re Σ`,
-  `|Im Σ|`, their errors and the Kramers-Kronig curve as curves against
-  energy; **Save table...** writes them with the fitted k and width, the
-  bare band in the header.
-- **Save the steps as a script...** (AI assistant window;
-  `ui/common/agentsteps.py`, `L.session_script(path)`). Every step the
-  agent ran, oldest first, as one Python file: the code, when it ran,
-  whether it failed (those are kept as comments) and what it printed. The
-  command folder already kept each step's file in `viewer_done/` and its
-  output in `out/`, but as separate files; requests through MCP were kept
-  in memory only, as one line each, and were gone with the program -- the
-  bridge now keeps each request in full for this. Copied into `viewer_cmd/`
-  the file runs again. A new option of the prompt, on by default, has the
-  agent write it as its last step (`agent_steps.py` in the results folder).
-  Steps done by hand are not in it: they are in each dataset's history.
-
-**Later, 2026-11-05 (same version): the SGM4 reader follows the
-beamline's Igor loader (`SGM4loader_v7W9.ipf`).** The scanned axes are
-read from `ScanDetails/dimensions` and `Dim<n>_name/_start/_step/_length`
-as that loader does (`SlowAxis_*` is still read when `dimensions` is
-absent), and a file with no scanned axis opens as a single cut.
-
-**Later, 2026-11-05 (same version): a map whose scan was stopped before
-its end opens as far as it went, from every beamline.**
-
-- **The reported ANTARES map**: a 151-step deflector map stopped part-way.
-  Its HDF5 datasets have the planned length; the unmeasured images are zeros
-  and the deflector readback NaN there, so the cut viewer stopped with
-  "Cannot set range [nan, nan]". It now opens with the steps that were
-  measured.
-- **One rule for every loader** (`loader/incomplete.py`, applied by
-  `registry.load` to every `map` and `kz_map`): from the end of the scanned
-  axis, the steps never measured (no counts, or no value of the scanned
-  axis) are cut, then any last step whose total intensity is below half the
-  median of the five before it (stopped part-way through its sweeps). Weak
-  steps inside a scan are the sample and stay; a slow trend is followed,
-  since each step is judged against its neighbours; two steps are always
-  kept. What was cut, and why, is in `info` (`incomplete.*`) and the status
-  bar. The program's own saved datasets are never trimmed;
-  `LoadOptions(trim_incomplete=False)` reads every frame.
-- **Nothing read for it**: a map left in its file stays there
-  (`LazyCube.head` / `LazyArray.head`); only the frames judged are read.
-- **CASSIOPEE: the intensity decides, not the parameter file.** A spectrum
-  without its `_i` file used to be left out whatever it held, and one with
-  its `_i` file but stopped part-way was kept. The first is now read, with
-  its step from the even steps of the others
-  (`cassiopee.unpaired_members`), and judged by its intensity like every
-  other; one still being written, and so unreadable, is left out
-  (`cassiopee.unreadable_members`).
-- **ANTARES scale records** (`data_01`–`data_06`) are read over the
-  measured steps only, so a stopped map no longer warns of a "drifting
-  calibration" because of its zero-filled tail.
-- **An image with no finite value is drawn blank** instead of raising inside
-  pyqtgraph.
-- **No silent wait when a tool reads a map not yet opened.** Self-normalise,
-  Truncate, Compress, the figure composer and saving opened the file on the
-  GUI thread; a CASSIOPEE folder (parsed whole to know its axes) or a
-  Scienta `.zip` froze the window for seconds ("not responding"). Every
-  read of a dataset not already open now goes through the progress window
-  (`app._acquire`): it appears after 0.4 s with the file's name, a bar and
-  Cancel. The windows still read only the axes -- an HDF5 map stays on disk
-  until Apply, which has its own progress. Inside an agent's command the
-  read stays direct, and the command folder never polls inside itself.
-- **Saving over the file a row was read from.** Save refused it ("open in
-  a viewer ... save under another name"), since writing over a file being
-  read pulls the data from under the viewer, and Windows refuses the write.
-  Now the new file is written beside it under a hidden name, the viewers
-  on the old one are closed, and it takes the old one's place in one step
-  (`loader/native.py` `save_over`, `write_beside`, `put_in_place`). One
-  question first when that closes viewers or drops datasets of the file
-  that were not selected (their rows leave the list); if anything fails,
-  the old file is left as it was.
-- **One naming rule for processed data, and "Sort by data type" by it.**
-  A result is named after its source plus one tag in square brackets per
-  step, oldest first -- `Map80eV [norm] [E-E_F] [k]` -- from one ordered
-  table (`tools/runtime/naming.py`: `[combined]`, `[degrid]`, `[crop]`,
-  `[bin]`, `[norm]`, `[bg]`, `[E-E_F]`, `[dFD]`, `[FS corr]`, `[sm]`,
-  `[symm]`, `[k]`, `[kz]`, `[d2]`, `[cur]`, `[ridge]`, `[slice]`, `[EDC]`
-  ...). The underscore suffixes are gone (`_s_nor`, `_tk`, `_comb`, `_sm`,
-  `_d2`, `_cur`, `_symm`, `_rd`, `_det` ...), and `[E-Ef]` is `[E-E_F]`.
-  "Sort by data type" groups the list by the last tag, in the table's
-  order (measurements as read first), then by kind and name; it used to
-  group by cut / map only, mixing every processing together. Older names
-  are still read as the tags they mean. A chained agent step names every
-  step it ran (`map1 [E-E_F] [norm] [k]`).
-- **Agents name rows the same way**: the rule is in the agent reference's
-  working rules and in the AI assistant's prompt, and `L.naming()` returns
-  the table.
-- **Documents.** The user guide (en, fr, zh, and its PDFs): Part 1 §1.5
-  gains *Names of processed data* -- every tag, what makes it and what it
-  means, and how **Sort by data type** orders by them; §1.4 says how a map
-  whose scan was stopped opens; §2.1 and the agent's rules (§7.6) follow.
-  The developer, tools, UI and agentic-workflow references name
-  `tools/runtime/naming.py` and the rule.
-
-**The release itself, 2026-11-04:**
-
-- **`L`: the program's documented operations, for every agent route.**
-  About fifty operations on the named rows of the main list
-  (`arpes_viewer/ui/common/live.py`): the list, looking at data without the
-  screen, the Fermi edge and kz alignment, cropping, binning, normalising,
-  smoothing, derivatives, curvature, background, symmetrising, cut, map and
-  kz conversion (V0 from Γ at hν, hν calibration), the Brillouin zone on a
-  map and as a 3-D picture, slice series and every figure step, the tool
-  windows by action, and a way to compute with the program's own functions
-  and list the result. Each adds new rows with their history, never
-  overwrites, never waits for a click. Command files (route 3), the bridge's
-  `viewer_python` and the new MCP tools `viewer_api_help` / `viewer_api`
-  (route 1) all reach it.
-- **`API.md`**, in the package (`arpes_viewer/agent/API.md`, shipped as
-  package data, so pip installs and downloads read the same file in place;
-  nothing is copied into the user's folders), generated from the program
-  (`python -m arpes_viewer.agent.catalog --write`): the operations, a
-  step-to-operation table, the tool-panel buttons, the MCP tools and the
-  Qt-free computations, so an agent reads one file instead of the source.
-  A test fails when it falls behind; CLAUDE.md says to regenerate it after
-  every UI or tool change.
-- **AI assistant...** at the top of the tool panel: the data and results
-  folders, a few options (ask before each physical parameter, step by step,
-  a usage log, hiding the sample's identity, a report, slides, a tidy list)
-  and requests in one's own words make one prompt; **Copy the prompt and
-  start** starts the command folder in `<results>/_agent` or, for an MCP
-  app, the agent bridge (on as soon as MCP
-  is chosen), and copies the prompt. The window then lists each step the
-  agent ran, with its output, and **Pause the agent** holds its commands
-  while the person works by hand. The button itself is a status light,
-  with or without the window open (closing it does not stop the agent):
-  grey not running, green running, yellow paused, red a failed step or
-  commands no longer run. The agent's operations put the person's
-  selection in the list back as it was, so the data can be looked at
-  while it works. The command folder
-  (`ui/common/agentfolder.py`) is the same one `launch_viewer.py` starts.
-- **Paths written the system's way.** Qt's file dialogs give forward
-  slashes on every system and `os.path.join` adds the system's own, so a
-  prompt read `D:/Data/LHhv\_agent\...`. The file dialogs now return
-  native paths (`ui/common/paths.py`, installed at start, for all of them);
-  the AI assistant, the command folder, the agent's operations and the
-  headless workspace normalise every path they take or return, and paths in
-  the MCP prompt's JSON are escaped.
-- `agentic/README.md`, `PROMPTS.md`, the README and the user guides put
-  route 3 first, then MCP, then scripts, and explain how the agent learns
-  what the program can do.
-
-**Later the same day: from a day of real CASSIOPEE data processed by an
-agent through MCP** (its usage and issue logs, the bug report and the
-scripts it had to write).
-
-- **Agent windows no longer flash on screen.** Windows an operation opens
-  only to drive them (the kz conversion and BZ overlap dialogs, a contour
-  read for its cube, a slice series regrouped into another figure) are
-  shown off screen; those still open when the agent's step ends -- a
-  figure, a viewer, a tool left for the person -- appear on the screen of
-  the main panel, and so do dialogs that wait for the person
-  (`ui/common/quietwindows.py`, around every `L` operation, command file
-  and `viewer_python` call).
-- **Fixed**: a viewer showing a picture with no finite value (a plane
-  beyond a k conversion's cone) raised "Cannot set range [nan, nan]" on
-  every redraw; it is drawn empty.
-- **Row names unique from the start.** A CASSIOPEE cut is named after its
-  file, not its Scienta region (nineteen cuts of one "FineCutLH" region
-  came in as nineteen identical rows, the LV ones labelled LH); a map
-  folder of scans called just "Map" takes the folder's name; any listed
-  name is made unique. A name that spells a polarisation different from
-  the recorded one carries a warning. Operations also take a row's number
-  in `rows()` or its file's path.
-- **`L.add_files`** reports single spectra lying in a map's folder
-  (`left_out`, added only on request), files no reader recognised, and the
-  readers' warnings.
-- **Fermi level**: `L.fermi_edge_search` lists the candidate edges on a
-  row's own axis, highest first, each fitted and judged -- the edge is the
-  last drop to the floor, not the steepest one (pass-energy-20 data have a
-  strong drop under a weak tail); `L.fermi_edge(..., picture=)` draws the
-  EDC, the window and the fit, also for a refused fit, whose message now
-  gives the row's axis and where the curve falls fastest
-  (`tools.spectra.fermi.edge_candidates`).
-- **Fewer intermediate rows**: `L.map_to_k` / `L.cut_to_k` take `ef=` and
-  `normalise_axes=`, so E - E_F, normalisation and k conversion are one
-  call and one row, every step in its history. The kx grid of a map's k
-  conversion defaults to twice the scanned angles, at most 100 (never
-  fewer than measured), here and in the k conversion window.
-- **New operations**: `L.cut_arithmetic` (the Cut arithmetic window:
-  dichroism, difference, ratio, on the common range), `L.slice_grid` (the
-  same slices of several maps, a column per map: polarisation or
-  temperature series). `L.slice_series` takes `high_factor`, `zone_color`
-  (also `#AARRGGBB`), `zone_width`; `L.bz3d_picture(labels="G, L")` labels
-  only the points named (also "Label only" in the 3D BZ window).
-  `L.figure_save` keeps the window's title. `L.rows(compact=True)` and
-  `L.profile(..., summary=True / path=)` keep outputs small;
-  `L.normalise` explains the axes of a map. `viewer_python` and command
-  files have `L`, `os`, `re`, `inspect` and `json`; code holding
-  characters garbled by a wrong encoding ("âˆ’" for "−") is reported.
-- **The agent's workflow**: the AI assistant's prompt, `API.md` and the MCP
-  server's instructions carry the rules the session's review asked for --
-  report what `add_files` left out, mark guessed parts of names, look for
-  an operation before computing, never edit the program's tables (ask,
-  naming the missing operation), fit E_F on raw data per row and draw each
-  fit, chain steps to keep the list tidy, one final version per figure,
-  diverging colour maps for signed quantities, compact outputs, all MCP
-  tools loaded at once. The usage log no longer asks for token figures the
-  agent cannot see. The loader README explains CASSIOPEE's kinetic axis
-  and work function.
-- **README**: how to start and watch an agent from the AI assistant
-  panel, with screenshots (`devtools/guide_screenshots.py assistant`).
-- **The user guides rewritten** (English, Chinese, French, and their PDFs)
-  in eight parts that follow the screen: getting started (installing, the
-  file formats, setting up an agent, the code's layout), the main panel,
-  the data viewers, the Basic, Advanced and Figure tabs (ending with an
-  example from loading data to a figure), AI agents (how they work, what
-  leaves the computer, the AI assistant, an example from set-up to figure
-  on the demo data) and housekeeping. Every screenshot re-taken. Each part
-  is its own file in `docs/guide/<lang>/`, assembled with its table of
-  contents by `devtools/build_guide.py`; a test checks that the guides are
-  up to date and that every link and picture in them exists.
+- **`L`, the documented operations** (`ui/common/live.py`): about fifty
+  operations on the named rows of the list -- looking at data, the Fermi
+  level, processing, momentum conversion, the Brillouin zone, figures, the
+  tool windows, one's own computation. Each adds rows with their history
+  and overwrites nothing. Command files, `viewer_python` and the MCP tools
+  `viewer_api` / `viewer_api_help` all reach it.
+- **`API.md`** (`arpes_viewer/agent/`, package data), generated from the
+  program: one file an agent reads instead of the source. A test fails
+  when it falls behind.
+- **AI assistant...** at the top of the tool panel: two folders, a few
+  options and a request make one prompt; **Copy the prompt and start**
+  starts the command folder or the agent bridge. The window lists each
+  step with its output, **Pause the agent** holds its commands, and the
+  button is a status light (grey, green, yellow, red).
+- **From a day of real data processed by an agent**: agent windows no
+  longer flash on screen; row names unique from the start (a CASSIOPEE cut
+  after its file); `L.add_files` reports what it left out;
+  `L.fermi_edge_search` lists the candidate edges and `L.fermi_edge` draws
+  each fit; `map_to_k` / `cut_to_k` take `ef=` and `normalise_axes=` (one
+  call, one row); `L.cut_arithmetic`, `L.slice_grid`; the working rules in
+  the prompt and the reference.
+- **Paths written the system's way** everywhere a path is shown or passed
+  on (`ui/common/paths.py`).
+- **A map whose scan was stopped before its end** opens as far as it went,
+  from every beamline (`loader/incomplete.py`): unmeasured steps and a
+  clearly weaker last step are cut, and the dataset says so. CASSIOPEE
+  judges by intensity, not by the parameter file. An image with no finite
+  value is drawn blank.
+- **No silent wait** when a tool reads a map not yet opened: a progress
+  window after 0.4 s.
+- **Saving over the file a row was read from** is done in one step, with
+  one question first.
+- **One naming rule for processed data** (`tools/runtime/naming.py`): the
+  source's name plus one bracketed tag per step, oldest first; "Sort by
+  data type" groups by the last tag. Agents name rows the same way
+  (`L.naming()`).
+- **The SGM4 reader** follows the beamline's Igor loader
+  (`ScanDetails/dimensions`, `Dim<n>_*`).
+- **The user guides rewritten** (en, zh, fr and PDFs) in eight parts that
+  follow the screen, each part a file in `docs/guide/<lang>/`, assembled by
+  `devtools/build_guide.py`.
 
 ## 1.3.1 — 2026-11-03
 

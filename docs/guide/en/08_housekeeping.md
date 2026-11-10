@@ -71,7 +71,7 @@ If the program does not start at all, the launcher's log
 ## 8.4 Versions and updates
 
 The title bar and the main panel's last line show the version and its date
-(`ARPES viewer v1.3.2 (updated 2026-11-04)`). What changed in each version,
+(`ARPES viewer v1.3.3 (updated 2026-11-10)`). What changed in each version,
 and why, is in the [CHANGELOG](../../../CHANGELOG.md).
 
 To update a pip installation:

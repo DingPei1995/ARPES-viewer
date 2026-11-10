@@ -95,6 +95,8 @@ Cliquez sur **AI assistant...** en haut du panneau d'outils.
      étape ;
    - *Hide the sample's real identity* dans tout ce qui est écrit ;
    - *Write a report*, *Make slides* ;
+   - *Save every step as one Python script at the end* (coché par défaut) :
+     l'agent écrit `agent_steps.py` dans le dossier des résultats ;
    - *Keep the list tidy* : proposer à la fin de retirer les lignes
      intermédiaires.
 
@@ -129,6 +131,15 @@ Cliquez sur **AI assistant...** en haut du panneau d'outils.
   dans la liste telle quelle, vous pouvez donc regarder des données pendant
   qu'il travaille, et les fenêtres qu'il n'ouvre que pour les piloter
   n'apparaissent jamais sur vos écrans.
+- **Save the steps as a script...** écrit tout ce que l'agent a exécuté,
+  dans l'ordre, en un seul fichier Python : le code de chaque étape, son
+  heure, si elle a échoué (celles-là sont gardées en commentaires) et ce
+  qu'elle a affiché. C'est la trace de tout le traitement, et il se
+  relance : copiez-le dans `<results>/_agent/viewer_cmd` d'un programme
+  démarré sur ce dossier de résultats. Les étapes envoyées par MCP ne sont
+  gardées qu'en mémoire : enregistrez-les avant de fermer le programme. Les
+  étapes faites à la main n'y sont pas ; elles sont dans l'historique de
+  chaque jeu de données (*Experiment info*).
 - **Open results** ouvre le dossier des résultats : les fichiers de commandes
   et journaux de l'agent dans `_agent`, les images et figures qu'il a écrites.
 

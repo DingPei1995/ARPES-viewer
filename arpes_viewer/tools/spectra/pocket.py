@@ -322,6 +322,21 @@ class Contour:
             return float("nan")
         return float(0.5 * abs(np.sum(x * np.roll(y, -1) - y * np.roll(x, -1))))
 
+    def scatter(self, fitted: "FourierContour") -> float:
+        """The RMS distance of the rays kept from the contour ``fitted``,
+        in units of their median peak width. Well under a quarter when the
+        contour describes them; near one when it runs *between* two
+        populations of rays -- two bands inside the ring, each taking some
+        of them -- or cannot follow the shape (too few harmonics, a centre
+        far from the middle)."""
+        take = self.ok & np.isfinite(self.radius)
+        if take.sum() < 3:
+            return float("nan")
+        residual = self.radius[take] - fitted.radius(self.angles[take])
+        width = float(np.median(self.width[take]))
+        return float(np.sqrt(np.mean(residual ** 2)) / width) if width > 0 \
+            else float("nan")
+
     def fourier(self, order: int = 6, fold: int = 1) -> FourierContour:
         """The radius against angle as a Fourier series up to harmonic
         ``order``, weighted by the fitted errors. ``fold`` > 1 keeps only

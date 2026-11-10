@@ -2,7 +2,7 @@
 
 *[中文版 / Chinese version](USER_GUIDE_zh.md) · [Version française](USER_GUIDE_fr.md)*
 
-*Last updated: 4 November 2026 — for ARPES viewer v1.3.2*
+*Last updated: 10 November 2026 — for ARPES viewer v1.3.3*
 
 The version and its date are in the main window's title bar and on its last
 line. Bug reports, questions and the latest version:
@@ -89,6 +89,7 @@ choices) is in the references beside the code:
 - [5.5 Cut arithmetic: dichroism and reference division](#55-cut-arithmetic-dichroism-and-reference-division)
 - [5.6 Slice series figure](#56-slice-series-figure)
 - [5.7 The 3-D views](#57-the-3-d-views)
+- [5.8 Fermi pocket (quasi-2D, under test)](#58-fermi-pocket-quasi-2d-under-test)
 
 **[Part 6 — The tool panel: Figure tab](#part-6--the-tool-panel-figure-tab)**
 
@@ -310,7 +311,7 @@ in the order a processing usually runs (`arpes_viewer/tools/runtime/naming.py`):
 | `[symm]` | Symmetrise… | mirrored or rotated |
 | `[k]` | k conversion (cut / map) | converted to momentum |
 | `[kz]` | kz conversion | photon-energy scan converted to k_z |
-| `[d2] / [grad] / [cur]` | Second derivative… / Curvature… | second derivative, gradient, curvature |
+| `[d2] / [grad] / [cur]` | Second derivative… / Minimum gradient… / Curvature… | second derivative, minimum gradient, curvature |
 | `[ridge]` | Ridge detection | band positions |
 | `[arb cut]` | Arbitrary cut in a map | a cut along a line of one's own |
 | `[slice …]` | Save slice to list (a viewer) | a plane or cut taken out of a viewer |
@@ -1226,7 +1227,7 @@ Illustrator.
 
 # Part 5 — The tool panel: Advanced tab
 
-The **Advanced** tab holds the analysis that follows: band-sharpening filters and symmetrising, ridge detection, stack plots, MDC and EDC fits, cut arithmetic, the slice series figure and the 3-D views.
+The **Advanced** tab holds the analysis that follows: band-sharpening filters and symmetrising, ridge detection, stack plots, MDC and EDC fits with the self-energy, cut arithmetic, the slice series figure, the 3-D views, and the Fermi-pocket analysis for quasi-two-dimensional samples (under test).
 
 ## 5.1 Smoothing, derivatives, curvature and symmetrising
 
@@ -1239,11 +1240,26 @@ more cuts (or maps) selected:
 | Advanced | **Smooth...** | Gaussian, Savitzky–Golay or moving average, with optional spike removal |
 | Advanced | **Second derivative...** | −d²I/dE² or −d²I/dk² after a pre-smooth, to sharpen the bands |
 | Advanced | **Curvature...** | 1-D or 2-D curvature (Zhang et al.), which follows the band better than a second derivative |
+| Advanced | **Minimum gradient...** | I/\|∇I\|: bands as the valleys of the intensity's gradient — first derivatives only, so less noise; shoulders show |
 | Advanced | **Symmetrise...** | mirror a cut about a line; for a map, mirror or rotate its constant-energy planes |
 
 Every result is a new dataset carrying the steps that made it.
 
 ![The curvature window](images/process_dialog.png)
+
+**Minimum gradient.** Along a band's crest the intensity is flat, so the
+modulus of its gradient |∇I| is smallest there (He, Wang and Shen, Rev.
+Sci. Instrum. 88, 073903 (2017)). The window shows that valley in one of
+three ways: **I / |∇I|** (the one to use: an intensity that varies slowly
+along the band cancels, and empty regions stay dark), **1 / |∇I|**, or
+**|∇I|** itself (bands as dark lines; nothing is divided, so it is the
+check on the other two). It needs first derivatives only, so it is less
+noisy than a second derivative or the curvature; it favours neither axis,
+so a band is followed through its turning point; and a shoulder shows.
+**Floor** caps how bright a perfectly flat patch can get (lower it on
+smoothed data for a sharper line). It marks *every* flat place — also the
+floor between two bands — so read it beside the data, and take numbers
+from a fit.
 
 - **Source** and **Result** are shown side by side on the same scale, so you
   can see when a setting has eaten the band. They pan and zoom together.
@@ -1357,8 +1373,8 @@ By hand:
    background, step, then **Fit the series**. Fitted positions are drawn on
    the image, sized by amplitude.
 4. **Dispersion...** fits the band: **v_F** (straight line), **m\*** (parabola)
-   — and checks how far out the fit is stable. **Self-energy...** gives Re Σ
-   and Im Σ.
+   — and checks how far out the fit is stable. **Self-energy...** opens the
+   window described below.
 
 ![Dispersion window](images/dispersion_window.png)
 
@@ -1373,6 +1389,37 @@ sides, or any crossing of two bands. A single fitted line whose error
 collapsed (a peak fit that went to zero width) no longer takes the whole
 weight of the dispersion fit: no point counts for more than ten typical
 ones.
+
+### Self-energy
+
+**Self-energy...** (Dispersion window, MDC fits only) turns one fitted band
+into **Re Σ** and **|Im Σ|** against energy: Re Σ is the distance of the
+measured band from a *bare band*, and |Im Σ| half the fitted width times
+the bare band's slope.
+
+![The self-energy window](images/self_energy_window.png)
+
+- **Bare band** — the one assumption everything rests on, so it is chosen
+  here and written into the result: a **straight line through the band at
+  two energies** (E_F and the deepest fitted energy to start with), a
+  **straight line of a given velocity** through the measured k_F (from a
+  calculation, say), or **the Dispersion window's fit**.
+- **Suggest (Kramers-Kronig)** finds the bare velocity for which Re Σ and
+  the Kramers-Kronig transform of |Im Σ| agree best. Both depend on that
+  one number, so requiring them to be a pair fixes it without a
+  calculation. Trust it only when the fitted range reaches well past the
+  kink, to where |Im Σ| has levelled off.
+- **E_F at** and **Momentum resolution to remove** (from the widths, in
+  quadrature; leave 0 if the fit had the resolution in its line shape).
+- **Dashed line**: Re Σ worked out from |Im Σ| by the Kramers-Kronig
+  relation, taking |Im Σ| as the same above E_F as below and constant
+  beyond the fitted range. No constant is fitted, so the comparison tests
+  the bare band: one chosen to enlarge a kink fails it.
+- **Under the plots**: the measured k_F and v_F, v_bare/v_F − 1, the
+  coupling λ = −dRe Σ/dE at E_F, the energy where |Re Σ| is largest (the
+  kink), |Im Σ| at E_F with the lifetime and the mean free path.
+- **Self-energy to list** adds the curves to the main list; **Save
+  table...** writes them as CSV with the bare band in the header.
 
 ## 5.5 Cut arithmetic: dichroism and reference division
 
@@ -1492,6 +1539,66 @@ energy) — the usual picture of how a band evolves.
   window or figure panel (no fixed margin), thin their ticks to the room
   each axis has, and write sub- and superscripts in the axis titles
   (`E - E_F`, `k_x`).
+
+## 5.8 Fermi pocket (quasi-2D, under test)
+
+> **Under test** (new in 1.3.3): check every number against the picture,
+> and please report what looks wrong.
+>
+> **Quasi-two-dimensional samples only.** The area of a contour in a k-map
+> is a property of the Fermi surface only when the bands do not disperse
+> along k_z — a surface state, a single layer, a layered material whose
+> Fermi surface is a cylinder. Then one map is the whole Fermi surface. For
+> a three-dimensional Fermi surface the map is one curved sheet through it,
+> at a k_z set by the photon energy and smeared by the escape depth: the
+> contour is not an extremal orbit, and the numbers below mean nothing. The
+> program cannot tell the two cases apart.
+
+Select a map converted to momentum (a k-map, on E − E_F) and press tool
+panel → Advanced → **Fermi pocket (quasi-2D)...**.
+
+![The Fermi-pocket window](images/fermi_pocket.png)
+
+1. **The plane.** The energy the contour is traced on (E_F to start with)
+   and the half width it is averaged over.
+2. **The pocket.** Drag the red target to a point inside the pocket (or
+   type it), and set **Look between** so that the two dashed circles hold
+   this pocket's band and no other. A ray goes out from the centre at each
+   of **Rays** angles, and a peak fitted along it gives k_F there (yellow
+   points; red crosses are rays dropped, and the **One ray** tab shows any
+   ray with its fit). The contour (blue) is a Fourier series of the radius
+   against the angle, up to **Harmonics**; **Symmetry** keeps only the
+   harmonics an n-fold axis through the centre allows, which also bridges
+   gaps in the data. **Centre on the contour** moves the centre to the
+   contour's middle; the area does not depend on the centre.
+3. **Counting.** *States per k* (2 for a spin-degenerate band, 1 when each
+   spin has its own contour), the number of *equivalent pockets in the
+   zone*, the *in-plane cell* a, b, γ (for carriers per cell), and whether
+   this is an electron or a hole pocket.
+
+What comes out, under the pictures:
+
+- the **area** with its error, the range of k_F round the contour, and the
+  number of rays kept;
+- for a quasi-2D sample: the **carrier density** n = g N A/(2π)², the
+  fraction of the Brillouin zone and the **carriers per cell** (what
+  Luttinger's theorem counts), and the **quantum-oscillation frequency**
+  F = (ħ/2πe) A;
+- **Area against energy** traces the same pocket at a range of energies and
+  fits a line: the **cyclotron mass** m_c = (ħ²/2π) dA/dE — positive for an
+  electron pocket, which grows with energy, negative for a hole pocket —
+  the area at E_F read off the line (free of the bias the Fermi cut-off
+  gives a plane taken at E_F itself), the mean Fermi velocity, and the
+  energy at which the line reaches zero area.
+
+**Keep this pocket** adds it to a table that counts several pockets
+together, electrons minus holes. **Contour to list** adds k_F against angle
+(and the area against energy) to the main list as curves; **Save table...**
+writes everything as CSV.
+
+The errors given are statistical (the scatter of the rays). The energy
+window, the momentum conversion (work function, where Γ is) and the
+resolution are not in them, and are usually larger.
 
 ---
 
@@ -2137,6 +2244,8 @@ Press **AI assistant...** at the top of the tool panel.
    - *Record token / plan usage per step*: a usage log, one line per step;
    - *Hide the sample's real identity* in everything written;
    - *Write a report*, *Make slides*;
+   - *Save every step as one Python script at the end* (on by default):
+     the agent writes `agent_steps.py` in the results folder;
    - *Keep the list tidy*: offer to remove intermediate rows at the end.
 
    Then write your request in your own words: which data, which steps,
@@ -2166,6 +2275,14 @@ Press **AI assistant...** at the top of the tool panel.
 - **Your work goes on.** The agent's steps leave your selection in the list
   as it was, so you can look at data while it works, and windows it opens
   only to drive them never appear on your screens.
+- **Save the steps as a script...** writes everything the agent ran, in
+  order, as one Python file: each step's code, when it ran, whether it
+  failed (those are kept as comments) and what it printed. It is the record
+  of the whole processing, and it runs again: copy it into
+  `<results>/_agent/viewer_cmd` of a program started on that results
+  folder. Steps sent through MCP are kept in memory only, so save them
+  before closing the program. Steps you did by hand are not in it; they are
+  in each dataset's history (*Experiment info*).
 - **Open results** opens the results folder: the agent's command files and
   logs in `_agent`, the pictures and figures it wrote.
 
@@ -2457,7 +2574,7 @@ If the program does not start at all, the launcher's log
 ## 8.4 Versions and updates
 
 The title bar and the main panel's last line show the version and its date
-(`ARPES viewer v1.3.2 (updated 2026-11-04)`). What changed in each version,
+(`ARPES viewer v1.3.3 (updated 2026-11-10)`). What changed in each version,
 and why, is in the [CHANGELOG](../CHANGELOG.md).
 
 To update a pip installation:

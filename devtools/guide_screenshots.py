@@ -143,6 +143,10 @@ def main():
     os._exit(0)
 
 
+#: the ring of the Fermi-pocket shot: round the demo's pocket at Gamma
+RING = (0.5, 0.8)
+
+
 def demo_EF():
     from devtools import demo_data
     return demo_data.EF_KIN
@@ -151,7 +155,8 @@ def demo_EF():
 class Shots:
     ORDER = ["main_window", "loader", "information", "exp_log", "map_viewer",
              "cut_viewer",
-             "fermi", "fermi_map", "cut_k", "mdc_fit", "map_k", "brillouin",
+             "fermi", "fermi_map", "cut_k", "mdc_fit", "map_k", "pocket",
+             "brillouin",
              "arbitrary_cut",
              "fs_correction", "process", "stack", "volume", "cut_arithmetic",
              "kz_processing", "kz_conversion", "degrid", "curves", "spin",
@@ -390,7 +395,7 @@ class Shots:
         dialog.close()
 
     def cut_k(self):
-        self._select("Gamma_cut_LH [E-Ef]")
+        self._select("Gamma_cut_LH [E-E_F]")
         dialog = self.av.open_k_conversion("cut")   # the tool panel's route
         pump()
         dialog.gamma_line.setValue(0.0)
@@ -406,7 +411,7 @@ class Shots:
 
     def mdc_fit(self):
         from arpes_viewer.tools.spectra import peaks as PK
-        self._select("Gamma_cut_LH [E-Ef] [k]")
+        self._select("Gamma_cut_LH [E-E_F] [k]")
         panel = self.av.open_curve_fit("mdc")       # the tool panel's route
         pump()
         right = panel.bands[0] if panel.bands else panel.add_band()
@@ -434,6 +439,13 @@ class Shots:
         pump()
         if disp is not None:
             shot(disp, "dispersion_window")
+            sigma = disp.open_self_energy()
+            pump()
+            if sigma is not None:
+                sigma.anchor_b.setValue(-0.18)       # above the demo's second band
+                pump()
+                shot(sigma, "self_energy_window", (1100, 760))
+                sigma.close()
 
 
     def _rows(self):
@@ -456,6 +468,29 @@ class Shots:
         self.k_map.e_control.set_index(len(self.k_map.E) - 22)
         pump()
         shot(self.k_map, "k_map_contour", (760, 820))
+
+    def pocket(self):
+        """The Fermi-pocket window on the demo map, on E - E_F and in
+        momentum (a toy model: the numbers are those of the toy)."""
+        from arpes_viewer.ui.common.live import Live
+        row = Live(self.av).map_to_k("FS_map_hv60", ef=demo_EF())
+        self._select(row)
+        dialog = self.av.open_fermi_pocket()
+        dialog._timer.blockSignals(True)
+        dialog.energy.setValue(-0.02)
+        dialog.half_width.setValue(0.01)
+        dialog.r_min.setValue(RING[0])
+        dialog.r_max.setValue(RING[1])
+        dialog.fold.setValue(6)
+        dialog.cell_a.setValue(3.3)
+        dialog.cell_gamma.setValue(120.0)
+        dialog.set_centre(0.0, 0.0)
+        dialog.run_series(np.linspace(-0.02, -0.14, 7), background=False)
+        dialog.plots.setCurrentWidget(dialog.angle_plot)
+        dialog.keep()
+        pump()
+        shot(dialog, "fermi_pocket", (1320, 1000))
+        dialog.close()
 
     def brillouin(self):
         self._select("[k-map]")

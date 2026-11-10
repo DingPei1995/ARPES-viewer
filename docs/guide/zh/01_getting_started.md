@@ -154,7 +154,7 @@ python devtools/figure_tests.py docs/images [存放 .afig 文件的文件夹]
 | `[symm]` | Symmetrise… | 对称化 |
 | `[k]` | k 转换（cut / map） | 转换到动量空间 |
 | `[kz]` | kz 转换 | 光子能量扫描转换到 k_z |
-| `[d2] / [grad] / [cur]` | Second derivative… / Curvature… | 二阶导数、梯度、曲率 |
+| `[d2] / [grad] / [cur]` | Second derivative… / Minimum gradient… / Curvature… | 二阶导数、最小梯度、曲率 |
 | `[ridge]` | 脊线识别 | 能带位置 |
 | `[arb cut]` | map 中的任意方向 cut | 沿自选直线的 cut |
 | `[slice …]` | Save slice to list（查看器） | 从查看器取出的平面或 cut |

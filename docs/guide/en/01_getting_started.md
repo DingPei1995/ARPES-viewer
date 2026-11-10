@@ -187,7 +187,7 @@ in the order a processing usually runs (`arpes_viewer/tools/runtime/naming.py`):
 | `[symm]` | Symmetrise… | mirrored or rotated |
 | `[k]` | k conversion (cut / map) | converted to momentum |
 | `[kz]` | kz conversion | photon-energy scan converted to k_z |
-| `[d2] / [grad] / [cur]` | Second derivative… / Curvature… | second derivative, gradient, curvature |
+| `[d2] / [grad] / [cur]` | Second derivative… / Minimum gradient… / Curvature… | second derivative, minimum gradient, curvature |
 | `[ridge]` | Ridge detection | band positions |
 | `[arb cut]` | Arbitrary cut in a map | a cut along a line of one's own |
 | `[slice …]` | Save slice to list (a viewer) | a plane or cut taken out of a viewer |

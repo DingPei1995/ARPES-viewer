@@ -5,7 +5,7 @@
 [![User Guide](https://img.shields.io/badge/📖_User_Guide-English-blue?style=flat-square)](https://github.com/DingPei1995/ARPES-viewer/blob/main/docs/USER_GUIDE_en.md)
 [![Local Agent Settings](https://img.shields.io/badge/🤖_Local_Agent_Settings-blue?style=flat-square)](https://github.com/DingPei1995/ARPES-viewer/blob/main/docs/AGENTIC_WORKFLOW_en.md)
 
-**Version 1.3.2** (last modified 4 November 2026) -- what changed is in
+**Version 1.3.3** (last modified 10 November 2026) -- what changed is in
 [CHANGELOG.md](CHANGELOG.md). For non-commercial use only; see the
 [terms of use](#terms-of-use-citation-and-licence).
 
@@ -49,9 +49,11 @@ as a publication figure.
   ([§4.8](docs/USER_GUIDE_en.md#48-converting-a-map-to-momentum),
   [§4.9–4.10](docs/USER_GUIDE_en.md#49-aligning-the-fermi-levels-of-a-kz-map),
   [§4.11](docs/USER_GUIDE_en.md#411-brillouin-zone)).
-- **Analyses**: Fermi-edge fits, Fermi-surface correction, MDC / EDC fits,
-  ridge detection, curvature and second derivatives, dichroism, core levels,
-  spin, de-gridding, detector corrections
+- **Analyses**: Fermi-edge fits, Fermi-surface correction, MDC / EDC fits
+  and the self-energy, ridge detection, curvature, second derivatives and
+  the minimum gradient, dichroism, core levels, spin, de-gridding, detector
+  corrections, and the Fermi pockets of quasi-two-dimensional samples
+  (under test)
   ([Parts 3–5](docs/USER_GUIDE_en.md#part-3--the-data-viewers)).
 - **Compares with theory**: crystal structures, tight-binding fits, and
   calculated bands from Wien2k, VASP, Quantum ESPRESSO, Wannier90 and the

@@ -66,6 +66,8 @@ AI 智能体（Claude，或任何能读写文件、能调用 MCP 工具的应用
    - *Record token / plan usage per step*：每一步一行的使用记录；
    - *Hide the sample's real identity*：在所有输出中隐藏样品真实身份；
    - *Write a report*、*Make slides*：写报告、做幻灯片；
+   - *Save every step as one Python script at the end*（默认勾选）：智能体在结果文件夹中写出
+     `agent_steps.py`；
    - *Keep the list tidy*：最后建议移除中间结果行。
 
    然后用自己的话写下需求：哪些数据、哪些步骤、哪些图。
@@ -85,6 +87,11 @@ AI 智能体（Claude，或任何能读写文件、能调用 MCP 工具的应用
   智能体被告知：命令被暂缓时要等待并询问你。
 - **你的工作不受影响。** 智能体的步骤不会改变你在列表中的选择，你可以在它工作时查看数据；它仅为驱动而
   打开的窗口不会出现在你的屏幕上。
+- **Save the steps as a script...** 把智能体执行过的全部步骤按顺序写成一个 Python 文件：每一步的
+  代码、执行时间、是否失败（失败的步骤保留为注释）以及打印的输出。它是整个处理过程的记录，也可以
+  重新运行：把它复制到在同一结果文件夹上启动的程序的 `<results>/_agent/viewer_cmd` 中即可。
+  通过 MCP 发送的步骤只保存在内存里，请在关闭程序前保存。手动完成的步骤不在其中，它们记录在每个
+  数据集的历史里（*Experiment info*）。
 - **Open results** 打开结果文件夹：`_agent` 中有智能体的命令文件和日志，以及它写出的图片和图。
 
 ## 7.5 其他启动方式

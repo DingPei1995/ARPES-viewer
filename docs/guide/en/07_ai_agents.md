@@ -86,6 +86,8 @@ Press **AI assistant...** at the top of the tool panel.
    - *Record token / plan usage per step*: a usage log, one line per step;
    - *Hide the sample's real identity* in everything written;
    - *Write a report*, *Make slides*;
+   - *Save every step as one Python script at the end* (on by default):
+     the agent writes `agent_steps.py` in the results folder;
    - *Keep the list tidy*: offer to remove intermediate rows at the end.
 
    Then write your request in your own words: which data, which steps,
@@ -115,6 +117,14 @@ Press **AI assistant...** at the top of the tool panel.
 - **Your work goes on.** The agent's steps leave your selection in the list
   as it was, so you can look at data while it works, and windows it opens
   only to drive them never appear on your screens.
+- **Save the steps as a script...** writes everything the agent ran, in
+  order, as one Python file: each step's code, when it ran, whether it
+  failed (those are kept as comments) and what it printed. It is the record
+  of the whole processing, and it runs again: copy it into
+  `<results>/_agent/viewer_cmd` of a program started on that results
+  folder. Steps sent through MCP are kept in memory only, so save them
+  before closing the program. Steps you did by hand are not in it; they are
+  in each dataset's history (*Experiment info*).
 - **Open results** opens the results folder: the agent's command files and
   logs in `_agent`, the pictures and figures it wrote.
 

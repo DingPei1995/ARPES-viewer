@@ -197,7 +197,7 @@ traitement (`arpes_viewer/tools/runtime/naming.py`) :
 | `[symm]` | Symmetrise… | symétrisé |
 | `[k]` | Conversion en k (coupe / carte) | converti en impulsion |
 | `[kz]` | Conversion en kz | balayage en hν converti en k_z |
-| `[d2] / [grad] / [cur]` | Second derivative… / Curvature… | dérivée seconde, gradient, courbure |
+| `[d2] / [grad] / [cur]` | Second derivative… / Minimum gradient… / Curvature… | dérivée seconde, gradient minimum, courbure |
 | `[ridge]` | Détection des crêtes | positions des bandes |
 | `[arb cut]` | Coupe arbitraire dans une carte | coupe le long d'une ligne choisie |
 | `[slice …]` | Save slice to list (visualiseur) | plan ou coupe sorti d'un visualiseur |
