@@ -2239,9 +2239,10 @@ class _InteractiveImageBase(pg.ImageView):
 
 
 class SpatialImageView(_InteractiveImageBase):
-    """Spatial overview (x, y) map for spem_4d/spem_1d. Drag the red target
-    to move the readout pixel; the separate teal readout cursor and the
-    selection box are opt-in from the right-click menu."""
+    """Spatial overview (x, y) map for spem_4d/spem_1d. The readout cursor
+    (right-click -> Readout cursor; the spatial-scan window turns it on)
+    picks the pixel whose spectrum is shown: :attr:`pixelChanged` reports
+    it, once per pixel, as ``(row, col)`` of the drawn image."""
 
     pixelChanged = pyqtSignal(int, int)
 
@@ -2251,15 +2252,12 @@ class SpatialImageView(_InteractiveImageBase):
         # honest default -- a stretched spatial map misrepresents the shape
         # of whatever is on the sample.
         self.view.setAspectLocked(True, ratio=1.0)
-
-        # Just the marker: full-width crosshair lines were visual noise here,
-        # and the position is already reported in the status bar. (The EDC/MDC
-        # crosshair on the spectrum panels is a different thing -- there the
-        # lines show which row and column the curves come from.)
-        self.cursor = pg.TargetItem(size=16, pos=(0, 0), pen=RED_PEN)
-        self.plot.addItem(self.cursor, ignoreBounds=True)
-        self.cursor.sigPositionChanged.connect(self._on_cursor_moved)
         self._image2d = None
+        self._last_pixel = None
+        #: where the cursor was when it was last switched off, so switching
+        #: it on again does not jump the spectrum to the middle of the map
+        self._remembered_readout = None
+        self.readoutMoved.connect(self._on_readout_moved)
 
     def set_data(self, array2d: np.ndarray, xarray: np.ndarray, yarray: np.ndarray,
                  reset_cursor: bool = True):
@@ -2268,10 +2266,34 @@ class SpatialImageView(_InteractiveImageBase):
         self._image2d = array2d
         self._value_lookup = lambda ix, iy: self._image2d[iy, ix]
         self._render(auto_range=True)
-        if reset_cursor:
-            cx = float(self._xarray[len(self._xarray) // 2])
-            cy = float(self._yarray[len(self._yarray) // 2])
-            self.cursor.setPos((cx, cy))
+        if reset_cursor and self.readout_cursor is not None:
+            self.readout_cursor.setPos(float(self._xarray[len(self._xarray) // 2]),
+                                       float(self._yarray[len(self._yarray) // 2]))
+        self.refresh_readout_text()
+
+    def set_readout_cursor_visible(self, visible: bool):
+        if not visible and self.readout_cursor is not None:
+            self._remembered_readout = self.readout_position()
+        super().set_readout_cursor_visible(visible)
+
+    def _build_readout_cursor(self):
+        super()._build_readout_cursor()
+        remembered = self._remembered_readout
+        if self.readout_cursor is not None and remembered is not None:
+            (x0, x1), (y0, y1) = self.axis_bounds(0), self.axis_bounds(1)
+            if x0 <= remembered[0] <= x1 and y0 <= remembered[1] <= y1:
+                self.readout_cursor.setPos(*remembered)
+
+    def cursor_position(self):
+        """The cursor's (x, y), or where it was last, or None."""
+        return self.readout_position() or self._remembered_readout
+
+    def set_cursor_position(self, x: float, y: float):
+        """Put the cursor at (x, y) -- remembered for later while it is off."""
+        if self.readout_cursor is not None:
+            self.readout_cursor.setPos(float(x), float(y))
+        else:
+            self._remembered_readout = (float(x), float(y))
 
     def _render(self, auto_range=False):
         # _image2d is (row, col) = (y, x), so the display factors come back
@@ -2297,15 +2319,11 @@ class SpatialImageView(_InteractiveImageBase):
         # stored (row, col) = (y, x); exports are (x, y) throughout
         return np.asarray(self._image2d).T, self._xarray, self._yarray
 
-    def _on_cursor_moved(self):
-        if self._xarray is None:
+    def _on_readout_moved(self, ix: int, iy: int):
+        if (iy, ix) == self._last_pixel:
             return
-        x, y = self.cursor.pos()
-        x = min(max(x, self._xarray[0]), self._xarray[-1])
-        y = min(max(y, self._yarray[0]), self._yarray[-1])
-        col = int(np.argmin(np.abs(self._xarray - x)))
-        row = int(np.argmin(np.abs(self._yarray - y)))
-        self.pixelChanged.emit(row, col)
+        self._last_pixel = (iy, ix)
+        self.pixelChanged.emit(iy, ix)
 
 
 class FrameImageView(_InteractiveImageBase):
@@ -4130,12 +4148,14 @@ class ImagePanel(QWidget):
                                self.view.x_label or "x", self.view.y_label or "y")
 
     # -- pictures beside and under the image ---------------------------------
-    def set_side_views(self, right, bottom, left_width: int = 62,
-                       bottom_height: int = 30):
+    def set_side_views(self, right, bottom, far_right=None, far_bottom=None,
+                       left_width: int = 62, bottom_height: int = 30):
         """Put ``right`` beside the image and ``bottom`` under it, in the
-        cells the EDC and MDC use on a curves panel, hidden until
-        :meth:`show_side_views`. Both are pyqtgraph PlotWidgets; their
-        facing axes are pinned to the image's so the three line up."""
+        cells the EDC and MDC use on a curves panel -- and, optionally,
+        ``far_right`` beyond ``right`` and ``far_bottom`` below ``bottom`` --
+        all hidden until :meth:`show_side_views`. All are pyqtgraph
+        PlotWidgets; their facing axes are pinned to the image's so they
+        line up with it."""
         if self.curves is not None:
             raise ValueError("a curves panel has no free cells for side views")
         self._plot_grid.addWidget(right, 0, 1)
@@ -4144,16 +4164,33 @@ class ImagePanel(QWidget):
         self.view.view.getAxis("bottom").setHeight(bottom_height)
         bottom.getPlotItem().getAxis("left").setWidth(left_width)
         right.getPlotItem().getAxis("bottom").setHeight(bottom_height)
+        if far_right is not None:
+            self._plot_grid.addWidget(far_right, 0, 2)
+            far_right.getPlotItem().getAxis("bottom").setHeight(bottom_height)
+        if far_bottom is not None:
+            self._plot_grid.addWidget(far_bottom, 2, 0)
+            far_bottom.getPlotItem().getAxis("left").setWidth(left_width)
         self.side_views = (right, bottom)
+        self.far_views = (far_right, far_bottom)
         self.show_side_views(False)
 
-    def show_side_views(self, visible: bool):
-        """Show or hide the side views, giving their space back to the
-        image when hidden (a grid keeps the stretch of an empty row)."""
+    def show_side_views(self, visible: bool, far_right: bool = False,
+                        far_bottom: bool = False):
+        """Show or hide the side views (and the far ones, each only with
+        the side views), giving their space back to the image when hidden
+        (a grid keeps the stretch of an empty row)."""
         for widget in self.side_views:
             widget.setVisible(bool(visible))
         self._plot_grid.setColumnStretch(1, 1 if visible else 0)
         self._plot_grid.setRowStretch(1, 1 if visible else 0)
+        far = getattr(self, "far_views", (None, None))
+        for widget, wanted, set_stretch in (
+                (far[0], far_right, self._plot_grid.setColumnStretch),
+                (far[1], far_bottom, self._plot_grid.setRowStretch)):
+            on = bool(visible and wanted and widget is not None)
+            if widget is not None:
+                widget.setVisible(on)
+            set_stretch(2, 1 if on else 0)
         self.aspect_box.relayout()
 
     # -- display options -------------------------------------------------
@@ -4226,6 +4263,9 @@ class SelectionBar(QWidget):
         self.view = panel.view
         panel.selection_row_enabled = False
         self._pending = False
+        #: the corners the box had when it was last unticked: ticking it
+        #: again puts it back there
+        self._remembered = None
 
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
@@ -4270,7 +4310,13 @@ class SelectionBar(QWidget):
         return self.checkbox.isChecked()
 
     def _on_toggled(self, on: bool):
+        if not on:
+            corners = self.view.selection_corners()
+            if corners is not None:
+                self._remembered = corners
         self.view.set_selection_visible(bool(on))
+        if on and self._remembered is not None:
+            self.view.set_selection_corners(*self._remembered)
         self._enable(on)
         if on:
             self._follow()
@@ -4299,6 +4345,17 @@ class SelectionBar(QWidget):
             spin.setValue(value)
             spin.blockSignals(False)
         self._mark(True)
+
+    def transpose(self):
+        """Exchange the box's x and y (the picture's two axes were swapped),
+        on screen and in what is remembered."""
+        if self._remembered is not None:
+            x0, y0, x1, y1 = self._remembered
+            self._remembered = (y0, x0, y1, x1)
+        corners = self.view.selection_corners()
+        if corners is not None:
+            x0, y0, x1, y1 = corners
+            self.view.set_selection_corners(y0, x0, y1, x1)
 
     def corners(self):
         """The rectangle's ``(x0, y0, x1, y1)``, or None while it is off."""

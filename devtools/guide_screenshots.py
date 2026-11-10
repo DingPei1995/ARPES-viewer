@@ -734,7 +734,9 @@ class Shots:
         pump(10)
         window.set_profile_mode("E")
         window.refresh_profiles()
-        shot(window, "spatial_scan", (900, 860))
+        window.set_line_cursor("right", True, value=-0.3)
+        window.set_line_cursor("bottom", True, value=-0.3)
+        shot(window, "spatial_scan", (1000, 960))
         shot(window.cut_window, "spatial_scan_spectrum", (760, 760))
 
     def slice_figure(self):

@@ -62,7 +62,7 @@ from arpes_viewer.ui.viewers.widgets import (SpatialImageView, FrameImageView, I
                                 _SliceControl, ViewOptionsBar, apply_colormap,
                                 separator, section_label, scroll_strip,
                                 strip_stock_menu, add_button, ButtonRow,
-                                SelectionBar,
+                                SelectionBar, _menu_action,
                                 AXIS_COLORS, COLORMAP_NAMES)
 
 
@@ -1401,8 +1401,8 @@ class SpatialScanWindow(ViewerWindow):
 
         self.build_toolbar()
         self.statusBar().showMessage(
-            "Drag the red target to move the spectrum's pixel (the spectrum has "
-            "its own window). Selection box: drag, then Refresh to integrate.")
+            "Drag the readout cursor to move the spectrum's pixel (the spectrum "
+            "has its own window). Selection box: drag, then Refresh to integrate.")
 
         self.spatial_view = SpatialImageView()
         self.spatial_panel = ImagePanel("Spatial overview", self.spatial_view,
@@ -1425,7 +1425,13 @@ class SpatialScanWindow(ViewerWindow):
         self.profile_boxes = {}
         self.selection_bar = None
         self.right_profile = self.bottom_profile = None
+        #: the line spectra beyond the side pictures (see line_cursor)
+        self.far_right_curve = self.far_bottom_curve = None
         self._profile_items = ()
+        self._profile_arrays = None
+        #: "right" / "bottom" -> the line cursor on that side picture
+        self.line_cursors = {"right": None, "bottom": None}
+        self.line_cursor_actions = {}
         # The side spectra read a line of the cube; while the target is being
         # dragged they wait until it rests a moment, not every pixel crossed.
         self._profile_timer = QTimer(self)
@@ -1434,16 +1440,16 @@ class SpatialScanWindow(ViewerWindow):
         self._profile_timer.timeout.connect(self.refresh_profiles)
 
         if is_4d:
-            strip = QWidget()
-            row = QHBoxLayout(strip)
-            row.setContentsMargins(0, 0, 0, 0)
-            row.setSpacing(6)
             self.selection_bar = SelectionBar(
                 self.spatial_panel,
                 "Integrate the spectra inside the box and show the sum in the "
                 "spectrum window.")
-            row.addWidget(self.selection_bar)
-            row.addWidget(separator())
+            self.root.addWidget(scroll_strip(self.selection_bar))
+            strip = QWidget()
+            row = QHBoxLayout(strip)
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(6)
+            row.addWidget(section_label("Spectrum vs position"))
             for key, text in PROFILE_MODES.items():
                 box = QCheckBox(text)
                 box.setToolTip(
@@ -1466,6 +1472,8 @@ class SpatialScanWindow(ViewerWindow):
         else:  # spem_1d
             self.spatial_view.set_axis_labels(labels.get("x"), labels.get("y"))
             self.spatial_view.set_data(data.line_kmap.T, scan.x, scan.y)
+        # The readout cursor picks the pixel: on from the start.
+        self.spatial_view.set_readout_cursor_visible(True)
 
         # The spectrum, in the cut viewer.
         self.cut_window = SpemCutWindow(self)
@@ -1550,6 +1558,10 @@ class SpatialScanWindow(ViewerWindow):
             for item in self._profile_items:
                 item.clear()
             self._profile_items = ()
+            self._profile_arrays = None
+            for plot in (self.far_right_curve, self.far_bottom_curve):
+                if plot is not None:
+                    plot.getPlotItem().clear()
             self._spatial_map = None
         super().closeEvent(event)
 
@@ -1604,7 +1616,7 @@ class SpatialScanWindow(ViewerWindow):
         on = bool(on)
         if on == self.swap_xy or self._spatial_map is None:
             return
-        cursor = self.spatial_view.cursor.pos()
+        cursor = self.spatial_view.cursor_position()
         # A reversed axis stays reversed when it moves to the other side:
         # the direction belongs to the measured axis, not to the screen.
         inverted = (self.spatial_view.axis_inverted(0),
@@ -1612,14 +1624,14 @@ class SpatialScanWindow(ViewerWindow):
         self.spatial_view.set_axis_inverted(0, inverted[1])
         self.spatial_view.set_axis_inverted(1, inverted[0])
         self.swap_xy = on
-        # The selection box is in screen coordinates; it would land on other
-        # pixels once the axes swap, so it goes.
-        if self.selection_bar is not None and self.selection_bar.is_on():
-            self.selection_bar.checkbox.setChecked(False)
         self._set_spatial_map(self._spatial_map, reset_cursor=False)
         # The pixel the cursor was on has not moved; its coordinates have
-        # swapped places, so the cursor follows them.
-        self.spatial_view.cursor.setPos((float(cursor.y()), float(cursor.x())))
+        # swapped places, so the cursor follows them -- and so does the
+        # selection box, on screen and as remembered.
+        if cursor is not None:
+            self.spatial_view.set_cursor_position(cursor[1], cursor[0])
+        if self.selection_bar is not None:
+            self.selection_bar.transpose()
         self.spatial_panel.sync_level_range()
         self.set_colormap(self.colormap, self.flip)
         self.spatial_view.fit_to_data()
@@ -1766,7 +1778,39 @@ class SpatialScanWindow(ViewerWindow):
         self._profile_items = tuple(items)
         self.right_profile.getPlotItem().setYLink(self.spatial_view.view)
         self.bottom_profile.getPlotItem().setXLink(self.spatial_view.view)
-        self.spatial_panel.set_side_views(self.right_profile, self.bottom_profile)
+
+        # The line spectra a line cursor on a side picture reads out: beyond
+        # the right picture intensity against the map's vertical axis, below
+        # the bottom one intensity against its horizontal axis.
+        self.far_right_curve = pg.PlotWidget()
+        self.far_bottom_curve = pg.PlotWidget()
+        self.far_right_curve.setMinimumWidth(80)
+        self.far_bottom_curve.setMinimumHeight(80)
+        self.far_right_curve.hideAxis("left")
+        self.far_bottom_curve.hideAxis("bottom")
+        self.far_right_curve.setLabel("bottom", "Intensity")
+        self.far_bottom_curve.setLabel("left", "Intensity")
+        for plot in (self.far_right_curve, self.far_bottom_curve):
+            strip_stock_menu(plot.getPlotItem())
+            plot.showGrid(x=True, y=True, alpha=0.25)
+        self.far_right_curve.getPlotItem().setYLink(self.spatial_view.view)
+        self.far_bottom_curve.getPlotItem().setXLink(self.spatial_view.view)
+        self._line_curves = {
+            "right": self.far_right_curve.plot(pen=pg.mkPen(AXIS_COLORS["energy"], width=2)),
+            "bottom": self.far_bottom_curve.plot(pen=pg.mkPen(AXIS_COLORS["energy"], width=2))}
+        self.spatial_panel.set_side_views(self.right_profile, self.bottom_profile,
+                                          self.far_right_curve, self.far_bottom_curve)
+
+        for side, plot, where in (("right", self.right_profile, "on the right"),
+                                  ("bottom", self.bottom_profile, "below")):
+            menu = plot.getPlotItem().getViewBox().menu
+            menu.addSeparator()
+            action = _menu_action(menu, f"Line cursor (its spectrum {where})")
+            action.setCheckable(True)
+            action.setToolTip("A line at one energy (or k) across this picture, "
+                              f"and the intensity along it plotted {where}.")
+            action.toggled.connect(lambda on, side=side: self.set_line_cursor(side, on))
+            self.line_cursor_actions[side] = action
 
     def _profile_box_toggled(self, key: str, on: bool):
         if on:
@@ -1786,16 +1830,27 @@ class SpatialScanWindow(ViewerWindow):
                 box.blockSignals(True)
                 box.setChecked(key == mode)
                 box.blockSignals(False)
+        changed = mode != self.profile_mode
         self.profile_mode = mode
         if self.right_profile is None:
             return
-        self.spatial_panel.show_side_views(mode is not None)
+        if changed:
+            # a line cursor sits at an energy or a k: it does not carry over
+            self._profile_arrays = None
+            middle = self._spectral_middle()
+            for line in self.line_cursors.values():
+                if line is not None and middle is not None:
+                    line.blockSignals(True)
+                    line.setValue(middle)
+                    line.blockSignals(False)
+        self._show_side_views()
         if self.cut_window is not None:
             self.cut_window.set_range_mode(mode)
         if mode is None:
             self._profile_timer.stop()
             for item in self._profile_items:
                 item.clear()
+            self._profile_arrays = None
             return
         labels = self.data.scan.labels
         spectral = labels.get("z" if mode == "E" else "k") or mode
@@ -1808,13 +1863,109 @@ class SpatialScanWindow(ViewerWindow):
         if self.profile_mode is not None:
             self._profile_timer.start()
 
+    def _show_side_views(self):
+        mode = self.profile_mode
+        self.spatial_panel.show_side_views(
+            mode is not None,
+            far_right=self.line_cursors["right"] is not None,
+            far_bottom=self.line_cursors["bottom"] is not None)
+
     def _sync_profile_axes(self, *_):
         """Keep the side pictures' spatial axes reversed when the map's are."""
         if self.right_profile is None:
             return
         view = self.spatial_view
-        self.bottom_profile.getPlotItem().getViewBox().invertX(view.axis_inverted(0))
-        self.right_profile.getPlotItem().getViewBox().invertY(view.axis_inverted(1))
+        for plot in (self.bottom_profile, self.far_bottom_curve):
+            plot.getPlotItem().getViewBox().invertX(view.axis_inverted(0))
+        for plot in (self.right_profile, self.far_right_curve):
+            plot.getPlotItem().getViewBox().invertY(view.axis_inverted(1))
+
+    # -- line cursors on the side pictures -------------------------------------
+    def set_line_cursor(self, side: str, on: bool = True, value: float = None):
+        """Put a line cursor on the ``"right"`` or ``"bottom"`` side picture
+        (or take it off): a line at one energy (or k), and the intensity
+        along it against position plotted beyond that picture -- further
+        right, or further down. ``value`` places it; by default it starts
+        in the middle of the spectral axis."""
+        if side not in self.line_cursors:
+            raise ValueError(f"side must be 'right' or 'bottom', not {side!r}")
+        if self.right_profile is None:
+            return None
+        action = self.line_cursor_actions.get(side)
+        if action is not None and action.isChecked() != bool(on):
+            action.blockSignals(True)
+            action.setChecked(bool(on))
+            action.blockSignals(False)
+        plot = self.right_profile if side == "right" else self.bottom_profile
+        line = self.line_cursors[side]
+        if not on:
+            if line is not None:
+                plot.getPlotItem().removeItem(line)
+                self.line_cursors[side] = None
+                self._line_curves[side].setData([], [])
+            self._show_side_views()
+            return None
+        if line is None:
+            line = pg.InfiniteLine(angle=90 if side == "right" else 0, movable=True,
+                                   pen=pg.mkPen(AXIS_COLORS["energy"], width=2),
+                                   hoverPen=pg.mkPen("#ffffff", width=3))
+            line.setZValue(20)
+            plot.getPlotItem().addItem(line, ignoreBounds=True)
+            middle = self._spectral_middle()
+            line.setValue(0.0 if middle is None else middle)
+            line.sigPositionChanged.connect(lambda *_, side=side: self._update_line_curve(side))
+            self.line_cursors[side] = line
+        if value is not None:
+            line.setValue(float(value))
+        self._show_side_views()
+        self._update_line_curve(side)
+        return line
+
+    def _spectral_middle(self):
+        spectral = self._spectral_axis()
+        return None if spectral is None else float(spectral[len(spectral) // 2])
+
+    def _spectral_axis(self):
+        if self.profile_mode is None:
+            return None
+        scan = self.data.scan
+        return np.asarray(scan.z if self.profile_mode == "E" else scan.k, dtype=float)
+
+    def line_curve(self, side: str):
+        """``(position_axis, intensity, spectral_value)`` the line cursor
+        on ``side`` reads, or None."""
+        line = self.line_cursors.get(side)
+        arrays = self._profile_arrays
+        if line is None or arrays is None:
+            return None
+        spectral = self._spectral_axis()
+        value = float(line.value())
+        if not np.isfinite(value):
+            return None
+        j = int(np.argmin(np.abs(spectral - value)))
+        if side == "right":
+            values, _x, positions = arrays["right"]
+            return np.asarray(positions), np.asarray(values)[:, j], float(spectral[j])
+        values, positions, _y = arrays["bottom"]
+        return np.asarray(positions), np.asarray(values)[j, :], float(spectral[j])
+
+    def _update_line_curve(self, side: str):
+        line = self.line_cursors.get(side)
+        if line is None:
+            return
+        curve = self.line_curve(side)
+        item = self._line_curves[side]
+        if curve is None:
+            item.setData([], [])
+            return
+        positions, intensity, at = curve
+        if side == "right":
+            item.setData(intensity, positions)
+        else:
+            item.setData(positions, intensity)
+        name = self.data.scan.labels.get("z" if self.profile_mode == "E" else "k") \
+            or self.profile_mode
+        self.statusBar().showMessage(f"Line cursor at {name} = {at:.4g}")
 
     def profile_arrays(self):
         """``{"right": (values, x_axis, y_axis), "bottom": (...)}``, each
@@ -1845,6 +1996,7 @@ class SpatialScanWindow(ViewerWindow):
         arrays = self.profile_arrays()
         if arrays is None:
             return None
+        self._profile_arrays = arrays
         right, bottom = self._profile_items
         _place_image(bottom, *arrays["bottom"])
         _place_image(right, *arrays["right"])
@@ -1853,6 +2005,8 @@ class SpatialScanWindow(ViewerWindow):
         self.right_profile.getPlotItem().getViewBox().setXRange(lo, hi, padding=0)
         self.bottom_profile.getPlotItem().getViewBox().setYRange(lo, hi, padding=0)
         self._tint_profiles()
+        for side in self.line_cursors:
+            self._update_line_curve(side)
         return arrays
 
     def _tint_profiles(self):

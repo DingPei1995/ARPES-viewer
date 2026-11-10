@@ -232,14 +232,16 @@ Une EDC de spin s'ouvre avec une courbe par canal de spin :
 Un balayage en espace réel s'ouvre dans **deux fenêtres** : la **carte
 spatiale** (l'intensité totale en chaque position) et, à côté, le **spectre
 E-k au curseur** dans la visionneuse de coupe — avec ses propres outils
-(Functions, curseur de lecture avec EDC/MDC, Export). Faites glisser la cible
-rouge pour lire le spectre en un autre point. Fermer l'une des fenêtres ferme
-les deux.
+(Functions, curseur de lecture avec EDC/MDC, Export). Sur la carte, le
+**curseur de lecture** (actif dès l'ouverture) choisit le point : faites-le
+glisser, ou tapez une position dans la ligne **Cursor** sous la carte. Fermer
+l'une des fenêtres ferme les deux.
 
 **Selection box** — dans la ligne au-dessus de chaque image. Cochez-la,
 faites glisser le cadre (ou tapez ses coins **x0 y0 x1 y1**), puis appuyez
 sur **Refresh** (ou Entrée) ; rien n'est calculé avant, si bien qu'un gros
-balayage n'est lu que lorsque vous le demandez :
+balayage n'est lu que lorsque vous le demandez. Décocher le cadre le masque
+mais garde ses coins : recochez-le, il revient à la même place.
 
 - sur la carte, la fenêtre du spectre montre les spectres **sommés sur le
   cadre**. Tant que le cadre est coché, le spectre reste cette somme ;
@@ -248,13 +250,20 @@ balayage n'est lu que lorsque vous le demandez :
   choisie sur l'échantillon — c'est ainsi qu'on repère un domaine ou le bord
   d'un flocon. Décochez-le pour retrouver la carte complète.
 
-**E vs position / k vs position** — deux cases au-dessus de la carte (une à
-la fois). Elles tracent, **à droite et sous la carte**, le spectre passant par
+**E vs position / k vs position** — deux cases sur la ligne sous la
+Selection box (une à la fois). Elles tracent, **à droite et sous la carte**, le spectre passant par
 le curseur en fonction de chaque axe spatial : l'énergie (ou k) en fonction de
 la position, sur les mêmes axes que la carte. Deux **lignes pointillées**
 apparaissent sur le spectre : la bande de k (pour E vs position) ou d'énergie
 (pour k vs position) sur laquelle l'image est intégrée. Faites-les glisser, ou
 tapez **from / to** dans les cases **Band** au-dessus du spectre.
+
+**Line cursor** — clic droit sur l'image à droite ou sous la carte →
+*Line cursor*. Une ligne à une énergie (ou un k) apparaît sur cette image, et
+l'intensité le long de cette ligne est tracée en fonction de la position
+**plus à droite** (pour l'image à droite de la carte) ou **plus bas** (pour
+celle du dessous). Faites glisser la ligne pour la déplacer ; décochez
+l'entrée pour la retirer.
 
 ![Balayage spatial](../../images/spatial_scan.png)
 

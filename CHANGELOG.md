@@ -45,6 +45,23 @@ agent's steps saved as one script.
   the pictures' right-click menu.** Little used, and the second depended on
   the selection box that has left the menu. The Stack plot button of the
   tool panel is unchanged.
+- **SPEM viewer, second round.**
+  - *Unticking a selection box keeps it.* The box is hidden, not
+    forgotten: ticking it again puts it back at the same corners (and
+    swapping the map's X and Y now carries the box over instead of
+    removing it). What unticking does to the result is unchanged -- the
+    spectrum follows the cursor again, the map is the full map again.
+  - *One cursor on the map.* The red target is gone; the readout cursor,
+    on from the start, picks the pixel (with its typed **Cursor** row), so
+    the map no longer carries two cursors. Switched off and on again it
+    comes back where it was (`SpatialImageView`).
+  - *E vs position / k vs position on a row of their own*, under the
+    selection box.
+  - *Line cursors on the spectra against position.* Right-click the
+    picture beside or under the map -> *Line cursor*: a line at one energy
+    (or k) on that picture, and the intensity along it against position
+    plotted further right or further down, on the map's axes
+    (`SpatialScanWindow.set_line_cursor`).
 - **User guide: §3.7 (spatially resolved scans) rewritten** for the two
   windows, the selection boxes with Refresh and the spectra against
   position, with new screenshots; the PDFs re-printed. The version number

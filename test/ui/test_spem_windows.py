@@ -216,3 +216,99 @@ def test_snapshot_of_the_spectrum(window):
                                    window.cut_window.view.last_frame)
     finally:
         popout.close()
+
+
+def test_the_readout_cursor_picks_the_pixel(window):
+    import pyqtgraph as pg
+    view = window.spatial_view
+    # on from the start, and no second (red target) cursor on the map
+    assert view.readout_cursor is not None
+    assert view.action_readout.isChecked()
+    targets = [item for item in view.plot.items
+               if isinstance(item, pg.TargetItem)]
+    assert targets == [view.readout_cursor]
+    scan = window.data.scan
+    assert view.move_readout_to(x=scan.x[4], y=scan.y[1]) is None
+    np.testing.assert_allclose(window.cut_window.view.last_frame, scan.value4d[1, 4])
+    assert window.spatial_panel.cursor_widget.isVisibleTo(window.spatial_panel)
+    # off and on again: back where it was, not in the middle
+    view.set_readout_cursor_visible(False)
+    view.set_readout_cursor_visible(True)
+    np.testing.assert_allclose(view.readout_position(), (scan.x[4], scan.y[1]))
+
+
+def test_unticking_keeps_the_box(window):
+    for bar in (window.selection_bar, window.cut_window.selection_bar):
+        x = bar.view._xarray
+        y = bar.view._yarray
+        corners = (float(x[1]), float(y[1]), float(x[3]), float(y[3]))
+        bar.set_corners(*corners, apply=False)
+        bar.checkbox.setChecked(False)
+        assert bar.view.selection_roi is None
+        np.testing.assert_allclose([s.value() for s in bar.corner_spins], corners, atol=1e-3)
+        bar.checkbox.setChecked(True)
+        np.testing.assert_allclose(bar.corners(), corners, atol=1e-3)
+
+
+def test_swapping_carries_the_box(window):
+    bar = window.selection_bar
+    bar.set_corners(1, 11, 3, 12, apply=False)
+    window.set_swap_xy(True)
+    np.testing.assert_allclose(bar.corners(), (11, 1, 12, 3))
+
+
+def test_profile_boxes_on_a_row_under_the_selection_box(window):
+    window.show()
+    QApplication.processEvents()
+    try:
+        bar = window.selection_bar
+        box = window.profile_boxes["E"]
+        bar_y = bar.mapTo(window, bar.rect().bottomLeft()).y()
+        box_y = box.mapTo(window, box.rect().topLeft()).y()
+        assert box_y >= bar_y
+    finally:
+        window.hide()
+
+
+@pytest.mark.parametrize("mode", ["E", "k"])
+def test_line_cursors_on_the_side_pictures(window, mode):
+    scan = window.data.scan
+    window.set_profile_mode(mode)
+    window._on_cursor_moved(2, 3)
+    arrays = window.refresh_profiles()
+    spectral = scan.z if mode == "E" else scan.k
+    at = float(spectral[2])
+    # the menu entries are there
+    assert set(window.line_cursor_actions) == {"right", "bottom"}
+    window.set_line_cursor("right", True, value=at)
+    window.set_line_cursor("bottom", True, value=at)
+    assert window.line_cursor_actions["right"].isChecked()
+    positions, intensity, where = window.line_curve("right")
+    np.testing.assert_allclose(positions, scan.y)
+    np.testing.assert_allclose(intensity, arrays["right"][0][:, 2])
+    assert where == pytest.approx(at)
+    positions, intensity, _ = window.line_curve("bottom")
+    np.testing.assert_allclose(positions, scan.x)
+    np.testing.assert_allclose(intensity, arrays["bottom"][0][2, :])
+    assert window.far_right_curve.isVisibleTo(window)
+    assert window.far_bottom_curve.isVisibleTo(window)
+    # the curve follows the profiles when the cursor moves on the map
+    window._on_cursor_moved(0, 1)
+    window.refresh_profiles()
+    np.testing.assert_allclose(window.line_curve("right")[1],
+                               window.profile_arrays()["right"][0][:, 2])
+    # off: the far plot goes, the other stays
+    window.line_cursor_actions["right"].setChecked(False)
+    assert window.line_cursors["right"] is None
+    assert not window.far_right_curve.isVisibleTo(window)
+    assert window.far_bottom_curve.isVisibleTo(window)
+    # switching the spectral axis keeps the cursor, inside the new axis
+    other = "k" if mode == "E" else "E"
+    window.set_profile_mode(other)
+    axis = scan.k if other == "k" else scan.z
+    value = window.line_cursors["bottom"].value()
+    assert axis.min() <= value <= axis.max()
+    assert window.line_curve("bottom") is not None
+    # no profile: nothing beside the map
+    window.set_profile_mode(None)
+    assert not window.far_bottom_curve.isVisibleTo(window)

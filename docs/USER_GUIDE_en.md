@@ -854,12 +854,15 @@ A spin EDC opens with one curve per spin channel:
 A real-space scan opens in **two windows**: the **spatial map** (the total
 intensity at each position) and, beside it, the **E vs k spectrum at the
 cursor** in the cut viewer — with the cut viewer's own tools (Functions, the
-readout cursor with EDC/MDC, Export). Drag the red target to read the
-spectrum at another point. Closing either window closes both.
+readout cursor with EDC/MDC, Export). On the map, the **readout cursor**
+(on from the start) picks the point: drag it, or type a position in the
+**Cursor** row under the map. Closing either window closes both.
 
 **Selection box** — in the row above each picture. Tick it, drag the box
 (or type its corners **x0 y0 x1 y1**), then press **Refresh** (or Enter);
-nothing is computed until then, so a large scan is read only when you ask:
+nothing is computed until then, so a large scan is read only when you ask.
+Unticking the box hides it but keeps its corners: tick it again and it is
+back where it was.
 
 - on the map, the spectrum window shows the spectra **summed over the box**.
   While the box is ticked the spectrum stays the box's sum; untick it to
@@ -868,13 +871,19 @@ nothing is computed until then, so a large scan is read only when you ask:
   window** across the sample — how a domain or a flake edge is found.
   Untick it to get the full map back.
 
-**E vs position / k vs position** — two tick boxes above the map (one at a
-time). They draw, **beside and under the map**, the spectrum through the
+**E vs position / k vs position** — two tick boxes on the row under the
+selection box (one at a time). They draw, **beside and under the map**, the spectrum through the
 cursor against each spatial axis: energy (or k) against position, sharing
 the map's axes. Two **dashed lines** appear on the spectrum: the band of k
 (for E vs position) or of energy (for k vs position) the picture is
 integrated over. Drag them, or type **from / to** in the **Band** boxes
 above the spectrum.
+
+**Line cursor** — right-click the picture beside or under the map →
+*Line cursor*. A line at one energy (or k) appears on that picture, and the
+intensity along it is plotted against position **further right** (for the
+picture beside the map) or **further down** (for the one under it). Drag the
+line to move it; untick the entry to remove it.
 
 ![Spatial scan](images/spatial_scan.png)
 
