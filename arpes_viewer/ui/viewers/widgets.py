@@ -3771,6 +3771,14 @@ class ImagePanel(QWidget):
     """
 
     selectionApplied = pyqtSignal()
+    #: pixels the pictures beside and under the image take (see
+    #: set_side_views): the side spectra, and the line spectra beyond them
+    SIDE_SIZE = 170
+    FAR_SIZE = 120
+    #: ... and what they shrink to at most, on a panel too small for both
+    STRIP_MIN = 50
+    #: the share of the panel's width (height) the strips may take together
+    STRIP_SHARE = 0.45
     #: an EDC or MDC to list (see :attr:`CurveReadout.curveToList`)
     curveToList = pyqtSignal(dict)
 
@@ -4036,6 +4044,8 @@ class ImagePanel(QWidget):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        if self.side_views:
+            self._size_strips()
         self.view.refit_if_untouched()
 
     def showEvent(self, event):
@@ -4158,6 +4168,17 @@ class ImagePanel(QWidget):
         line up with it."""
         if self.curves is not None:
             raise ValueError("a curves panel has no free cells for side views")
+        # Fixed sizes, not shares of the panel: on a panel with a locked
+        # ratio, a share of the height taken by a new row had the aspect
+        # solver narrow the image to keep its shape -- a map squeezed to a
+        # strip when a line spectrum appeared under it. A fixed strip is a
+        # fixed margin, and the window grows by it instead.
+        right.setFixedWidth(self.SIDE_SIZE)
+        bottom.setFixedHeight(self.SIDE_SIZE)
+        if far_right is not None:
+            far_right.setFixedWidth(self.FAR_SIZE)
+        if far_bottom is not None:
+            far_bottom.setFixedHeight(self.FAR_SIZE)
         self._plot_grid.addWidget(right, 0, 1)
         self._plot_grid.addWidget(bottom, 1, 0)
         self.view.view.getAxis("left").setWidth(left_width)
@@ -4174,24 +4195,98 @@ class ImagePanel(QWidget):
         self.far_views = (far_right, far_bottom)
         self.show_side_views(False)
 
+    def _strips(self):
+        """``[(widget, nominal size, horizontal)]`` of the side and far views."""
+        right, bottom = self.side_views or (None, None)
+        far_right, far_bottom = getattr(self, "far_views", (None, None))
+        return [(widget, size, horizontal) for widget, size, horizontal in (
+            (right, self.SIDE_SIZE, True), (far_right, self.FAR_SIZE, True),
+            (bottom, self.SIDE_SIZE, False), (far_bottom, self.FAR_SIZE, False))
+            if widget is not None]
+
+    def _side_extent(self):
+        """Pixels the shown side and far views ask for (width, height), at
+        their nominal sizes."""
+        spacing = self._plot_grid.spacing()
+        width = height = 0
+        for widget, size, horizontal in self._strips():
+            if widget.isHidden():
+                continue
+            if horizontal:
+                width += size + spacing
+            else:
+                height += size + spacing
+        return width, height
+
+    def _size_strips(self):
+        """Give the strips their nominal sizes while they take no more than
+        :attr:`STRIP_SHARE` of the panel, and shrink them together (to
+        :attr:`STRIP_MIN` at most) when they would: on a small window the
+        image keeps most of the room rather than the strips."""
+        strips = self._strips()
+        if not strips:
+            return
+        for horizontal in (True, False):
+            mine = [(w, n) for w, n, h in strips if h == horizontal]
+            shown = sum(n for w, n in mine if not w.isHidden())
+            room = self.STRIP_SHARE * (self.aspect_box.width() if horizontal
+                                       else self.aspect_box.height())
+            scale = 1.0 if shown <= 0 or room <= 0 or shown <= room else room / shown
+            for widget, nominal in mine:
+                size = max(int(nominal * scale), self.STRIP_MIN)
+                if horizontal:
+                    if widget.maximumWidth() != size:
+                        widget.setFixedWidth(size)
+                elif widget.maximumHeight() != size:
+                    widget.setFixedHeight(size)
+
     def show_side_views(self, visible: bool, far_right: bool = False,
                         far_bottom: bool = False):
         """Show or hide the side views (and the far ones, each only with
-        the side views), giving their space back to the image when hidden
-        (a grid keeps the stretch of an empty row)."""
+        the side views). The window grows by what appears and gives it back
+        when it goes, so the image keeps its size (as far as the screen
+        allows)."""
+        before = self._side_extent()
         for widget in self.side_views:
             widget.setVisible(bool(visible))
-        self._plot_grid.setColumnStretch(1, 1 if visible else 0)
-        self._plot_grid.setRowStretch(1, 1 if visible else 0)
         far = getattr(self, "far_views", (None, None))
-        for widget, wanted, set_stretch in (
-                (far[0], far_right, self._plot_grid.setColumnStretch),
-                (far[1], far_bottom, self._plot_grid.setRowStretch)):
-            on = bool(visible and wanted and widget is not None)
+        for widget, wanted in ((far[0], far_right), (far[1], far_bottom)):
             if widget is not None:
-                widget.setVisible(on)
-            set_stretch(2, 1 if on else 0)
+                widget.setVisible(bool(visible and wanted))
+        after = self._side_extent()
+        self._grow_window(after[0] - before[0], after[1] - before[1])
+        self._size_strips()
         self.aspect_box.relayout()
+
+    def _grow_window(self, dw: int, dh: int):
+        """Make the window ``dw`` x ``dh`` larger (or smaller), within the
+        screen; a shrink gives back no more than was grown."""
+        window = self.window()
+        if (window is self or not window.isVisible() or window.isMaximized()
+                or window.isFullScreen() or (dw == 0 and dh == 0)):
+            return
+        grown = list(getattr(self, "_grown", (0, 0)))
+        size = [window.width(), window.height()]
+        limit = None
+        try:
+            from arpes_viewer.ui.common import screen as screen_module
+            if screen_module.LIMIT_TO_SCREEN and window.screen() is not None:
+                available = window.screen().availableGeometry()
+                limit = (available.width(), available.height())
+        except Exception:                                   # noqa: BLE001
+            limit = None
+        for axis, delta in ((0, dw), (1, dh)):
+            if delta > 0:
+                room = delta if limit is None else max(0, min(delta, limit[axis] - size[axis]))
+                size[axis] += room
+                grown[axis] += room
+            elif delta < 0:
+                give = min(-delta, grown[axis])
+                size[axis] -= give
+                grown[axis] -= give
+        self._grown = tuple(grown)
+        if size != [window.width(), window.height()]:
+            window.resize(*size)
 
     # -- display options -------------------------------------------------
     def _on_smooth_changed(self, *_):
@@ -4256,6 +4351,8 @@ class SelectionBar(QWidget):
     applied = pyqtSignal()
     #: the box was ticked (True) or unticked (False)
     toggled = pyqtSignal(bool)
+    #: Reset was pressed: go back from the integration to the plain view
+    reset = pyqtSignal()
 
     def __init__(self, panel, refresh_tip: str = "", parent=None):
         super().__init__(parent)
@@ -4266,6 +4363,9 @@ class SelectionBar(QWidget):
         #: the corners the box had when it was last unticked: ticking it
         #: again puts it back there
         self._remembered = None
+        #: whether the owner is showing an integration made with this box;
+        #: it stays when the box is unticked, until Reset
+        self.result_shown = False
 
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
@@ -4289,6 +4389,12 @@ class SelectionBar(QWidget):
         self.refresh_button.setToolTip(refresh_tip or
                                        "Apply the corners and integrate over the box.")
         row.addWidget(self.refresh_button)
+        self.reset_button = QPushButton("Reset")
+        self.reset_button.setToolTip(
+            "Leave the integration and go back to the plain view. Unticking the "
+            "box does not: the result stays until Reset.")
+        self.reset_button.setEnabled(False)
+        row.addWidget(self.reset_button)
         self.note = QLabel("")
         self.note.setStyleSheet("color: #b9770e;")
         row.addWidget(self.note)
@@ -4298,6 +4404,7 @@ class SelectionBar(QWidget):
 
         self.checkbox.toggled.connect(self._on_toggled)
         self.refresh_button.clicked.connect(self.refresh)
+        self.reset_button.clicked.connect(self.clear_result)
         self.view.selectionChanged.connect(self._follow)
         self._enable(False)
 
@@ -4327,7 +4434,13 @@ class SelectionBar(QWidget):
 
     def _mark(self, pending: bool):
         self._pending = bool(pending)
-        self.note.setText("press Refresh to update" if pending else "")
+        if pending:
+            text = "press Refresh to update"
+        elif self.result_shown and not self.is_on():
+            text = "integration kept — Reset to leave it"
+        else:
+            text = ""
+        self.note.setText(text)
 
     def _follow(self, *_):
         """The boxes follow the rectangle; nothing is computed."""
@@ -4381,8 +4494,19 @@ class SelectionBar(QWidget):
         if not self.is_on():
             return
         self.view.set_selection_corners(*[spin.value() for spin in self.corner_spins])
+        self.result_shown = True
+        self.reset_button.setEnabled(True)
         self._mark(False)
         self.applied.emit()
+
+    def clear_result(self):
+        """Reset: the owner goes back to the plain view (:attr:`reset`)."""
+        if not self.result_shown:
+            return
+        self.result_shown = False
+        self.reset_button.setEnabled(False)
+        self._mark(self._pending and self.is_on())
+        self.reset.emit()
 
 
 # --------------------------------------------------------------------------

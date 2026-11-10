@@ -45,6 +45,25 @@ agent's steps saved as one script.
   the pictures' right-click menu.** Little used, and the second depended on
   the selection box that has left the menu. The Stack plot button of the
   tool panel is unchanged.
+- **SPEM viewer, third round.**
+  - *Unticking a selection box keeps the integration*, not only the box:
+    the summed spectrum (or the map integrated over a (k, E) window) stays
+    on screen until **Reset**, a new button beside Refresh. While the
+    summed spectrum is shown the cursor does not replace it.
+  - *Fixed: the map squeezed to a strip when a line cursor was switched
+    on.* The pictures beside and under the map took a share of the panel,
+    and on a map with a locked ratio a share of the height taken by a new
+    row had the aspect solver narrow the map to keep its shape (802 px to
+    151 px in one case, and not back afterwards). They now have fixed
+    sizes, the window grows by them and shrinks back when they go; on a
+    window the screen does not let grow, they shrink first
+    (`ImagePanel.set_side_views`).
+  - *Fixed: a selection box that could not be dragged where it met the E
+    vs position band.* The shaded band between the two dashed lines took a
+    drag anywhere inside it and sits above the box, so a box corner inside
+    the band could not be grabbed. Only the two lines take the mouse now;
+    the band moves by its lines or its typed from/to, and a drag between
+    them reaches the box.
 - **SPEM viewer, second round.**
   - *Unticking a selection box keeps it.* The box is hidden, not
     forgotten: ticking it again puts it back at the same corners (and

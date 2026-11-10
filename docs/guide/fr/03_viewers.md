@@ -241,22 +241,28 @@ l'une des fenêtres ferme les deux.
 faites glisser le cadre (ou tapez ses coins **x0 y0 x1 y1**), puis appuyez
 sur **Refresh** (ou Entrée) ; rien n'est calculé avant, si bien qu'un gros
 balayage n'est lu que lorsque vous le demandez. Décocher le cadre le masque
-mais garde ses coins : recochez-le, il revient à la même place.
+mais garde ses coins — recochez-le, il revient à la même place — et garde le
+**résultat** : l'intégration reste affichée jusqu'à **Reset** (à côté de
+Refresh).
 
 - sur la carte, la fenêtre du spectre montre les spectres **sommés sur le
-  cadre**. Tant que le cadre est coché, le spectre reste cette somme ;
-  décochez-le pour suivre de nouveau le curseur ;
+  cadre**. Le spectre reste cette somme, cadre coché ou non, jusqu'à
+  **Reset** ; il suit alors de nouveau le curseur ;
 - sur le spectre, la carte montre l'intensité de la **fenêtre (k, E)**
   choisie sur l'échantillon — c'est ainsi qu'on repère un domaine ou le bord
-  d'un flocon. Décochez-le pour retrouver la carte complète.
+  d'un flocon. **Reset** redonne la carte complète.
 
 **E vs position / k vs position** — deux cases sur la ligne sous la
 Selection box (une à la fois). Elles tracent, **à droite et sous la carte**, le spectre passant par
 le curseur en fonction de chaque axe spatial : l'énergie (ou k) en fonction de
 la position, sur les mêmes axes que la carte. Deux **lignes pointillées**
 apparaissent sur le spectre : la bande de k (pour E vs position) ou d'énergie
-(pour k vs position) sur laquelle l'image est intégrée. Faites-les glisser, ou
-tapez **from / to** dans les cases **Band** au-dessus du spectre.
+(pour k vs position) sur laquelle l'image est intégrée. Faites glisser les
+lignes (la bande ombrée entre elles ne prend pas la souris : un cadre de
+sélection dessous reste déplaçable), ou tapez **from / to** dans les cases
+**Band** au-dessus du spectre. La fenêtre s'agrandit pour faire place aux
+images à droite et sous la carte, qui garde ainsi sa taille, et se réduit
+quand elles disparaissent.
 
 **Line cursor** — clic droit sur l'image à droite ou sous la carte →
 *Line cursor*. Une ligne à une énergie (ou un k) apparaît sur cette image, et

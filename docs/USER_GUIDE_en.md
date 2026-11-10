@@ -861,23 +861,27 @@ readout cursor with EDC/MDC, Export). On the map, the **readout cursor**
 **Selection box** — in the row above each picture. Tick it, drag the box
 (or type its corners **x0 y0 x1 y1**), then press **Refresh** (or Enter);
 nothing is computed until then, so a large scan is read only when you ask.
-Unticking the box hides it but keeps its corners: tick it again and it is
-back where it was.
+Unticking the box hides it but keeps its corners — tick it again and it is
+back where it was — and keeps the **result**: the integration stays on
+screen until you press **Reset** (beside Refresh).
 
 - on the map, the spectrum window shows the spectra **summed over the box**.
-  While the box is ticked the spectrum stays the box's sum; untick it to
-  follow the cursor again;
+  The spectrum stays the box's sum, ticked or not, until **Reset**; then it
+  follows the cursor again;
 - on the spectrum, the map shows the intensity of the chosen **(k, E)
   window** across the sample — how a domain or a flake edge is found.
-  Untick it to get the full map back.
+  **Reset** gives the full map back.
 
 **E vs position / k vs position** — two tick boxes on the row under the
 selection box (one at a time). They draw, **beside and under the map**, the spectrum through the
 cursor against each spatial axis: energy (or k) against position, sharing
 the map's axes. Two **dashed lines** appear on the spectrum: the band of k
 (for E vs position) or of energy (for k vs position) the picture is
-integrated over. Drag them, or type **from / to** in the **Band** boxes
-above the spectrum.
+integrated over. Drag the lines (the shaded band between them does not take
+the mouse, so a selection box under it can still be dragged), or type
+**from / to** in the **Band** boxes above the spectrum. The window grows to
+make room for the pictures beside and under the map, so the map keeps its
+size, and shrinks back when they go.
 
 **Line cursor** — right-click the picture beside or under the map →
 *Line cursor*. A line at one energy (or k) appears on that picture, and the

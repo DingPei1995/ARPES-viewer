@@ -1158,7 +1158,8 @@ class SpemCutWindow(CutWindow):
 
     Above the spectrum: a **Selection box** that, on Refresh, integrates the
     spatial map over the box's k and E (:attr:`selectionApplied`;
-    :attr:`selectionCleared` when it is unticked, for the full map again),
+    :attr:`selectionCleared` on Reset, for the full map again -- unticking
+    the box keeps the integrated map),
     and -- while the map draws a spectrum against position -- the two lines
     of the band that spectrum is integrated over (:attr:`rangeChanged`).
     """
@@ -1216,8 +1217,8 @@ class SpemCutWindow(CutWindow):
         self.selection_bar = SelectionBar(
             self.panel, "Integrate the map over the k and E inside the box.")
         self.selection_bar.applied.connect(self.selectionApplied.emit)
-        self.selection_bar.toggled.connect(
-            lambda on: None if on else self.selectionCleared.emit())
+        # unticking the box keeps the integrated map; Reset leaves it
+        self.selection_bar.reset.connect(self.selectionCleared.emit)
         row.addWidget(self.selection_bar)
         self.range_widget = QWidget()
         band = QHBoxLayout(self.range_widget)
@@ -1282,6 +1283,15 @@ class SpemCutWindow(CutWindow):
             pen=pg.mkPen("#ffd166", width=2, style=Qt.DashLine),
             hoverBrush=pg.mkBrush(255, 255, 255, 50))
         region.setZValue(30)
+        # Only the two lines take the mouse. The shaded band between them
+        # used to take a drag anywhere inside it -- and it sits above the
+        # selection box, so a box corner inside the band could not be
+        # grabbed at all. With the band transparent to the mouse, a drag
+        # there reaches the box underneath; the band itself moves by its
+        # lines or by the typed from/to.
+        region.setMovable(False)
+        for line in region.lines:
+            line.setMovable(True)
         self.view.view_box.addItem(region, ignoreBounds=True)
         self.range_region = region
         region.sigRegionChanged.connect(self._follow_region)
@@ -1485,6 +1495,7 @@ class SpatialScanWindow(ViewerWindow):
         if self.selection_bar is not None:
             self.selection_bar.applied.connect(self._on_spatial_selection)
             self.selection_bar.toggled.connect(self._on_spatial_box_toggled)
+            self.selection_bar.reset.connect(self._follow_cursor_again)
         if is_4d:
             self._show_frame_at(*self._pixel)
         else:
@@ -1684,9 +1695,9 @@ class SpatialScanWindow(ViewerWindow):
             self._show_frame_at_x(col)
             return
         self._pixel = self._data_pixel(row, col)
-        # While the selection box is on, the spectrum is the box's sum and
-        # changes only on Refresh.
-        if self.selection_bar is None or not self.selection_bar.is_on():
+        # While the spectrum is the box's sum (Refresh, until Reset -- ticked
+        # or not), the cursor does not replace it.
+        if self.selection_bar is None or not self.selection_bar.result_shown:
             self._show_frame_at(*self._pixel)
         self._schedule_profiles()
 
@@ -1695,8 +1706,13 @@ class SpatialScanWindow(ViewerWindow):
         if on:
             self.statusBar().showMessage(
                 "Place the box, then Refresh: the spectrum window shows its sum.")
-        elif self.data.kind == "spem_4d":
-            # back to following the cursor
+        elif self.selection_bar.result_shown:
+            self.statusBar().showMessage(
+                "The spectrum stays the box's sum; Reset to follow the cursor again.")
+
+    def _follow_cursor_again(self):
+        """Reset on the map's box: the spectrum follows the cursor again."""
+        if self.data.kind == "spem_4d":
             self._show_frame_at(*self._pixel)
 
     def _on_spatial_selection(self):
@@ -1744,7 +1760,7 @@ class SpatialScanWindow(ViewerWindow):
         return smap
 
     def _restore_overview(self):
-        """The spectrum's box was taken away: the full map again."""
+        """Reset on the spectrum's box: the full map again."""
         if self.data.kind != "spem_4d":
             return
         self._set_spatial_map(self.data.spatial_overview, reset_cursor=False)

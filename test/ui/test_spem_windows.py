@@ -89,12 +89,21 @@ def test_spatial_box_integrates_only_on_refresh(window):
     expected = scan.value4d[1:3, 1:4].sum(axis=(0, 1))
     np.testing.assert_allclose(window.cut_window.view.last_frame, expected)
     assert not bar.note.text()
-    # while the box is on, the cursor does not replace the sum
+    # while the sum is shown, the cursor does not replace it ...
     window._on_cursor_moved(0, 0)
     np.testing.assert_allclose(window.cut_window.view.last_frame, expected)
-    # untick: back to the pixel under the cursor
+    # ... not even once the box is unticked: the result is kept
     bar.checkbox.setChecked(False)
-    np.testing.assert_allclose(window.cut_window.view.last_frame, scan.value4d[0, 0])
+    np.testing.assert_allclose(window.cut_window.view.last_frame, expected)
+    assert "Reset" in bar.note.text()
+    window._on_cursor_moved(0, 1)
+    np.testing.assert_allclose(window.cut_window.view.last_frame, expected)
+    # Reset: back to the pixel under the cursor, and following it again
+    bar.reset_button.click()
+    np.testing.assert_allclose(window.cut_window.view.last_frame, scan.value4d[0, 1])
+    assert not bar.reset_button.isEnabled()
+    window._on_cursor_moved(2, 2)
+    np.testing.assert_allclose(window.cut_window.view.last_frame, scan.value4d[2, 2])
 
 
 def test_spectrum_box_integrates_the_map_on_refresh(window):
@@ -108,7 +117,10 @@ def test_spectrum_box_integrates_the_map_on_refresh(window):
     ie = np.nonzero((scan.z >= -0.4) & (scan.z <= -0.2))[0]
     expected = scan.value4d[:, :, ik][:, :, :, ie].sum(axis=(2, 3))
     np.testing.assert_allclose(window._spatial_map, expected)
+    # unticking keeps the integrated map; Reset gives the full one back
     bar.checkbox.setChecked(False)
+    np.testing.assert_allclose(window._spatial_map, expected)
+    bar.reset_button.click()
     np.testing.assert_allclose(window._spatial_map, overview)
 
 
@@ -312,3 +324,81 @@ def test_line_cursors_on_the_side_pictures(window, mode):
     # no profile: nothing beside the map
     window.set_profile_mode(None)
     assert not window.far_bottom_curve.isVisibleTo(window)
+
+
+def test_the_band_lets_the_box_be_dragged(app, window):
+    """A box corner inside the E-vs-position band can still be dragged: only
+    the band's two lines take the mouse, not the shaded area between."""
+    from PyQt5.QtCore import QEvent, QPoint, QPointF
+    from PyQt5.QtGui import QMouseEvent
+    from PyQt5.QtCore import Qt
+    cut = window.cut_window
+    cut.resize(700, 700)
+    cut.show()
+    try:
+        window.set_profile_mode("E")
+        cut.set_range(-0.6, 0.6)
+        region = cut.range_region
+        assert not region.movable
+        assert all(line.movable for line in region.lines)
+        bar = cut.selection_bar
+        # the box's lower-left corner inside the band, between the lines
+        bar.set_corners(-0.2, -0.4, 0.8, -0.1, apply=False)
+        for _ in range(10):
+            app.processEvents()
+        view = cut.view
+        roi = view.selection_roi
+        # the handle at the box's lower-left corner
+        handle = min(roi.getHandles(), key=lambda h: h.pos().x() + h.pos().y())
+        scene_point = handle.mapToScene(QPointF(0, 0))
+        widget = view.ui.graphicsView
+        start = widget.mapFromScene(scene_point)
+        end = start + QPoint(-40, 30)
+        viewport = widget.viewport()
+
+        def send(kind, point, buttons):
+            event = QMouseEvent(kind, QPointF(point), Qt.LeftButton, buttons, Qt.NoModifier)
+            QApplication.sendEvent(viewport, event)
+            app.processEvents()
+
+        before = view.selection_corners()
+        send(QEvent.MouseButtonPress, start, Qt.LeftButton)
+        for step in range(1, 6):
+            send(QEvent.MouseMove, start + (end - start) * step / 5, Qt.LeftButton)
+        send(QEvent.MouseButtonRelease, end, Qt.NoButton)
+        after = view.selection_corners()
+        assert after[0] < before[0] - 1e-3          # the corner moved left
+        # the band did not move with it
+        assert cut.range_values() == pytest.approx((-0.6, 0.6))
+    finally:
+        cut.hide()
+
+
+def test_a_line_cursor_does_not_squeeze_the_map(app, window):
+    from arpes_viewer.ui.common import screen
+    screen.LIMIT_TO_SCREEN, saved = False, screen.LIMIT_TO_SCREEN
+    try:
+        window.resize(900, 900)
+        window.show()
+
+        def map_size():
+            for _ in range(30):
+                app.processEvents()
+            box = window.spatial_view.view_box
+            return box.width(), box.height()
+
+        start = map_size()
+        window.set_profile_mode("E")
+        assert map_size() == pytest.approx(start, abs=3)
+        window.set_line_cursor("bottom", True)
+        assert map_size() == pytest.approx(start, abs=3)
+        window.set_line_cursor("right", True)
+        assert map_size() == pytest.approx(start, abs=3)
+        window.set_line_cursor("bottom", False)
+        window.set_line_cursor("right", False)
+        window.set_profile_mode(None)
+        assert map_size() == pytest.approx(start, abs=3)
+        assert (window.width(), window.height()) == (900, 900)
+    finally:
+        screen.LIMIT_TO_SCREEN = saved
+        window.hide()
