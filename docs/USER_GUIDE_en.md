@@ -715,7 +715,7 @@ front of you**:
 - **Drag** a line on the plot to move it; the window follows. Select a guide
   in the list to **edit** it — every change shows at once — or **Remove** it;
   **New guide** stops editing; **Remove all** clears the plot.
-- With two panels (a spatial scan), **Draw on** chooses which.
+- In a window with more than one panel, **Draw on** chooses which.
 - Guides stay while the slice moves (an E_F line stays at E_F as you scroll
   through a map) and while the Plot tools window is closed. The panel's
   **Export → Image** draws them too (*Include the Plot tools guides*).
@@ -851,18 +851,34 @@ A spin EDC opens with one curve per spin channel:
 
 ## 3.7 Spatially resolved scans (nano-ARPES)
 
-A real-space scan opens the **spatial map** (left, the total intensity at
-each position) together with the **E vs k spectrum at the cursor** (right).
-Drag the red target to read the spectrum at another point. Right-click a
-panel for the two integrations:
+A real-space scan opens in **two windows**: the **spatial map** (the total
+intensity at each position) and, beside it, the **E vs k spectrum at the
+cursor** in the cut viewer — with the cut viewer's own tools (Functions, the
+readout cursor with EDC/MDC, Export). Drag the red target to read the
+spectrum at another point. Closing either window closes both.
 
-- on the map, **Integrate selection → E vs k panel** sums the spectra over a
-  region of the sample;
-- on the spectrum, **Integrate selection → spatial panel** maps the intensity
-  of a chosen (k, E) window across the sample — how a domain or a flake edge
-  is found.
+**Selection box** — in the row above each picture. Tick it, drag the box
+(or type its corners **x0 y0 x1 y1**), then press **Refresh** (or Enter);
+nothing is computed until then, so a large scan is read only when you ask:
+
+- on the map, the spectrum window shows the spectra **summed over the box**.
+  While the box is ticked the spectrum stays the box's sum; untick it to
+  follow the cursor again;
+- on the spectrum, the map shows the intensity of the chosen **(k, E)
+  window** across the sample — how a domain or a flake edge is found.
+  Untick it to get the full map back.
+
+**E vs position / k vs position** — two tick boxes above the map (one at a
+time). They draw, **beside and under the map**, the spectrum through the
+cursor against each spatial axis: energy (or k) against position, sharing
+the map's axes. Two **dashed lines** appear on the spectrum: the band of k
+(for E vs position) or of energy (for k vs position) the picture is
+integrated over. Drag them, or type **from / to** in the **Band** boxes
+above the spectrum.
 
 ![Spatial scan](images/spatial_scan.png)
+
+![Spectrum window](images/spatial_scan_spectrum.png)
 
 ## 3.8 Exporting a panel and saving data
 

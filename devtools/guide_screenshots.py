@@ -727,9 +727,15 @@ class Shots:
         dialog.close()
 
     def spatial(self):
+        """The two windows of a spatial scan: the map with E against
+        position beside and under it, and the spectrum with the band those
+        are integrated over."""
         window = self._open("SPEM_flake")
         pump(10)
-        shot(window, "spatial_scan", (1250, 760))
+        window.set_profile_mode("E")
+        window.refresh_profiles()
+        shot(window, "spatial_scan", (900, 860))
+        shot(window.cut_window, "spatial_scan_spectrum", (760, 760))
 
     def slice_figure(self):
         self._select("FS_map_hv60")

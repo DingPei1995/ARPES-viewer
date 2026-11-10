@@ -45,6 +45,10 @@ agent's steps saved as one script.
   the pictures' right-click menu.** Little used, and the second depended on
   the selection box that has left the menu. The Stack plot button of the
   tool panel is unchanged.
+- **User guide: §3.7 (spatially resolved scans) rewritten** for the two
+  windows, the selection boxes with Refresh and the spectra against
+  position, with new screenshots; the PDFs re-printed. The version number
+  is unchanged.
 - **Fixed: settings put back from last time that left a picture and its
   controls out of step.** Two cases of one mistake -- a control is filled
   in from what was remembered, and the thing on the picture it is tied to

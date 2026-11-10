@@ -85,7 +85,7 @@ petite fenêtre qui dessine **sur le graphique que vous avez sous les yeux** :
   suit. Sélectionnez un repère dans la liste pour le **modifier** — chaque
   changement s'affiche aussitôt — ou **Remove** pour le supprimer ; **New
   guide** arrête la modification ; **Remove all** vide le graphique.
-- Avec deux panneaux (un balayage spatial), **Draw on** choisit lequel.
+- Dans une fenêtre à plusieurs panneaux, **Draw on** choisit lequel.
 - Les repères restent quand la tranche se déplace (une ligne E_F reste à E_F
   quand on parcourt une carte) et quand la fenêtre Plot tools est fermée.
   **Export → Image** du panneau les dessine aussi (*Include the Plot tools
@@ -229,18 +229,36 @@ Une EDC de spin s'ouvre avec une courbe par canal de spin :
 
 ## 3.7 Balayages résolus spatialement (nano-ARPES)
 
-Un balayage en espace réel ouvre la **carte spatiale** (à gauche, l'intensité
-totale en chaque position) avec le **spectre E-k au curseur** (à droite).
-Faites glisser la cible rouge pour lire le spectre en un autre point. Un clic
-droit sur un panneau donne les deux intégrations :
+Un balayage en espace réel s'ouvre dans **deux fenêtres** : la **carte
+spatiale** (l'intensité totale en chaque position) et, à côté, le **spectre
+E-k au curseur** dans la visionneuse de coupe — avec ses propres outils
+(Functions, curseur de lecture avec EDC/MDC, Export). Faites glisser la cible
+rouge pour lire le spectre en un autre point. Fermer l'une des fenêtres ferme
+les deux.
 
-- sur la carte, **Integrate selection → E vs k panel** somme les spectres sur
-  une région de l'échantillon ;
-- sur le spectre, **Integrate selection → spatial panel** cartographie sur
-  l'échantillon l'intensité d'une fenêtre (k, E) choisie — c'est ainsi qu'on
-  repère un domaine ou le bord d'un flocon.
+**Selection box** — dans la ligne au-dessus de chaque image. Cochez-la,
+faites glisser le cadre (ou tapez ses coins **x0 y0 x1 y1**), puis appuyez
+sur **Refresh** (ou Entrée) ; rien n'est calculé avant, si bien qu'un gros
+balayage n'est lu que lorsque vous le demandez :
+
+- sur la carte, la fenêtre du spectre montre les spectres **sommés sur le
+  cadre**. Tant que le cadre est coché, le spectre reste cette somme ;
+  décochez-le pour suivre de nouveau le curseur ;
+- sur le spectre, la carte montre l'intensité de la **fenêtre (k, E)**
+  choisie sur l'échantillon — c'est ainsi qu'on repère un domaine ou le bord
+  d'un flocon. Décochez-le pour retrouver la carte complète.
+
+**E vs position / k vs position** — deux cases au-dessus de la carte (une à
+la fois). Elles tracent, **à droite et sous la carte**, le spectre passant par
+le curseur en fonction de chaque axe spatial : l'énergie (ou k) en fonction de
+la position, sur les mêmes axes que la carte. Deux **lignes pointillées**
+apparaissent sur le spectre : la bande de k (pour E vs position) ou d'énergie
+(pour k vs position) sur laquelle l'image est intégrée. Faites-les glisser, ou
+tapez **from / to** dans les cases **Band** au-dessus du spectre.
 
 ![Balayage spatial](../../images/spatial_scan.png)
+
+![Fenêtre du spectre](../../images/spatial_scan_spectrum.png)
 
 ## 3.8 Exporter un panneau et enregistrer des données
 
