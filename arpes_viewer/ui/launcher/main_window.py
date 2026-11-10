@@ -535,6 +535,13 @@ TOOLS = {
                  "cuts at a series of angles or momenta, with a shared colour "
                  "scale and labels on the outer edges only. Flat panels, not "
                  "a 3-D view (that is 3D slices)."),
+    "pocket": ("Fermi pocket (quasi-2D)...",
+             "Under test. The contour of one Fermi pocket of a k-map, its "
+             "area, and from it the carrier density, the carriers per cell, "
+             "the quantum-oscillation frequency and the cyclotron mass. "
+             "Only for quasi-two-dimensional samples (no k_z dispersion): "
+             "for a three-dimensional Fermi surface these numbers mean "
+             "nothing."),
     "ridge": ("Ridge detection...",
               "Trace the bands as ridges of the intensity: the Hessian of "
               "the smoothed image, kept where it curves down across the band "
@@ -598,7 +605,7 @@ TOOL_SECTIONS = (
                                        "gradient", "symmetry", "ridge")),
         ("2D only \u2014 cuts", ("stack", "mdcfit", "edcfit", "arithmetic")),
         ("3D only \u2014 maps", ("slicefig", "slices3d", "notch3d",
-                                  "projection3d", "stack3d")),
+                                  "projection3d", "stack3d", "pocket")),
     )),
     # Figures, and what is worked out rather than measured: the figure
     # composer first, then the crystal, its Brillouin zone in 3-D, band

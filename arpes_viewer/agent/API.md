@@ -373,6 +373,37 @@ manipulator offset from Γ; ``calibrate_hv`` uses each photon energy's
 fitted E_F (after kz_align_fermi). Grid: from the measurement unless
 given. Returns the new row, V0 and the k ranges.
 
+#### `L.fermi_pocket(name, centre, r_min, r_max, energy=None, half_width=None, ef=0.0, rays=72, harmonics=6, symmetry=1, spin=2, pockets=1, cell=None, energies=None, recentre=True, picture='', to_list=False)`
+
+UNDER TEST, and ONLY FOR QUASI-TWO-DIMENSIONAL SAMPLES (surface
+states, layered materials with negligible k_z dispersion): for a
+three-dimensional Fermi surface the area of a contour in one map
+is not a carrier density -- ask the person which it is, and say so
+with the numbers.
+
+The contour of one Fermi pocket of a k-map (``name``) and its
+area: rays from ``centre`` (kx, ky; any point inside the pocket)
+find the band between ``r_min`` and ``r_max`` (a ring holding this
+band only), on the plane at ``energy`` +- ``half_width`` (default:
+E_F = ``ef``, the map's own energy step and a half). The contour
+is a Fourier series up to ``harmonics``, with an n-fold
+``symmetry`` about the centre if given; ``recentre`` moves the
+centre to the contour's middle and traces again.
+
+Returns ``area`` (A^-2) and ``area_error`` (statistical only),
+``k_f`` and its extremes, ``rays_kept`` of ``rays`` (many dropped:
+look at the ``picture`` and close the ring), and for a quasi-2D
+sample ``density`` (cm^-2, ``spin`` states per k, ``pockets``
+equivalent pockets in the zone), ``frequency`` (T, of quantum
+oscillations), and with ``cell`` = (a, b, gamma_deg) of the plane
+``zone_fraction`` and ``per_cell`` (carriers per cell). With
+``energies`` (a list, the first where the pocket is clearest)
+also ``mass`` (cyclotron mass in m_e, positive for an electron
+pocket, negative for a hole pocket), ``area_at_ef`` and
+``series`` (the area at each energy). ``picture`` writes a PNG of
+the window (plane, rays, contour) to check it; ``to_list`` adds
+the contour (and the area series) as curve rows.
+
 ### Crystal and Brillouin zone
 
 #### `L.brillouin_zone(space_group, a, b=None, c=None, alpha=90.0, beta=90.0, gamma=None)`
@@ -573,6 +604,7 @@ The tool panel's buttons, for what has no operation of its own above. The window
 | `notch3d` | Notched cube... | a map | The cube with one corner cut away: a constant-energy map and two dispersions in one picture. |
 | `projection3d` | Volume projection... | a map | The whole volume projected along the view: maximum intensity, sum, alpha composite, or a shaded isosurface. |
 | `stack3d` | Stacked slices... | a map | Parallel slices of the cube stacked in 3-D -- constant-energy maps one above another up the energy axis, or cuts one behind another along k_z -- each layer's background transparent, with a curve marked through the layers (a Dirac point followed). For figures of how a band evolves. |
+| `pocket` | Fermi pocket (quasi-2D)... | a map converted to momentum (a k-map) | Under test. The contour of one Fermi pocket of a k-map, its area, and from it the carrier density, the carriers per cell, the quantum-oscillation frequency and the cyclotron mass. Only for quasi-two-dimensional samples (no k_z dispersion): for a three-dimensional Fermi surface these numbers mean nothing. |
 | `figure` | Figure composer... | cuts or curves | A figure laid out like a manuscript page: one panel per selected dataset, or, with nothing selected, a blank page of empty panels to fill from the list or with pictures. |
 | `lattice` | Crystal structure... |  | The crystal in real space, in 3-D: typed in (the space group first, then the cell it allows, then the atoms), or filled from a .cif file. Draw a cleavage plane (hkl) and slide it through the cell; atoms' colours, gloss, transparency and size are yours to set. The picture goes to the figure composer. |
 | `bz3d` | 3D BZ... |  | The crystal's Brillouin zone in 3-D: the space group first, then the cell it allows (or a CIF file); as many planes as you like, each with its own (hkl), height and colour -- a selected k-map can lie on one -- and paths through the labelled points in colours of their own. The picture goes to the figure composer. |
@@ -623,6 +655,7 @@ Qt-free functions, for a computation of your own on `L.data(row).values` / `.axe
 - **`spectra.dispersion`** -- What comes out of a fitted band: the dispersion, the Fermi velocity, the effective mass, and the self-energy. `bare_band_from_anchors`, `bare_band_line`, `fermi_crossing`, `fit_dispersion`, `kramers_kronig`, `line_crossing`, `self_energy`, `suggest_bare_velocity`, `window_scan`
 - **`spectra.fermi`** -- Fermi-edge fitting, as plain numpy/scipy with no Qt -- the same split as ``tools.momentum.kspace`` and ``tools.processing.analysis``. `broadened_fermi`, `divide_fermi`, `edge_candidates`, `edge_problems`, `fermi_edge_model`, `fermi_function`, `fit_channels`, `fit_fermi_edge`, `initial_guess`, `levels_along`, `steepest_drop`
 - **`spectra.peaks`** -- MDC and EDC peak fitting, with no Qt: a band model that carries its own identity and the energy range it exists over, hand-placed seeds interpolated into a star. `fit_line`, `fit_series`, `peak_profile`, `suggest_seed`
+- **`spectra.pocket`** -- A Fermi pocket of a **quasi-two-dimensional** sample, from a k-map: its contour, its area, and what the area says. `cell_area`, `energy_plane`, `fit_ray`, `numbers`, `radial_profiles`, `series`, `trace`
 - **`spectra.spin`** -- Spin polarisation from the channels of a spin-resolved EDC, with no Qt. `analyse`, `axes_available`, `channels_from_info`, `design_report`, `pairs`, `parse_channel`, `parse_channels`
 - **`momentum.cutk`** -- Angle-to-momentum conversion for a single **Cut** -- one E-vs-angle spectrum taken at one deflector position -- as the companion to ``tools.momentum.kspace``'s . `convert_cut`, `cut_directions`, `cut_extent`, `cut_momenta`
 - **`momentum.kspace`** -- Angle-to-momentum conversion for ARPES Maps (a deflector Map; k_z is not covered here, and the single-Cut case lives in ``tools.momentum.cutk``, which builds on. `angle_grid_to_directions`, `convert_map`, `convert_map_forward_reference`, `float16_holds`, `k0_of_energy`, `k_extent`, `origin_rotation`, `points_to_azimuth`, `result_dtype`, `rotation_matrix`, `storage_dtype`

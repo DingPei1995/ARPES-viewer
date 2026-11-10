@@ -733,6 +733,7 @@ def run_list_action(name):
         "save": save_selected,
         "sumrepeat": open_sum_repeats,
         "ridge": open_ridge_detection,
+        "pocket": open_fermi_pocket,
         "tbfit": open_tight_binding,
         "detcorr": open_detector_corrections,
         "lattice": open_crystal_structure,
@@ -2301,6 +2302,18 @@ def open_ridge_detection():
         return None
     return _show_tool(RidgeDialog(datasets, win, default_colormap,
                                   existing_names=listed_names), datasets)
+
+
+def open_fermi_pocket():
+    """The Fermi pocket of the selected k-map: its contour, area and what
+    the area means for a quasi-two-dimensional sample (ui.panels.pocket)."""
+    from arpes_viewer.ui.panels.pocket import PocketDialog
+
+    datasets = _load_selection("Fermi pocket", ("k_map",))
+    if not datasets:
+        return None
+    return _show_tool(PocketDialog(datasets[0], win, default_colormap,
+                                   existing_names=listed_names), datasets)
 
 
 def open_tight_binding():

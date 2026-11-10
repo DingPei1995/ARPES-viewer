@@ -110,6 +110,11 @@ def _keeps_selection(method):
     return kept
 
 
+def _strip_tags(text: str) -> str:
+    import re
+    return re.sub(r"<[^>]+>", "", str(text))
+
+
 def _plain(value):
     """``value`` with numpy scalars and arrays turned into JSON types."""
     if isinstance(value, dict):
@@ -1200,6 +1205,105 @@ class Live:
         """A CIF file's cell, space group and atom sites."""
         from arpes_viewer.agent.workspace import Workspace
         return _plain(Workspace.read_cif(native(path)))
+
+    @operation("Momentum")
+    @_keeps_selection
+    def fermi_pocket(self, name: str, centre, r_min: float, r_max: float,
+                     energy: float = None, half_width: float = None,
+                     ef: float = 0.0, rays: int = 72, harmonics: int = 6,
+                     symmetry: int = 1, spin: int = 2, pockets: int = 1,
+                     cell=None, energies=None, recentre: bool = True,
+                     picture: str = "", to_list: bool = False) -> dict:
+        """UNDER TEST, and ONLY FOR QUASI-TWO-DIMENSIONAL SAMPLES (surface
+        states, layered materials with negligible k_z dispersion): for a
+        three-dimensional Fermi surface the area of a contour in one map
+        is not a carrier density -- ask the person which it is, and say so
+        with the numbers.
+
+        The contour of one Fermi pocket of a k-map (``name``) and its
+        area: rays from ``centre`` (kx, ky; any point inside the pocket)
+        find the band between ``r_min`` and ``r_max`` (a ring holding this
+        band only), on the plane at ``energy`` +- ``half_width`` (default:
+        E_F = ``ef``, the map's own energy step and a half). The contour
+        is a Fourier series up to ``harmonics``, with an n-fold
+        ``symmetry`` about the centre if given; ``recentre`` moves the
+        centre to the contour's middle and traces again.
+
+        Returns ``area`` (A^-2) and ``area_error`` (statistical only),
+        ``k_f`` and its extremes, ``rays_kept`` of ``rays`` (many dropped:
+        look at the ``picture`` and close the ring), and for a quasi-2D
+        sample ``density`` (cm^-2, ``spin`` states per k, ``pockets``
+        equivalent pockets in the zone), ``frequency`` (T, of quantum
+        oscillations), and with ``cell`` = (a, b, gamma_deg) of the plane
+        ``zone_fraction`` and ``per_cell`` (carriers per cell). With
+        ``energies`` (a list, the first where the pocket is clearest)
+        also ``mass`` (cyclotron mass in m_e, positive for an electron
+        pocket, negative for a hole pocket), ``area_at_ef`` and
+        ``series`` (the area at each energy). ``picture`` writes a PNG of
+        the window (plane, rays, contour) to check it; ``to_list`` adds
+        the contour (and the area series) as curve rows."""
+        from arpes_viewer.ui.panels.pocket import PocketDialog
+        key = self._key(name)
+        data = self.A.load_dataset(key)
+        dialog = None
+        try:
+            if data.kind != "k_map":
+                raise ValueError(f"{self._name(key)} is a {data.kind}: a Fermi "
+                                 "pocket is traced on a k-map (map_to_k first)")
+            dialog = PocketDialog((self._name(key), data), None,
+                                  existing_names=self.A.listed_names)
+            dialog._timer.blockSignals(True)       # traced when asked, below
+            dialog.ef.setValue(float(ef))
+            dialog.energy.setValue(float(ef if energy is None else energy))
+            if half_width is not None:
+                dialog.half_width.setValue(float(half_width))
+            dialog.r_min.setValue(float(r_min))
+            dialog.r_max.setValue(float(r_max))
+            dialog.rays.setValue(int(rays))
+            dialog.order.setValue(int(harmonics))
+            dialog.fold.setValue(int(symmetry))
+            dialog.spin_choice.setCurrentIndex(0 if int(spin) == 2 else 1)
+            dialog.pockets.setValue(int(pockets))
+            if cell:
+                a, b, gamma = (list(cell) + [0.0, 90.0])[:3] if len(cell) < 3 \
+                    else cell[:3]
+                dialog.cell_a.setValue(float(a))
+                dialog.cell_b.setValue(float(b or 0.0))
+                dialog.cell_gamma.setValue(float(gamma or 90.0))
+            else:
+                dialog.cell_a.setValue(0.0)
+            dialog.set_centre(float(centre[0]), float(centre[1]))
+            if recentre and dialog.fitted is not None:
+                dialog.recentre()
+            if dialog.fitted is None:
+                raise ValueError("no contour was found: "
+                                 + _strip_tags(dialog.result_label.text()))
+            series = None
+            if energies is not None:
+                series = dialog.run_series(np.asarray(energies, dtype=float),
+                                           background=False)
+            out = dict(dialog.numbers())
+            if series is not None:
+                out["series"] = {"energies": series.energies.tolist(),
+                                 "areas": series.areas.tolist(),
+                                 "area_errors": series.area_errors.tolist(),
+                                 "carrier": series.carrier()}
+                if series.carrier():
+                    out["carrier"] = series.carrier()
+            if picture:
+                dialog.resize(1320, 900)
+                dialog.grab().save(native(picture))
+                out["picture"] = native(picture)
+            if to_list:
+                made = dialog.export()
+                self.A._list_computed(made)
+                out["rows"] = [d.source_label for d in made]
+            return _plain(out)
+        finally:
+            if dialog is not None:
+                dialog.close()
+                dialog.deleteLater()
+            data.close()
 
     @operation("Crystal and Brillouin zone")
     @_keeps_selection

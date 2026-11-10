@@ -88,6 +88,8 @@ RULES = {
     "sumrepeat": ("many", PLANES, "two or more cuts or maps of one kind"),
     # A band traced on a cut, or on each plane of a map.
     "ridge": ("any", PLANES, "cuts or maps"),
+    "pocket": ("one", frozenset({"k_map"}),
+               "a map converted to momentum (a k-map)"),
     # Band points come from a k-map, or from a file with nothing selected.
     "tbfit": ("optional", frozenset({"k_map", "kz_map_k"}),
               "a map in momentum (or nothing, to read points from a file)"),

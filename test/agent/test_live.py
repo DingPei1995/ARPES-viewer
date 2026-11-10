@@ -749,3 +749,46 @@ def test_bridge_requests_as_python():
     assert bridge_code("api", {"operation": "rows"}) == "print(L.rows())"
     assert bridge_code("python", {"code": "x = 1\n"}) == "x = 1"
     assert bridge_code("something_else", {"a": 1}).startswith("#")
+
+
+def test_a_fermi_pocket_through_the_operation(program, tmp_path):
+    """L.fermi_pocket: the contour, its area and what it gives for a
+    quasi-2D sample, with the notice in the answer; a picture to check it,
+    and the contour as rows."""
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
+    import test_pocket as synthetic
+    from arpes_viewer.ui.common.live import Live
+    from arpes_viewer.ui.viewers.widgets import MemoryData
+    program.add_memory_dataset(MemoryData(
+        "k_map", (synthetic.KX, synthetic.KY, synthetic.ENERGY),
+        synthetic.cube(0.01),
+        {"x": "kx (Å⁻¹)", "k": "ky (Å⁻¹)", "z": "E - E_F (eV)"},
+        source_label="FS [k-map]"), "FS [k-map]")
+    L = Live(program)
+    assert "QUASI-TWO-DIMENSIONAL" in L.help("fermi_pocket")
+    assert "UNDER TEST" in L.help("fermi_pocket")
+    rows = len(L.rows())
+    found = L.fermi_pocket("FS [k-map]", (0.0, 0.0), 0.1, 0.6, energy=-0.05,
+                           half_width=0.006, symmetry=6, cell=(3.3, 3.3, 120),
+                           energies=[-0.02, -0.06, -0.1, -0.14, -0.18],
+                           picture=str(tmp_path / "pocket.png"), to_list=True)
+    assert found["area"] == pytest.approx(synthetic.area_of(-0.05), rel=0.01)
+    assert found["centre"] == pytest.approx(list(synthetic.CENTRE), abs=0.008)
+    assert found["rays_kept"] == found["rays"] == 72
+    assert 0 < found["per_cell"] < 2 and found["frequency"] > 0
+    assert found["carrier"] == "electron" and found["mass"] > 0
+    assert len(found["series"]["areas"]) == 5
+    assert "quasi-two-dimensional" in found["notice"]
+    assert os.path.getsize(found["picture"]) > 10_000
+    assert found["rows"] == ["FS [k-map] [pocket]", "FS [k-map] [pocket area]"]
+    assert len(L.rows()) == rows + 2
+    json.dumps(found)                                  # plain types only
+    plain = L.fermi_pocket("FS [k-map]", synthetic.CENTRE, 0.1, 0.6,
+                           energy=-0.05, recentre=False)
+    assert "per_cell" not in plain and "mass" not in plain
+    with pytest.raises(ValueError, match="k-map"):
+        L.fermi_pocket("map1", (0, 0), 1, 5)
+    with pytest.raises(ValueError, match="no contour"):
+        L.fermi_pocket("FS [k-map]", (0.0, 0.0), 0.02, 0.08, energy=-0.05)
+    assert "pocket" in {tool["action"] for tool in L.tools()}
