@@ -484,6 +484,52 @@ def test_map_k_conversion_opens_a_bare_contour_and_remembers(launcher, monkeypat
     assert not contour.isVisible()
 
 
+def test_map_k_conversion_follows_the_cursor_after_remembered_settings(launcher,
+                                                                      monkeypatch):
+    """The Γ boxes follow the contour's cursor, and the cursor a typed Γ --
+    also when the dialog opened with the settings remembered for a map of
+    this size, which used to leave the boxes deaf to the cursor; and after
+    another viewer was closed with its cursor still on."""
+    lv = launcher
+    run = W.ContourWindow.run_k_conversion
+    monkeypatch.setattr(W.ContourWindow, "run_k_conversion",
+                        lambda self, s, name=None, background=True:
+                        run(self, s, name=name, background=False))
+    _select(lv, "m")
+    viewer = lv.open_selected()
+    viewer.view.set_readout_cursor_visible(True)
+    viewer.view.move_readout_to(3.0, 4.0)
+    viewer.close()                               # its cursor never switched off
+    QApplication.processEvents()
+
+    for remembered in (False, True):
+        _select(lv, "m")
+        lv.ui.ToolButtons["kmap"].click()
+        contour = lv.viewer_windows[-1]
+        dialog = contour._kconv_dialog
+        assert bool(dialog.restored) == remembered
+        if remembered:                           # the cursor shows that Γ
+            assert contour.readout_position() == pytest.approx((1.5, -2.0))
+        contour.view.move_readout_to(2.0, -3.0)                  # dragged
+        assert dialog.theta_box.value() == pytest.approx(2.0)
+        assert dialog.phi_box.value() == pytest.approx(-3.0)
+        dialog.theta_box.setValue(1.5)                           # typed
+        assert contour.readout_position() == pytest.approx((1.5, -3.0))
+        dialog.phi_box.setValue(-2.0)
+        assert contour.readout_position() == pytest.approx((1.5, -2.0))
+        # a Γ off the map stays in its box; the cursor keeps the other axis
+        dialog.theta_box.setValue(40.0)
+        assert dialog.theta_box.value() == pytest.approx(40.0)
+        assert dialog.phi_box.value() == pytest.approx(-2.0)
+        assert "outside" in dialog.note.text()
+        dialog.theta_box.setValue(1.5)
+        contour.view.move_readout_to(None, 1.0)      # dragged after typing
+        assert dialog.phi_box.value() == pytest.approx(1.0)
+        dialog.phi_box.setValue(-2.0)
+        dialog.accept()
+        QApplication.processEvents()
+
+
 def test_cut_k_conversion_picks_gamma_with_a_line_and_remembers(launcher):
     lv = launcher
     _select(lv, "c")

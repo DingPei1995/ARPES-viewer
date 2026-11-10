@@ -145,6 +145,13 @@ class DetectorDialog(QDialog):
                 "it unticked if the image is already rectangular.")
         return Step("Keystone", text, page, ready=self._keystone_problem)
 
+    def _settings_applied(self):
+        """Settings were put back (last time's, or the defaults) with the
+        controls' signals blocked: lay the trapezoid out for the "Stretch
+        along" now chosen. Its corners are not kept, and corners laid out
+        for the other axis gave a correction that meant nothing."""
+        self._reset_trapezoid()
+
     def _reset_trapezoid(self, *_):
         x0, x1 = float(self.fx.min()), float(self.fx.max())
         y0, y1 = float(self.fy.min()), float(self.fy.max())

@@ -180,6 +180,33 @@ def test_detector_window_corrects_a_map(app):
     assert result.scan.info["detcorr.fill"] == "smooth (harmonic)"
 
 
+def test_detector_window_lays_the_trapezoid_out_for_the_restored_axis(app):
+    """"Stretch along" comes back from last time with its signal blocked;
+    the trapezoid, whose corners are not kept, must be laid out for it."""
+    from arpes_viewer.ui.panels.detector import DetectorDialog
+
+    def cube():
+        return MemoryData("map", (np.arange(3.0), np.linspace(-15, 15, 61),
+                                  np.linspace(50, 52, 41)), np.ones((3, 61, 41)),
+                          {"x": "Deflector (deg)", "k": "Slit (deg)",
+                           "z": "Kinetic energy (eV)"}, source_label="m")
+
+    dialog = DetectorDialog(("m", cube()))
+    dialog.show()
+    dialog.along_combo.setCurrentIndex(1)
+    dialog.keystone_box.setChecked(True)
+    corners, label = dialog.corners(), dialog.keystone_label.text()
+    dialog.close()                                   # keeps the settings
+    again = DetectorDialog(("m", cube()))
+    assert again.along_combo.currentIndex() == 1 and again.keystone_box.isChecked()
+    assert np.allclose(again.corners(), corners)
+    assert again.keystone_label.text() == label
+    again.stepper.defaults_button.click()            # and back to the defaults
+    assert again.along_combo.currentIndex() == 0
+    assert not np.allclose(again.corners(), corners)
+    again.close()
+
+
 def test_detector_window_refuses_data_off_the_detector(app):
     from arpes_viewer.ui.panels.detector import DetectorDialog
     with pytest.raises(ValueError, match="cannot be corrected"):

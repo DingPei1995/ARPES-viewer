@@ -18,6 +18,32 @@ A Fermi-pocket analysis for quasi-two-dimensional samples (under test), a
 minimum-gradient window, a self-energy that states its bare band, and the
 agent's steps saved as one script.
 
+- **Fixed: settings put back from last time that left a picture and its
+  controls out of step.** Two cases of one mistake -- a control is filled
+  in from what was remembered, and the thing on the picture it is tied to
+  is not told.
+  - *Map k conversion: the Γ boxes stopped following the cursor.* When the
+    dialog opened with the Γ remembered from the last conversion of a map
+    of the same size, it counted that Γ as typed by the user and never read
+    the contour's readout cursor again: dragging the cursor changed nothing
+    in "Γ deflector angle" and "Γ slit angle". (It showed after any earlier
+    conversion of a same-size map, in this session or a previous one;
+    nothing another viewer did with its own cursor is involved.) The boxes
+    and the cursor are now one setting shown twice, as the cut conversion's
+    Γ line and box already were: dragging the cursor always fills the
+    boxes, and typing a value moves the cursor to it. A typed Γ outside the
+    map stays in its box -- it is a legitimate origin -- and the note says
+    the cursor cannot sit on it (`KConversionDialog.place_cursor`).
+  - *Detector corrections: the trapezoid did not match "Stretch along".*
+    The choice of axis came back from last time, the yellow trapezoid's
+    corners (which are not kept) stayed laid out for the other axis, and
+    with "Correct a trapezoidal image" also ticked the preview showed a
+    correction that meant nothing. The trapezoid is now laid out again for
+    the restored axis, and by "Defaults" (`DetectorDialog._settings_applied`).
+  - Checked and found sound: the cut k conversion (Γ line and box), the kz
+    conversion, the Brillouin-zone dialog, the tight-binding, crystal,
+    calculated-bands and repeats windows, and the linked cursors of a map's
+    contour and cut windows after one of them is closed with its cursor on.
 - **Fermi pocket (quasi-2D)...** (tool panel → Advanced, k-maps;
   `tools/spectra/pocket.py`, `ui/panels/pocket.py`, `L.fermi_pocket`).
   **Under test, and only for quasi-two-dimensional samples**: the window,

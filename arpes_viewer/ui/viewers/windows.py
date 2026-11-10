@@ -1441,9 +1441,11 @@ class KConversionDialog(QDialog):
     on the constant-energy contour -- picking the point that should become
     k = (0, 0) is the one thing the conversion genuinely needs from the user,
     and reading it off the contour is easier than typing two angles. The
-    boxes stay editable, and keep following the cursor until the moment the
-    user types into one of them (after that their value is theirs, and the
-    "Read cursor" button is how they ask for the cursor's again).
+    boxes and the cursor are one setting shown twice, like the cut
+    conversion's Γ line and its box: dragging the cursor fills the boxes,
+    typing a value moves the cursor to it. That holds however the dialog
+    started -- also from the settings remembered for a map of this size,
+    which once left the boxes deaf to the cursor.
 
     The output is in A^-1. A single Cut has its own
     dialog (:class:`CutKConversionDialog`), because it needs something a
@@ -1454,7 +1456,7 @@ class KConversionDialog(QDialog):
         super().__init__(contour)
         self.contour = contour
         self.setWindowTitle("Convert map to momentum (k)")
-        self._user_edited = False
+        self._placing = False       # moving the cursor to the boxes ourselves
 
         layout = QVBoxLayout(self)
         intro = QLabel(
@@ -1613,7 +1615,7 @@ class KConversionDialog(QDialog):
         layout.addWidget(buttons)
 
         for box in (self.theta_box, self.phi_box):
-            box.valueChanged.connect(self._mark_edited)
+            box.valueChanged.connect(self._origin_typed)
 
         # A map of the same size as one converted before is, nearly always,
         # the same sample measured again (another photon energy, another
@@ -1659,8 +1661,9 @@ class KConversionDialog(QDialog):
         index = self.precision_combo.findData(settings.get("precision"))
         if index >= 0:
             self.precision_combo.setCurrentIndex(index)
-        # The origin is now the remembered one, not the cursor's.
-        self._user_edited = True
+        # The origin is now the remembered one, not the cursor's: whoever
+        # shows the dialog puts the cursor on it (place_cursor), and from
+        # there the boxes follow the cursor as they always do.
         self._update_grid_mode()
         self.note.setText(
             "Settings from the last conversion of a map of this size "
@@ -1854,22 +1857,50 @@ class KConversionDialog(QDialog):
         box.setToolTip(tip)
         return box
 
-    def _mark_edited(self, *_):
-        self._user_edited = True
+    def _origin_typed(self, *_):
+        self.place_cursor()
+
+    def place_cursor(self):
+        """Move the contour's readout cursor to the Γ in the boxes -- a typed
+        value, or the remembered one the dialog opened with. Returns whether
+        the cursor is there now.
+
+        A coordinate outside the map cannot be shown: the cursor goes as far
+        as the other coordinate allows, the boxes keep what they hold (a Γ
+        off the map is a legitimate origin), and the note says so.
+        """
+        view = self.contour.view
+        if getattr(view, "readout_cursor", None) is None:
+            return False
+        theta, phi = self.theta_box.value(), self.phi_box.value()
+        self._placing = True
+        try:
+            problem = view.move_readout_to(theta, phi)
+            if problem is not None:
+                # One axis at a time: the one that fits still moves.
+                view.move_readout_to(theta, None)
+                view.move_readout_to(None, phi)
+        finally:
+            self._placing = False
+        if problem is not None:
+            self.note.setText(
+                f"Γ at deflector {theta:.4g} deg, slit {phi:.4g} deg is "
+                f"outside this map, so the cursor cannot sit on it. The "
+                f"values in the boxes are used; dragging the cursor "
+                f"replaces them.")
+            return False
+        return True
 
     def follow_cursor(self):
-        """Track the contour's readout cursor, until the user types a value
-        of their own."""
-        if not self._user_edited:
-            self.read_cursor(mark=False)
+        """Track the contour's readout cursor: called for every move of it.
+        Not while the cursor is being put where the boxes say -- that would
+        write the cursor's other coordinate over a box it could not reach."""
+        if not self._placing:
+            self.read_cursor()
 
-    def read_cursor(self, mark=True):
-        """Copy the readout cursor's position into the offset boxes.
-
-        There is no button for this any more: the boxes follow the cursor by
-        themselves for as long as the user has not typed a value of their
-        own, which is every moment the button would have been useful in.
-        """
+    def read_cursor(self):
+        """Copy the readout cursor's position into the offset boxes. There
+        is no button for this: the boxes follow the cursor by themselves."""
         position = self.contour.readout_position()
         if position is None:
             self.note.setText("No readout cursor on the contour yet -- "
@@ -1882,8 +1913,6 @@ class KConversionDialog(QDialog):
             box.blockSignals(False)
         self.note.setText(f"Origin taken from the cursor: "
                           f"deflector {theta:.4g} deg, slit {phi:.4g} deg.")
-        if mark:
-            self._user_edited = True
         # The boxes were set with their signals blocked; the origin moves the
         # k range, so the greyed half of the grid follows by hand.
         self._sync_grid()
@@ -4061,15 +4090,16 @@ class ContourWindow(ViewerWindow):
         dialog = KConversionDialog(self)
         dialog.setModal(False)
         self._kconv_dialog = dialog
-        dialog.follow_cursor()
         if dialog.restored:
             # Show where the remembered Γ is on this map.
-            self.view.move_readout_to(dialog.theta_box.value(),
-                                      dialog.phi_box.value())
+            dialog.place_cursor()
+        else:
+            dialog.follow_cursor()
         self._close_after_conversion = bound
 
-        # Keep the boxes on the cursor while the user drags it around, until
-        # they type a value of their own.
+        # Keep the boxes on the cursor while the user drags it around. This
+        # holds for a dialog that opened with remembered settings too: it
+        # used to count those as typed and never follow the cursor again.
         follow = lambda *_: dialog.follow_cursor()
         self.view.readoutMoved.connect(follow)
 
