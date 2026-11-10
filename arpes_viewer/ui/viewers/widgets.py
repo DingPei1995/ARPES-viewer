@@ -700,6 +700,32 @@ def _drawable(image):
     return image
 
 
+def spatial_profile(value4d, along: str, index: int, kslice, eslice,
+                    keep: str) -> np.ndarray:
+    """A spectrum against one spatial axis of a (y, x, k, E) spatial scan.
+
+    ``along`` is the spatial axis the result runs along: ``"x"`` takes the
+    row at y index ``index``, ``"y"`` the column at x index ``index``. Only
+    the (k, E) window ``kslice`` x ``eslice`` is read, which is the point:
+    on a file-backed cube this is one line of pixels and a band of each
+    spectrum, not the whole cube. ``keep`` says which spectral axis stays:
+    ``"E"`` sums over k (energy against position), ``"k"`` over E.
+    Returns ``(n_position, n_kept)``.
+    """
+    if along == "x":
+        block = value4d[int(index), :, kslice, eslice]
+    elif along == "y":
+        block = value4d[:, int(index), kslice, eslice]
+    else:
+        raise ValueError(f"along must be 'x' or 'y', not {along!r}")
+    block = np.asarray(block, dtype=np.float64)
+    if keep == "E":
+        return block.sum(axis=1)
+    if keep == "k":
+        return block.sum(axis=2)
+    raise ValueError(f"keep must be 'E' or 'k', not {keep!r}")
+
+
 class NxsData:
     """Loads one data file through the loader registry (:mod:`loader.registry`)
     and exposes the GUI-friendly derived views on top of it. ``self.scan`` is
@@ -930,6 +956,12 @@ class NxsData:
                 progress(yi + 1, ny)
         return out
 
+    def spatial_profile(self, along: str, index: int, kslice, eslice,
+                        keep: str) -> np.ndarray:
+        """A spectrum against one spatial axis; see :func:`spatial_profile`."""
+        assert self.kind == "spem_4d"
+        return spatial_profile(self.scan.value4d, along, index, kslice, eslice, keep)
+
     # -- spem_1d ----------------------------------------------------------
     @property
     def line_kmap(self) -> np.ndarray:
@@ -1083,6 +1115,11 @@ class MemoryData:
         return np.asarray(self.scan.value4d[:, :, kslice, eslice],
                           dtype=np.float64).sum(axis=(2, 3))
 
+    def spatial_profile(self, along: str, index: int, kslice, eslice,
+                        keep: str) -> np.ndarray:
+        assert self.kind == "spem_4d", self.kind
+        return spatial_profile(self.scan.value4d, along, index, kslice, eslice, keep)
+
     @property
     def line_kmap(self) -> np.ndarray:
         assert self.kind == "spem_1d", self.kind
@@ -1157,9 +1194,6 @@ class _InteractiveImageBase(pg.ImageView):
             kwargs["levels"] = (0.0, 1.0)
         return super().setImage(img, *args, **kwargs)
 
-    #: emitted when the user asks (via right-click) to apply the current
-    #: rectangle selection; the owner decides what that means.
-    selectionApplied = pyqtSignal()
     #: emitted whenever the selection rectangle moves or is created/removed,
     #: so the coordinate boxes below the panel can follow it.
     selectionChanged = pyqtSignal()
@@ -1485,14 +1519,6 @@ class _InteractiveImageBase(pg.ImageView):
         self.action_readout.setCheckable(True)
         self.action_readout.toggled.connect(self.set_readout_cursor_visible)
 
-        self.action_selection = _menu_action(menu, "Selection box")
-        self.action_selection.setCheckable(True)
-        self.action_selection.toggled.connect(self.set_selection_visible)
-
-        self.action_apply = _menu_action(menu, "Integrate selection into the other panel")
-        self.action_apply.setEnabled(False)
-        self.action_apply.triggered.connect(self.selectionApplied.emit)
-
         # Only advertised on panels where it means something (the spatial
         # overview); enable_popout_action() turns it on.
         self.action_popout = _menu_action(menu, "Open this position in a new window")
@@ -1505,27 +1531,6 @@ class _InteractiveImageBase(pg.ImageView):
         self.action_swap.setCheckable(True)
         self.action_swap.setVisible(False)
         self.action_swap.toggled.connect(self.swapToggled.emit)
-
-        # A cut along any direction, with a settable integration width. The
-        # EDC and MDC curves are the two axis-aligned special cases of this;
-        # a band that runs at an angle needs the general one, and reading it
-        # off by eye from a picture is how a dispersion gets misquoted.
-        self.action_profile = _menu_action(menu, "Line profile...")
-        self.action_profile.setToolTip(
-            "Drag a line across the image and read the intensity along it, "
-            "integrated over a width you choose.")
-        self.action_profile.triggered.connect(self.open_line_profile)
-
-        # A stack of curves across whatever is inside the selection box. The
-        # box is the natural way to say "these energies, this momentum
-        # range" -- it is already on screen and already framing the feature,
-        # so re-typing four numbers into the stack window is work the user
-        # has effectively already done.
-        self.action_stack = _menu_action(menu, "Stack plot of the selection...")
-        self.action_stack.setToolTip(
-            "EDCs or MDCs across the selection box, as a waterfall.")
-        self.action_stack.triggered.connect(self.open_stack_plot)
-        menu.aboutToShow.connect(self._sync_stack_action)
 
         # Export lives here and nowhere else. It belongs to the panel being
         # looked at rather than to the window -- a window may hold two -- and
@@ -1551,74 +1556,6 @@ class _InteractiveImageBase(pg.ImageView):
             "The frame, ticks and labels as vector PostScript, to edit in "
             "Illustrator with the image placed inside.")
         self.action_export_eps.triggered.connect(self.export_axes)
-
-    # -- stack plot -------------------------------------------------------
-    def _sync_stack_action(self):
-        """The stack entry says what it will act on before it is clicked."""
-        corners = self.selection_corners()
-        if corners is None:
-            self.action_stack.setText("Stack plot (whole panel)...")
-        else:
-            x0, y0, x1, y1 = corners
-            self.action_stack.setText(
-                f"Stack plot of the selection "
-                f"({x0:.3g}–{x1:.3g}, {y0:.3g}–{y1:.3g})...")
-
-    def open_stack_plot(self):
-        """A waterfall of curves across the selection box, or the whole panel.
-
-        The curves are taken from the **full** data and the box only sets
-        the range, rather than the data being cropped first: a curve that
-        runs a little past the box is still one curve, and cropping it would
-        change its area and so its normalisation.
-        """
-        from arpes_viewer.ui.panels.process import StackWindow
-
-        arrays = self.export_arrays()
-        if arrays is None:
-            return None
-        values, x_axis, y_axis = arrays
-        labels = (getattr(self, "x_label", "") or "x",
-                  getattr(self, "y_label", "") or "y")
-        window = StackWindow(values, (x_axis, y_axis), labels,
-                             self.export_name(), self.window(),
-                             getattr(self, "_colormap_name", "jet"))
-
-        corners = self.selection_corners()
-        if corners is not None:
-            x0, y0, x1, y1 = corners
-            # The longer side of the box says which way the curves should
-            # run: a box that is wide and short is asking for a few curves
-            # across many energies, not the other way round.
-            span_x = (x1 - x0) / (abs(x_axis[-1] - x_axis[0]) or 1.0)
-            span_y = (y1 - y0) / (abs(y_axis[-1] - y_axis[0]) or 1.0)
-            edc = span_y >= span_x
-            window.direction.setCurrentIndex(0 if edc else 1)
-            lo, hi = ((x0, x1) if edc else (y0, y1))
-            window.from_edit.setText(f"{lo:.6g}")
-            window.to_edit.setText(f"{hi:.6g}")
-            window.limit_from.setText(f"{(y0 if edc else x0):.6g}")
-            window.limit_to.setText(f"{(y1 if edc else x1):.6g}")
-            window.redraw()
-
-        window.show()
-        self._stack_window = window
-        return window
-
-    # -- line profile -----------------------------------------------------
-    def open_line_profile(self):
-        """Open (or raise) this panel's line-profile window."""
-        existing = getattr(self, "_profile_window", None)
-        if existing is not None and existing.isVisible():
-            existing.raise_()
-            return existing
-        arrays = self.export_arrays()
-        if arrays is None:
-            return None
-        window = LineProfileWindow(self, self.window())
-        window.show()
-        self._profile_window = window
-        return window
 
     # -- export ----------------------------------------------------------
     def export_arrays(self):
@@ -1881,13 +1818,6 @@ class _InteractiveImageBase(pg.ImageView):
         self.action_swap.setVisible(enabled)
         if text:
             self.action_swap.setText(text)
-
-    def enable_selection_action(self, enabled: bool, text: str = None):
-        """Owners call this to advertise (or hide) the 'apply selection'
-        menu entry, which only makes sense on some pages."""
-        self.action_apply.setVisible(enabled)
-        if text:
-            self.action_apply.setText(text)
 
     # -- axes ------------------------------------------------------------
     def _store_axes(self, xarray, yarray):
@@ -2211,9 +2141,6 @@ class _InteractiveImageBase(pg.ImageView):
         elif not visible and self.selection_roi is not None:
             self.removeItem(self.selection_roi)
             self.selection_roi = None
-            self.action_apply.setEnabled(False)
-        if self.action_selection.isChecked() != visible:
-            self.action_selection.setChecked(visible)
         self.selectionChanged.emit()
 
     def _build_selection_roi(self):
@@ -2237,7 +2164,6 @@ class _InteractiveImageBase(pg.ImageView):
         self.selection_roi.addScaleHandle([1, 1], [0, 0])
         self.selection_roi.addScaleHandle([0, 0], [1, 1])
         self.plot.addItem(self.selection_roi, ignoreBounds=True)
-        self.action_apply.setEnabled(True)
         self.selection_roi.sigRegionChanged.connect(lambda *_: self.selectionChanged.emit())
 
     def selection_corners(self):
@@ -3081,212 +3007,6 @@ def _pin_axis_geometry(image_view, curve_readout, left_width: int = 62,
     curve_readout.edc_plot.getPlotItem().getAxis("bottom").setHeight(bottom_height)
 
 
-class LineProfileWindow(QWidget):
-    """Intensity along an arbitrary line across a panel, integrated over a
-    width.
-
-    The EDC and MDC readouts are the two axis-aligned special cases of this.
-    A band that runs at an angle -- which is most of them away from a high
-    symmetry direction -- has no axis-aligned cut that follows it, and the
-    usual workaround is to read positions off the picture by eye. This gives
-    the actual numbers, and can hand them to the figure composer or add them
-    to the list as a dataset.
-
-    The line lives on the panel it was opened from and is removed when this
-    window closes, so a panel is never left with a stray ROI on it.
-    """
-
-    def __init__(self, view, parent=None):
-        super().__init__(parent, Qt.Window)
-        self.view = view
-        self.setWindowTitle("Line profile")
-        self.resize(640, 420)
-
-        arrays = view.export_arrays()
-        values, x_axis, y_axis = arrays
-        self.x_axis = np.asarray(x_axis, dtype=float)
-        self.y_axis = np.asarray(y_axis, dtype=float)
-
-        layout = QVBoxLayout(self)
-        self.plot = pg.PlotWidget()
-        self.plot.setLabel("bottom", "distance along the line")
-        self.plot.setLabel("left", "Intensity")
-        strip_stock_menu(self.plot.getPlotItem())
-        layout.addWidget(self.plot, 1)
-
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Width"))
-        self.width_box = QDoubleSpinBox()
-        self.width_box.setDecimals(5)
-        self.width_box.setRange(0.0, 1e6)
-        span_y = float(abs(self.y_axis[-1] - self.y_axis[0])) or 1.0
-        self.width_box.setSingleStep(span_y / 100)
-        self.width_box.setToolTip(
-            "Integrate this far either side of the line, in the y axis's "
-            "units. Zero samples the line itself.")
-        self.width_box.valueChanged.connect(self.refresh)
-        row.addWidget(self.width_box)
-        self.samples_box = QSpinBox()
-        self.samples_box.setRange(16, 4000)
-        self.samples_box.setValue(400)
-        self.samples_box.valueChanged.connect(self.refresh)
-        row.addWidget(QLabel("Samples"))
-        row.addWidget(self.samples_box)
-        self.readout = QLabel("")
-        row.addWidget(self.readout, 1)
-        to_list = QPushButton("To list")
-        to_list.setToolTip("Add the profile to the main list as a dataset.")
-        to_list.clicked.connect(self.to_list)
-        row.addWidget(to_list)
-        layout.addLayout(row)
-
-        # Start across the middle of the image, which is visible whatever
-        # the data is and needs no guessing about where the interesting
-        # feature is.
-        x0, x1 = float(self.x_axis[0]), float(self.x_axis[-1])
-        y0, y1 = float(self.y_axis[0]), float(self.y_axis[-1])
-        self.roi = pg.LineSegmentROI(
-            [[x0 + 0.2 * (x1 - x0), y0 + 0.5 * (y1 - y0)],
-             [x0 + 0.8 * (x1 - x0), y0 + 0.5 * (y1 - y0)]],
-            pen=pg.mkPen("#f5a623", width=3),
-            hoverPen=pg.mkPen("#ffcc66", width=4))
-        for handle in self.roi.getHandles():
-            handle.pen = pg.mkPen("#f5a623", width=3)
-        self.view.view_box.addItem(self.roi)
-        self.roi.sigRegionChanged.connect(self.refresh)
-        self.refresh()
-
-    def points(self):
-        """The line's two ends in data coordinates."""
-        handles = self.roi.getSceneHandlePositions()
-        ends = [self.view.view_box.mapSceneToView(position)
-                for _, position in handles]
-        return ((float(ends[0].x()), float(ends[0].y())),
-                (float(ends[1].x()), float(ends[1].y())))
-
-    def profile(self):
-        """``(distance, intensity)`` along the line."""
-        arrays = self.view.export_arrays()
-        if arrays is None:
-            return None, None
-        values, x_axis, y_axis = arrays
-        values = np.asarray(values, dtype=float)
-        x_axis = np.asarray(x_axis, dtype=float)
-        y_axis = np.asarray(y_axis, dtype=float)
-        (px0, py0), (px1, py1) = self.points()
-        n = int(self.samples_box.value())
-        xs = np.linspace(px0, px1, n)
-        ys = np.linspace(py0, py1, n)
-
-        length = float(np.hypot(px1 - px0, py1 - py0))
-        distance = np.linspace(0.0, length, n)
-
-        width = float(self.width_box.value())
-        if width > 0 and length > 0:
-            # Offsets are taken perpendicular to the line in *data* units,
-            # which is the only definition that stays put when the window is
-            # resized -- a perpendicular in pixels is not a perpendicular in
-            # the data.
-            nx, ny = -(py1 - py0) / length, (px1 - px0) / length
-            steps = max(3, int(round(width / _axis_step_of(y_axis))) | 1)
-            offsets = np.linspace(-width, width, steps)
-        else:
-            nx, ny, offsets = 0.0, 0.0, np.array([0.0])
-
-        total = np.zeros(n)
-        count = np.zeros(n)
-        for offset in offsets:
-            sample = _sample_grid(values, x_axis, y_axis,
-                                  xs + nx * offset, ys + ny * offset)
-            good = np.isfinite(sample)
-            total = np.where(good, total + np.nan_to_num(sample), total)
-            count = count + good
-        with np.errstate(invalid="ignore", divide="ignore"):
-            intensity = np.where(count > 0, total / np.maximum(count, 1e-12),
-                                 np.nan)
-        return distance, intensity
-
-    def refresh(self):
-        distance, intensity = self.profile()
-        if distance is None:
-            return
-        self.plot.clear()
-        self.plot.plot(distance, intensity, pen=pg.mkPen("#bd4921", width=2))
-        (px0, py0), (px1, py1) = self.points()
-        self.readout.setText(
-            f"({px0:.4g}, {py0:.4g}) \u2192 ({px1:.4g}, {py1:.4g})   "
-            f"length {distance[-1]:.4g}")
-
-    def to_list(self):
-        distance, intensity = self.profile()
-        if distance is None:
-            return None
-        owner = self.view.window()
-        emitter = getattr(owner, "datasetCreated", None)
-        if emitter is None:
-            QMessageBox.information(
-                self, "Line profile",
-                "This window cannot add datasets to the list. Export the "
-                "panel instead, or open the profile from a viewer.")
-            return None
-        (px0, py0), (px1, py1) = self.points()
-        data = MemoryData(
-            "cut", (distance, np.array([0.0])),
-            np.asarray(intensity, dtype=float).reshape(-1, 1),
-            {"x": "distance along the line", "y": "Intensity"},
-            source_label=f"{self.view.export_prefix or 'panel'}_profile",
-            parameters={"from": [px0, py0], "to": [px1, py1],
-                        "width": self.width_box.value()},
-            prefix="proc.profile")
-        emitter.emit(data)
-        return data
-
-    def closeEvent(self, event):
-        try:
-            self.view.view_box.removeItem(self.roi)
-        except Exception:
-            pass
-        self.view._profile_window = None
-        super().closeEvent(event)
-
-
-def _axis_step_of(axis) -> float:
-    axis = np.asarray(axis, dtype=float)
-    if axis.size < 2:
-        return 1.0
-    step = abs(float(axis[-1] - axis[0])) / (axis.size - 1)
-    return step if step > 0 else 1.0
-
-
-def _sample_grid(values, x_axis, y_axis, xq, yq):
-    """Bilinear samples of a regular grid, NaN-aware, outside -> NaN."""
-    from scipy import ndimage
-
-    x0, y0 = float(x_axis[0]), float(y_axis[0])
-    dx = _axis_step_of(x_axis) * (1 if x_axis[-1] >= x_axis[0] else -1)
-    dy = _axis_step_of(y_axis) * (1 if y_axis[-1] >= y_axis[0] else -1)
-    ix = (np.asarray(xq, float) - x0) / dx
-    iy = (np.asarray(yq, float) - y0) / dy
-    # A handle dragged onto the edge of the image lands a rounding error
-    # past it, and a strict bounds test then drops that one sample -- a NaN
-    # at the end of every profile that happens to span the full width. The
-    # tolerance is a millionth of a pixel, far too small to invent data.
-    TOL = 1e-6
-    inside = ((ix >= -TOL) & (ix <= values.shape[0] - 1 + TOL) &
-              (iy >= -TOL) & (iy <= values.shape[1] - 1 + TOL))
-    ix = np.clip(ix, 0.0, values.shape[0] - 1)
-    iy = np.clip(iy, 0.0, values.shape[1] - 1)
-
-    mask = np.isfinite(values)
-    filled = np.where(mask, values, 0.0)
-    coords = np.array([ix, iy])
-    num = ndimage.map_coordinates(filled, coords, order=1, mode="constant", cval=0.0)
-    den = ndimage.map_coordinates(mask.astype(float), coords, order=1,
-                                  mode="constant", cval=0.0)
-    with np.errstate(invalid="ignore", divide="ignore"):
-        return np.where((den > 0.5) & inside, num / np.maximum(den, 1e-12), np.nan)
-
-
 class LevelBar(QWidget):
     """A slim two-handle min/max bar for the image's colour scaling, sitting
     above the image.
@@ -4027,8 +3747,9 @@ class ImagePanel(QWidget):
     there and re-runs the integration. That makes an exact region (e.g.
     x 110..120, y 110..120) reproducible, which dragging by eye is not.
 
-    ``selectionApplied`` fires for both the Refresh button and the
-    right-click menu entry, so the owner only wires one signal.
+    ``selectionApplied`` fires for the Refresh button. A window that puts a
+    :class:`SelectionBar` above the panel turns this row off
+    (:attr:`selection_row_enabled`), since the bar carries the same boxes.
     """
 
     selectionApplied = pyqtSignal()
@@ -4086,6 +3807,13 @@ class ImagePanel(QWidget):
         plot_grid.addWidget(view, 0, 0)
         plot_grid.setColumnStretch(0, 4)
         plot_grid.setRowStretch(0, 4)
+        self._plot_grid = plot_grid
+        #: the two pictures a window may put beside and under the image
+        #: (see :meth:`set_side_views`)
+        self.side_views = ()
+        #: whether the selection coordinates show under the image; a window
+        #: with a :class:`SelectionBar` above the panel turns this off
+        self.selection_row_enabled = True
         if self.curves is not None:
             plot_grid.addWidget(self.curves.edc_plot, 0, 1)
             plot_grid.addWidget(self.curves.mdc_plot, 1, 0)
@@ -4093,7 +3821,6 @@ class ImagePanel(QWidget):
             # stays the thing you are actually looking at.
             plot_grid.setColumnStretch(1, 1)
             plot_grid.setRowStretch(1, 1)
-            self._plot_grid = plot_grid
             self.curves.link_to(view)
             _pin_axis_geometry(view, self.curves)
         self.aspect_box = AspectBox(plot_cell, view, self)
@@ -4194,7 +3921,6 @@ class ImagePanel(QWidget):
             self._plot_grid.setRowStretch(1, 0)
 
         view.selectionChanged.connect(self._sync_from_selection)
-        view.selectionApplied.connect(self.selectionApplied.emit)
         view.readoutToggled.connect(self._on_cursor_toggled)
         view.readoutMoved.connect(lambda *_: self._sync_cursor_row())
         self.set_axis_colors(*view._readout_colors)
@@ -4403,6 +4129,33 @@ class ImagePanel(QWidget):
         self.curves.set_source(frame, self.view._xarray, self.view._yarray,
                                self.view.x_label or "x", self.view.y_label or "y")
 
+    # -- pictures beside and under the image ---------------------------------
+    def set_side_views(self, right, bottom, left_width: int = 62,
+                       bottom_height: int = 30):
+        """Put ``right`` beside the image and ``bottom`` under it, in the
+        cells the EDC and MDC use on a curves panel, hidden until
+        :meth:`show_side_views`. Both are pyqtgraph PlotWidgets; their
+        facing axes are pinned to the image's so the three line up."""
+        if self.curves is not None:
+            raise ValueError("a curves panel has no free cells for side views")
+        self._plot_grid.addWidget(right, 0, 1)
+        self._plot_grid.addWidget(bottom, 1, 0)
+        self.view.view.getAxis("left").setWidth(left_width)
+        self.view.view.getAxis("bottom").setHeight(bottom_height)
+        bottom.getPlotItem().getAxis("left").setWidth(left_width)
+        right.getPlotItem().getAxis("bottom").setHeight(bottom_height)
+        self.side_views = (right, bottom)
+        self.show_side_views(False)
+
+    def show_side_views(self, visible: bool):
+        """Show or hide the side views, giving their space back to the
+        image when hidden (a grid keeps the stretch of an empty row)."""
+        for widget in self.side_views:
+            widget.setVisible(bool(visible))
+        self._plot_grid.setColumnStretch(1, 1 if visible else 0)
+        self._plot_grid.setRowStretch(1, 1 if visible else 0)
+        self.aspect_box.relayout()
+
     # -- display options -------------------------------------------------
     def _on_smooth_changed(self, *_):
         on = self.smooth_cb.isChecked()
@@ -4432,7 +4185,8 @@ class ImagePanel(QWidget):
     # -- selection -------------------------------------------------------
     def _sync_from_selection(self):
         corners = self.view.selection_corners()
-        self.selection_widget.setVisible(corners is not None)
+        self.selection_widget.setVisible(corners is not None
+                                         and self.selection_row_enabled)
         if corners is None:
             return
         for spin, value in zip(self.corner_spins, corners):
@@ -4445,11 +4199,133 @@ class ImagePanel(QWidget):
         self.view.set_selection_corners(*values)
         self.selectionApplied.emit()
 
-    def set_selection_enabled(self, enabled: bool, text: str = None):
-        """Forwarded to the view; also hides the coordinate row for panels
-        where region integration isn't defined."""
-        self.view.enable_selection_action(enabled, text)
-        self.refresh_button.setVisible(enabled)
+class SelectionBar(QWidget):
+    """``[ ] Selection box  x0 [..] y0 [..] x1 [..] y1 [..]  [Refresh]``,
+    in a row above a panel.
+
+    Ticking the box puts the selection rectangle on the panel; dragging it
+    or typing its corners computes nothing -- the boxes only follow, and
+    the note says the result is out of date. **Refresh** (or Enter in a
+    corner box) moves the rectangle to the typed corners and emits
+    :attr:`applied`, which is when the owner does the integration. On a
+    large spatial scan an integration reads a good part of the file, so it
+    is run when asked for, not on every pixel the mouse crosses.
+
+    The panel's own coordinate row under the image is turned off: the
+    corners are here instead.
+    """
+
+    #: Refresh was pressed with the box on
+    applied = pyqtSignal()
+    #: the box was ticked (True) or unticked (False)
+    toggled = pyqtSignal(bool)
+
+    def __init__(self, panel, refresh_tip: str = "", parent=None):
+        super().__init__(parent)
+        self.panel = panel
+        self.view = panel.view
+        panel.selection_row_enabled = False
+        self._pending = False
+
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(6)
+        self.checkbox = QCheckBox("Selection box")
+        self.checkbox.setToolTip(
+            "Put a rectangle on the picture below. Drag it or type its corners, "
+            "then press Refresh to integrate over it.")
+        row.addWidget(self.checkbox)
+        self.corner_spins = []
+        for label in ("x0", "y0", "x1", "y1"):
+            row.addWidget(QLabel(label))
+            spin = QDoubleSpinBox()
+            spin.setDecimals(4)
+            spin.setRange(-1e9, 1e9)
+            spin.setMaximumWidth(90)
+            spin.setKeyboardTracking(False)
+            row.addWidget(spin)
+            self.corner_spins.append(spin)
+        self.refresh_button = QPushButton("Refresh")
+        self.refresh_button.setToolTip(refresh_tip or
+                                       "Apply the corners and integrate over the box.")
+        row.addWidget(self.refresh_button)
+        self.note = QLabel("")
+        self.note.setStyleSheet("color: #b9770e;")
+        row.addWidget(self.note)
+        row.addStretch(1)
+        # Enter in a corner box applies it, as Refresh does
+        self.enter_redraws = self.refresh
+
+        self.checkbox.toggled.connect(self._on_toggled)
+        self.refresh_button.clicked.connect(self.refresh)
+        self.view.selectionChanged.connect(self._follow)
+        self._enable(False)
+
+    def _enable(self, on: bool):
+        for spin in self.corner_spins:
+            spin.setEnabled(on)
+        self.refresh_button.setEnabled(on)
+
+    def is_on(self) -> bool:
+        return self.checkbox.isChecked()
+
+    def _on_toggled(self, on: bool):
+        self.view.set_selection_visible(bool(on))
+        self._enable(on)
+        if on:
+            self._follow()
+            self._mark(True)
+        else:
+            self._mark(False)
+        self.toggled.emit(bool(on))
+
+    def _mark(self, pending: bool):
+        self._pending = bool(pending)
+        self.note.setText("press Refresh to update" if pending else "")
+
+    def _follow(self, *_):
+        """The boxes follow the rectangle; nothing is computed."""
+        corners = self.view.selection_corners()
+        if corners is None:
+            if self.checkbox.isChecked():     # removed from elsewhere
+                self.checkbox.blockSignals(True)
+                self.checkbox.setChecked(False)
+                self.checkbox.blockSignals(False)
+                self._enable(False)
+                self._mark(False)
+            return
+        for spin, value in zip(self.corner_spins, corners):
+            spin.blockSignals(True)
+            spin.setValue(value)
+            spin.blockSignals(False)
+        self._mark(True)
+
+    def corners(self):
+        """The rectangle's ``(x0, y0, x1, y1)``, or None while it is off."""
+        return self.view.selection_corners() if self.is_on() else None
+
+    def set_corners(self, x0, y0, x1, y1, apply: bool = True):
+        """Tick the box, put the rectangle at these corners and (``apply``)
+        refresh -- the scripted equivalent of typing them and pressing
+        Refresh."""
+        if not self.is_on():
+            self.checkbox.setChecked(True)
+        for spin, value in zip(self.corner_spins, (x0, y0, x1, y1)):
+            spin.blockSignals(True)
+            spin.setValue(float(value))
+            spin.blockSignals(False)
+        if apply:
+            self.refresh()
+        else:
+            self.view.set_selection_corners(x0, y0, x1, y1)
+
+    def refresh(self):
+        """Move the rectangle to the typed corners and emit :attr:`applied`."""
+        if not self.is_on():
+            return
+        self.view.set_selection_corners(*[spin.value() for spin in self.corner_spins])
+        self._mark(False)
+        self.applied.emit()
 
 
 # --------------------------------------------------------------------------
@@ -4729,7 +4605,6 @@ class FrameWindow(QWidget):
 
         self.view = FrameImageView()
         self.panel = ImagePanel(title, self.view, curves=True, parent=self)
-        self.view.enable_selection_action(False)
         # Same axis/grid/alpha row as the main viewers, directly under the
         # colormap, so a snapshot is as adjustable as the live view.
         self.view_bar = ViewOptionsBar(self)

@@ -18,6 +18,33 @@ A Fermi-pocket analysis for quasi-two-dimensional samples (under test), a
 minimum-gradient window, a self-energy that states its bare band, and the
 agent's steps saved as one script.
 
+- **The SPEM viewer is two windows: the spatial map, and its spectrum in
+  the cut viewer.** Each can be sized and placed on its own, and the
+  spectrum window has every tool a cut window has (k conversion, band
+  straightening, saving or freezing the slice), acting on the spectrum on
+  screen. Closing either closes both, and neither keeps the other in
+  memory afterwards (`SpatialScanWindow`, `SpemCutWindow`).
+  - *Selection boxes above the pictures, applied on Refresh.* "Selection
+    box" and "Integrate selection into the other panel" left the
+    right-click menu. A row above each picture now holds the box, its
+    corners and **Refresh**: dragging the box or typing corners computes
+    nothing, and the integration -- the spectrum summed over the map's box,
+    or the map summed over the spectrum's k and E -- runs only when Refresh
+    is pressed, since on a large scan it reads much of the file. While the
+    map's box is on, the spectrum is its sum and no longer follows the
+    cursor; unticking the spectrum's box brings back the full map
+    (`widgets.SelectionBar`).
+  - *Energy or k against position.* Two boxes above the map, "E vs
+    position" and "k vs position" (one at a time), draw beside and under
+    the map the spectrum through the cursor against each spatial axis,
+    sharing the map's axes. Two dashed lines on the spectrum set the band
+    of k (or of energy) it is integrated over; only that band of one line
+    of pixels is read, and only once the cursor rests
+    (`widgets.spatial_profile`).
+- **Removed: "Line profile..." and "Stack plot of the selection..." from
+  the pictures' right-click menu.** Little used, and the second depended on
+  the selection box that has left the menu. The Stack plot button of the
+  tool panel is unchanged.
 - **Fixed: settings put back from last time that left a picture and its
   controls out of step.** Two cases of one mistake -- a control is filled
   in from what was remembered, and the thing on the picture it is tied to

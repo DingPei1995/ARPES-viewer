@@ -5,8 +5,9 @@ The per-file viewer windows. The main ``ARPES_viewer`` window is only a
 launcher -- a file list plus metadata -- and double-clicking a file opens
 one of these on top of it:
 
-- :class:`SpatialScanWindow` (``spem_4d`` / ``spem_1d``): the spatial map
-  and, beside it, the E-vs-k spectrum at the cursor.
+- :class:`SpatialScanWindow` (``spem_4d`` / ``spem_1d``): the spatial map,
+  with the E-vs-k spectrum at the cursor in a window of its own
+  (:class:`SpemCutWindow`, the cut viewer); the two close together.
 - :class:`CutWindow` (``cut``): the single E-vs-k spectrum.
 - :class:`ContourWindow` (``map``): the constant-energy contour, which is
   what a deflector map is normally opened on. Its two buttons open the two
@@ -30,7 +31,7 @@ import os
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QPainterPath
 from arpes_viewer.ui.common import jobs
 from arpes_viewer.ui.common.screen import fits_screen
@@ -61,6 +62,7 @@ from arpes_viewer.ui.viewers.widgets import (SpatialImageView, FrameImageView, I
                                 _SliceControl, ViewOptionsBar, apply_colormap,
                                 separator, section_label, scroll_strip,
                                 strip_stock_menu, add_button, ButtonRow,
+                                SelectionBar,
                                 AXIS_COLORS, COLORMAP_NAMES)
 
 
@@ -886,291 +888,6 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
 
 
 # --------------------------------------------------------------------------
-# Real-space scans
-# --------------------------------------------------------------------------
-class SpatialScanWindow(ViewerWindow):
-    """Spatial map plus the E-vs-k spectrum at the cursor -- double-clicking
-    a spatial scan opens both together, since neither is much use without
-    the other."""
-
-    def __init__(self, data, filename, colormap, flip):
-        super().__init__(data, filename, colormap, flip)
-        scan = data.scan
-        labels = scan.labels
-
-        self.build_toolbar()
-        self.statusBar().showMessage(
-            "Drag the red target to move the readout pixel. Right-click a panel for the "
-            "readout cursor (EDC/MDC), a selection box and its integration, or a new "
-            "window at this position.")
-
-        panels = QHBoxLayout()
-        self.spatial_view = SpatialImageView()
-        self.spatial_panel = ImagePanel("Spatial overview", self.spatial_view,
-                                        lock_ratio=True, parent=self)
-        self.frame_view = FrameImageView()
-        self.frame_panel = ImagePanel("E vs k at cursor / selection", self.frame_view,
-                                      curves=True, parent=self)
-        panels.addWidget(self.spatial_panel)
-        panels.addWidget(self.frame_panel)
-        self.root.addLayout(panels, stretch=1)
-
-        self.frame_label = ""   # what the spectrum panel currently holds
-        #: Whether the spatial panel shows the scan's Y axis horizontally.
-        #: The file says which stage was scanned first, and that is what this
-        #: program calls X -- but a lab whose own convention is the other way
-        #: round would see its maps transposed, so the view can be flipped
-        #: without touching the data. Only the *display* swaps: the cursor
-        #: readout, every export and every saved slice keep the axes the
-        #: measurement had.
-        self.swap_xy = False
-        self._spatial_map = None      # the current map in (y, x) data order
-
-        if data.kind == "spem_4d":
-            self.frame_view.set_axis_labels(labels.get("k"), labels.get("z"))
-            self._set_spatial_map(data.spatial_overview)
-            self.spatial_view.enable_swap_action(True)
-            self.spatial_view.swapToggled.connect(self.set_swap_xy)
-            self.spatial_view.enable_selection_action(
-                True, "Integrate selection -> E vs k panel")
-            self.frame_view.enable_selection_action(
-                True, "Integrate selection -> spatial panel")
-            self._show_frame_at(len(scan.y) // 2, len(scan.x) // 2)
-        else:  # spem_1d
-            self.spatial_view.set_axis_labels(labels.get("x"), labels.get("y"))
-            self.frame_view.set_axis_labels(labels.get("y"), labels.get("z"))
-            self.spatial_view.set_data(data.line_kmap.T, scan.x, scan.y)
-            # The two-way region integration needs a 2D spatial map to write
-            # back onto, which a line scan does not have.
-            self.spatial_view.enable_selection_action(False)
-            self.frame_view.enable_selection_action(False)
-            self._show_frame_at_x(len(scan.x) // 2)
-
-        self.spatial_view.enable_popout_action(True, "Open this position in a new window")
-        self.spatial_view.pixelChanged.connect(self._on_cursor_moved)
-        self.spatial_panel.selectionApplied.connect(self._on_spatial_selection)
-        self.frame_panel.selectionApplied.connect(self._on_frame_selection)
-        self.spatial_view.popoutRequested.connect(self.open_popout)
-
-        self._apply_default_orientation()
-        self.set_colormap(colormap, flip)
-        self.apply_display_options()
-
-    def image_panels(self):
-        return (self.spatial_panel, self.frame_panel)
-
-    def panel_export_names(self):
-        # exportable_panels() lists the spectrum first (it is the panel the
-        # window exists for); image_panels() lists the map first, because
-        # that is the one on the left. Spelt out rather than derived.
-        return ("SpatialMap", "EvsK")
-
-    def slice_label(self) -> str:
-        return self.frame_label
-
-    # -- which way round the spatial map is drawn -------------------------
-    def _set_spatial_map(self, map_yx, reset_cursor: bool = True):
-        """Draw a spatial map given in the data's own (y, x) order, the way
-        round the swap setting asks for."""
-        scan = self.data.scan
-        labels = scan.labels
-        self._spatial_map = np.asarray(map_yx)
-        if self.swap_xy:
-            self.spatial_view.set_axis_labels(labels.get("y"), labels.get("x"))
-            self.spatial_view.set_data(self._spatial_map.T, scan.y, scan.x,
-                                       reset_cursor=reset_cursor)
-        else:
-            self.spatial_view.set_axis_labels(labels.get("x"), labels.get("y"))
-            self.spatial_view.set_data(self._spatial_map, scan.x, scan.y,
-                                       reset_cursor=reset_cursor)
-
-    def _apply_default_orientation(self):
-        """Draw the spatial map the way its beamline does, where the loader
-        said how (``Spatial.swap_xy`` / ``Spatial.invert_x`` /
-        ``Spatial.invert_y`` in the metadata -- set for ANTARES scans only,
-        see ``loader.beamlines.antares.antares_spatial_orientation``). Anything else
-        keeps the plotting default. Display only, and only the starting
-        state: right-click "swap" and the view bar's "Inv" boxes still
-        change it, and the data keeps the order the file has."""
-        info = getattr(self.data.scan, "info", {}) or {}
-
-        def flag(key):
-            value = info.get(key)
-            if value is None:
-                return None
-            if isinstance(value, (bytes, np.bytes_)):
-                value = value.decode("utf-8", "replace")
-            if isinstance(value, str):
-                return value.strip().lower() in ("1", "true", "yes")
-            return bool(value)
-
-        # Swap first: it carries any inversion with it, and the inversions
-        # below are for the screen axes as they end up.
-        if flag("Spatial.swap_xy") and self.data.kind == "spem_4d":
-            self.set_swap_xy(True)
-        for axis, key in ((0, "Spatial.invert_x"), (1, "Spatial.invert_y")):
-            value = flag(key)
-            if value is not None:
-                self.spatial_view.set_axis_inverted(axis, value)
-
-    def set_swap_xy(self, on: bool):
-        """Exchange the spatial panel's two axes, keeping the cursor on the
-        same measured pixel."""
-        on = bool(on)
-        if on == self.swap_xy or self._spatial_map is None:
-            return
-        cursor = self.spatial_view.cursor.pos()
-        # A reversed axis stays reversed when it moves to the other side:
-        # the direction belongs to the measured axis, not to the screen.
-        inverted = (self.spatial_view.axis_inverted(0),
-                    self.spatial_view.axis_inverted(1))
-        self.spatial_view.set_axis_inverted(0, inverted[1])
-        self.spatial_view.set_axis_inverted(1, inverted[0])
-        self.swap_xy = on
-        self._set_spatial_map(self._spatial_map, reset_cursor=False)
-        # The pixel the cursor was on has not moved; its coordinates have
-        # swapped places, so the cursor follows them.
-        self.spatial_view.cursor.setPos((float(cursor.y()), float(cursor.x())))
-        self.spatial_panel.sync_level_range()
-        self.set_colormap(self.colormap, self.flip)
-        self.spatial_view.fit_to_data()
-        action = self.spatial_view.action_swap
-        if action.isChecked() != on:
-            action.blockSignals(True)
-            action.setChecked(on)
-            action.blockSignals(False)
-        view_bar = getattr(self, "view_bar", None)
-        if view_bar is not None and view_bar.panels:
-            view_bar.sync_from_view()
-        self.statusBar().showMessage(
-            "Spatial map drawn with Y horizontal" if on
-            else "Spatial map drawn with X horizontal")
-
-    def _axis_names(self):
-        """Short names of the scan's two spatial axes for readouts -- the
-        stage ("ST", "PIX") where the title carries one, else x/y."""
-        labels = self.data.scan.labels or {}
-        names = []
-        for slot in ("x", "y"):
-            title = str(labels.get(slot) or "").split(" (")[0].strip()
-            names.append(title if title and title not in ("X", "Y") else slot)
-        return tuple(names)
-
-    def _data_pixel(self, row: int, col: int):
-        """(y index, x index) for a pixel the *display* reported."""
-        return (col, row) if self.swap_xy else (row, col)
-
-    # -- cursor / frames -------------------------------------------------
-    def _show_frame_at(self, row, col):
-        scan = self.data.scan
-        self.frame_view.set_frame(self.data.frame_at(row, col), scan.k, scan.z)
-        self.frame_panel.sync_curve_source()
-        self.frame_panel.sync_level_range()
-        nx, ny = self._axis_names()
-        self.frame_label = f"{nx}={scan.x[col]:.4g}, {ny}={scan.y[row]:.4g}"
-        self.statusBar().showMessage(f"pixel ({self.frame_label})")
-
-    def _show_frame_at_x(self, xi):
-        scan = self.data.scan
-        self.frame_view.set_frame(self.data.frame_at_x(xi), scan.y, scan.z)
-        self.frame_panel.sync_curve_source()
-        self.frame_panel.sync_level_range()
-        self.frame_label = f"{self._axis_names()[0]}={scan.x[xi]:.4g}"
-        self.statusBar().showMessage(self.frame_label)
-
-    def _on_cursor_moved(self, row, col):
-        if self.data.kind == "spem_4d":
-            self._show_frame_at(*self._data_pixel(row, col))
-        else:
-            self._show_frame_at_x(col)
-
-    # -- region integration ----------------------------------------------
-    def _on_spatial_selection(self):
-        if self.data.kind != "spem_4d":
-            return
-        ranges = self.spatial_view.selection_index_ranges()
-        if ranges is None:
-            self.statusBar().showMessage("Draw a selection box first "
-                                          "(right-click -> Selection box)")
-            return
-        (ia0, ia1), (ib0, ib1) = ranges
-        # The ranges come back in display order; swapped, the horizontal one
-        # is the scan's Y.
-        (ix0, ix1), (iy0, iy1) = (((ib0, ib1), (ia0, ia1)) if self.swap_xy
-                                  else ((ia0, ia1), (ib0, ib1)))
-        scan = self.data.scan
-        frame = self.data.frame_over_region(slice(iy0, iy1 + 1), slice(ix0, ix1 + 1))
-        self.frame_view.set_frame(frame, scan.k, scan.z)
-        self.frame_panel.sync_curve_source()
-        self.frame_panel.sync_level_range()
-        nx, ny = self._axis_names()
-        self.frame_label = (f"{nx}[{scan.x[ix0]:.4g}..{scan.x[ix1]:.4g}], "
-                            f"{ny}[{scan.y[iy0]:.4g}..{scan.y[iy1]:.4g}] integrated")
-        self.set_colormap(self.colormap, self.flip)
-        self.statusBar().showMessage(
-            f"E vs k integrated over spatial {self.spatial_view.selection_summary()}")
-
-    def _on_frame_selection(self):
-        if self.data.kind != "spem_4d":
-            return
-        ranges = self.frame_view.selection_index_ranges()
-        if ranges is None:
-            self.statusBar().showMessage("Draw a selection box first "
-                                          "(right-click -> Selection box)")
-            return
-        (ik0, ik1), (ie0, ie1) = ranges
-        scan = self.data.scan
-        smap = self.data.spatial_over_region(slice(ik0, ik1 + 1), slice(ie0, ie1 + 1))
-        # The cursor stays put: this changes what the map shows, not which
-        # pixel the user was looking at.
-        self._set_spatial_map(smap, reset_cursor=False)
-        self.spatial_panel.sync_level_range()
-        self.set_colormap(self.colormap, self.flip)
-        self.statusBar().showMessage(
-            f"Spatial map integrated over {self.frame_view.selection_summary()}")
-
-    # -- comparison snapshots --------------------------------------------
-    def open_popout(self):
-        frame = self.frame_view.last_frame
-        if frame is None:
-            return
-        scan = self.data.scan
-        x_axis = scan.k if self.data.kind == "spem_4d" else scan.y
-        window = FrameWindow(f"{self.filename}  @ {self.frame_label or 'current view'}",
-                             frame, x_axis, scan.z,
-                             x_label=self.frame_view.x_label,
-                             y_label=self.frame_view.y_label,
-                             colormap=self.colormap, flip=self.flip,
-                             **self._display_levels(frame))
-        self._arm_figure_source(window)
-        window.closed.connect(lambda w: self.popout_windows.remove(w)
-                              if w in self.popout_windows else None)
-        self.popout_windows.append(window)
-        window.show()
-        self.statusBar().showMessage(f"Opened snapshot ({len(self.popout_windows)} open)")
-
-    def exportable_panels(self):
-        scan = self.data.scan
-        labels = scan.labels
-        out = []
-        if self.frame_view.last_frame is not None:
-            x_axis = scan.k if self.data.kind == "spem_4d" else scan.y
-            x_label = labels.get("k" if self.data.kind == "spem_4d" else "y", "k")
-            out.append(("EvsK", self.frame_view.last_frame, x_axis, scan.z,
-                        x_label, labels.get("z", "E")))
-        if self._spatial_map is not None:
-            # Always the measurement's own orientation, whichever way the
-            # panel happens to be drawn: an exported map should not depend on
-            # how it was being looked at.
-            out.append(("SpatialMap", np.asarray(self._spatial_map).T, scan.x, scan.y,
-                        labels.get("x", "x"), labels.get("y", "y")))
-        elif self.spatial_view._image2d is not None:
-            out.append(("SpatialMap", self.spatial_view._image2d.T, scan.x, scan.y,
-                        labels.get("x", "x"), labels.get("y", "y")))
-        return out
-
-
-# --------------------------------------------------------------------------
 # Single cut
 # --------------------------------------------------------------------------
 def path_points(info) -> list:
@@ -1233,7 +950,6 @@ class CutWindow(ViewerWindow):
 
         self.view.set_axis_labels(scan.labels.get("x"), scan.labels.get("y"))
         self.view.set_frame(data.cut_frame, scan.x, scan.y)
-        self.view.enable_selection_action(False)
         self._mark_path_corners()
         self._point_lines = []
         self._show_path_points()
@@ -1428,6 +1144,765 @@ class CutWindow(ViewerWindow):
         return (np.asarray(self.data.cut_frame, dtype=float), scan.x, scan.y,
                 0, 1, "cut", lambda new_energy: (np.asarray(scan.x, dtype=float),
                                                  new_energy))
+
+
+class SpemCutWindow(CutWindow):
+    """The spectrum of a spatial scan, in the cut viewer: E vs k at the map's
+    cursor (or summed over the map's selection box), with every tool a cut
+    window has acting on the spectrum on screen.
+
+    It belongs to its :class:`SpatialScanWindow`: made by it, fed by it, and
+    closed with it -- closing either one closes both. It holds no reference
+    to the map window (a weak one only), so neither keeps the other alive
+    once they are closed.
+
+    Above the spectrum: a **Selection box** that, on Refresh, integrates the
+    spatial map over the box's k and E (:attr:`selectionApplied`;
+    :attr:`selectionCleared` when it is unticked, for the full map again),
+    and -- while the map draws a spectrum against position -- the two lines
+    of the band that spectrum is integrated over (:attr:`rangeChanged`).
+    """
+
+    selectionApplied = pyqtSignal()
+    selectionCleared = pyqtSignal()
+    rangeChanged = pyqtSignal()
+
+    def __init__(self, spem: "SpatialScanWindow"):
+        import weakref
+
+        source = spem.data
+        scan = source.scan
+        labels = scan.labels or {}
+        is_4d = source.kind == "spem_4d"
+        if is_4d:
+            x_axis, x_label = scan.k, labels.get("k") or "k"
+            frame = source.frame_at(*spem._pixel)
+        else:
+            x_axis, x_label = scan.y, labels.get("y") or "y"
+            frame = source.frame_at_x(len(scan.x) // 2)
+        # The spectrum on screen as a cut of its own: the cut window's tools
+        # (k conversion, band straightening, saving the slice) read
+        # data.cut_frame, which is whatever this window shows now.
+        data = MemoryData(
+            "cut", (np.asarray(x_axis, dtype=float), np.asarray(scan.z, dtype=float)),
+            np.asarray(frame, dtype=float),
+            {"x": x_label, "y": labels.get("z") or "E"},
+            source_label=f"{spem.filename} [spectrum]",
+            source_path=getattr(source, "path", "") or "",
+            source_info=dict(getattr(scan, "info", {}) or {}),
+            source_motors=dict(getattr(scan, "fourd_info", {}) or {}))
+        super().__init__(data, spem.filename, spem.colormap, spem.flip)
+        self._spem = weakref.ref(spem)
+        self.frame_label = ""
+        self.setWindowTitle(f"{spem.filename}  [{source.kind} · spectrum]")
+        self.resize(760, 820)
+        self.panel.title_label.setText(
+            f"{labels.get('z') or 'E'} vs {x_label} at the cursor")
+        self.statusBar().showMessage(
+            "The spectrum at the map's cursor. Selection box: drag, then Refresh "
+            "to integrate the map over it.")
+        #: None, or "E"/"k": which spectrum against position the map draws
+        self.range_mode = None
+        self.range_region = None
+        self._ranges = {}            # the band last used in each mode
+        self.selection_bar = None
+        if not is_4d:
+            return
+
+        strip = QWidget()
+        row = QHBoxLayout(strip)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(6)
+        self.selection_bar = SelectionBar(
+            self.panel, "Integrate the map over the k and E inside the box.")
+        self.selection_bar.applied.connect(self.selectionApplied.emit)
+        self.selection_bar.toggled.connect(
+            lambda on: None if on else self.selectionCleared.emit())
+        row.addWidget(self.selection_bar)
+        self.range_widget = QWidget()
+        band = QHBoxLayout(self.range_widget)
+        band.setContentsMargins(0, 0, 0, 0)
+        band.setSpacing(4)
+        band.addWidget(separator())
+        self.range_caption = section_label("Band")
+        band.addWidget(self.range_caption)
+        self.range_boxes = []
+        for text in ("from", "to"):
+            band.addWidget(QLabel(text))
+            spin = QDoubleSpinBox()
+            spin.setDecimals(4)
+            spin.setRange(-1e9, 1e9)
+            spin.setMaximumWidth(90)
+            spin.setKeyboardTracking(False)
+            spin.valueChanged.connect(self._range_typed)
+            band.addWidget(spin)
+            self.range_boxes.append(spin)
+        row.addWidget(self.range_widget)
+        self.range_widget.setVisible(False)
+        row.addStretch(1)
+        self.root.insertWidget(1, scroll_strip(strip))
+
+    def slice_label(self) -> str:
+        return self.frame_label
+
+    def show_frame(self, frame, label: str = ""):
+        """Put a new spectrum on screen (the map's cursor moved, or its box
+        was integrated)."""
+        frame = np.asarray(frame, dtype=float)
+        scan = self.data.scan
+        scan.value = frame
+        self.view.set_frame(frame, scan.x, scan.y)
+        self.panel.sync_curve_source()
+        self.panel.sync_level_range()
+        self.frame_label = label
+        self.panel.title_label.setText(
+            f"{scan.labels.get('y')} vs {scan.labels.get('x')}"
+            + (f" — {label}" if label else ""))
+
+    # -- the band a spectrum against position is integrated over -------------
+    def set_range_mode(self, mode):
+        """Draw the two lines of the band (``"E"``: two k values, vertical
+        lines; ``"k"``: two energies, horizontal lines), or none (None)."""
+        if self.range_region is not None:
+            self._ranges[self.range_mode] = self.range_values()
+            self.view.view_box.removeItem(self.range_region)
+            self.range_region = None
+        self.range_mode = mode
+        if self.selection_bar is None:
+            return
+        self.range_widget.setVisible(mode is not None)
+        if mode is None:
+            return
+        axis = self._range_axis()
+        lo, hi = float(np.nanmin(axis)), float(np.nanmax(axis))
+        values = self._ranges.get(mode) or (lo + (hi - lo) / 3, hi - (hi - lo) / 3)
+        region = pg.LinearRegionItem(
+            values=values, orientation="vertical" if mode == "E" else "horizontal",
+            brush=pg.mkBrush(255, 255, 255, 28),
+            pen=pg.mkPen("#ffd166", width=2, style=Qt.DashLine),
+            hoverBrush=pg.mkBrush(255, 255, 255, 50))
+        region.setZValue(30)
+        self.view.view_box.addItem(region, ignoreBounds=True)
+        self.range_region = region
+        region.sigRegionChanged.connect(self._follow_region)
+        region.sigRegionChangeFinished.connect(lambda *_: self.rangeChanged.emit())
+        name = self.data.scan.labels.get("x" if mode == "E" else "y") or mode
+        self.range_caption.setText(f"Band in {name}")
+        self.range_widget.setToolTip(
+            "What the spectra against position beside the map are integrated "
+            "over: drag the two dashed lines, or type their positions.")
+        self._follow_region()
+
+    def _range_axis(self):
+        scan = self.data.scan
+        return np.asarray(scan.x if self.range_mode == "E" else scan.y, dtype=float)
+
+    def range_values(self):
+        """The band's two ends, low first, or None with no band shown."""
+        if self.range_region is None:
+            return None
+        lo, hi = self.range_region.getRegion()
+        return (min(lo, hi), max(lo, hi))
+
+    def set_range(self, lo: float, hi: float):
+        """Move the band's two lines (and so redraw the spectra against
+        position)."""
+        if self.range_region is None:
+            raise RuntimeError("no band shown: tick a spectrum against position first")
+        self.range_region.setRegion((float(lo), float(hi)))
+        self.rangeChanged.emit()
+
+    def range_slice(self):
+        """The band as a slice of indices into its axis -- at least one
+        point, the nearest, when the band falls between two."""
+        axis = self._range_axis()
+        values = self.range_values()
+        if values is None:
+            return slice(None)
+        lo, hi = values
+        inside = np.nonzero((axis >= lo) & (axis <= hi))[0]
+        if inside.size == 0:
+            nearest = int(np.argmin(np.abs(axis - 0.5 * (lo + hi))))
+            return slice(nearest, nearest + 1)
+        return slice(int(inside.min()), int(inside.max()) + 1)
+
+    def _follow_region(self, *_):
+        values = self.range_values()
+        if values is None:
+            return
+        for spin, value in zip(self.range_boxes, values):
+            spin.blockSignals(True)
+            spin.setValue(value)
+            spin.blockSignals(False)
+
+    def _range_typed(self, *_):
+        if self.range_region is not None:
+            self.set_range(self.range_boxes[0].value(), self.range_boxes[1].value())
+
+    def closeEvent(self, event):
+        first = not getattr(self, "_released", False)
+        super().closeEvent(event)
+        if first:
+            # the spectrum is a copy; let it go with the window
+            self.data.scan.value = None
+            self.range_region = None
+
+
+# --------------------------------------------------------------------------
+# Real-space scans
+# --------------------------------------------------------------------------
+#: the two spectra against position the spatial map can show beside and
+#: under itself: the spectral axis kept, and the one integrated over
+PROFILE_MODES = {"E": "E vs position", "k": "k vs position"}
+
+
+def _place_image(item, array_rc, x_axis, y_axis):
+    """Draw ``array_rc`` -- rows along ``y_axis``, columns along ``x_axis``
+    (pyqtgraph is row-major here) -- on its axes, pixel-centred. Descending
+    axes are flipped first, so the picture always lands the right way up."""
+    array = np.asarray(array_rc, dtype=float)
+    x = np.asarray(x_axis, dtype=float)
+    y = np.asarray(y_axis, dtype=float)
+    if x.size > 1 and x[-1] < x[0]:
+        x, array = x[::-1], array[:, ::-1]
+    if y.size > 1 and y[-1] < y[0]:
+        y, array = y[::-1], array[::-1, :]
+    dx = (x[-1] - x[0]) / (x.size - 1) if x.size > 1 else 1.0
+    dy = (y[-1] - y[0]) / (y.size - 1) if y.size > 1 else 1.0
+    finite = array[np.isfinite(array)]
+    levels = ((float(finite.min()), float(finite.max()))
+              if finite.size and finite.max() > finite.min() else (0.0, 1.0))
+    item.setImage(np.nan_to_num(array), autoLevels=False, levels=levels)
+    from PyQt5.QtCore import QRectF
+    item.setRect(QRectF(float(x[0] - dx / 2), float(y[0] - dy / 2),
+                        float(dx * x.size), float(dy * y.size)))
+
+
+class SpatialScanWindow(ViewerWindow):
+    """The spatial map of a real-space scan. The spectrum at the cursor has
+    a window of its own (:class:`SpemCutWindow`, the cut viewer), so each
+    can be sized and placed on its own; the two open together and close
+    together.
+
+    Above the map: a **Selection box** whose integration goes to the
+    spectrum window when Refresh is pressed, and two mutually exclusive
+    boxes that draw, beside and under the map, energy (or k) against
+    position through the cursor -- integrated over the band between the two
+    lines drawn on the spectrum.
+    """
+
+    def __init__(self, data, filename, colormap, flip):
+        super().__init__(data, filename, colormap, flip)
+        scan = data.scan
+        labels = scan.labels
+        self.setWindowTitle(f"{filename}  [{data.kind} · spatial map]")
+        self.resize(820, 820)
+        is_4d = data.kind == "spem_4d"
+
+        self.build_toolbar()
+        self.statusBar().showMessage(
+            "Drag the red target to move the spectrum's pixel (the spectrum has "
+            "its own window). Selection box: drag, then Refresh to integrate.")
+
+        self.spatial_view = SpatialImageView()
+        self.spatial_panel = ImagePanel("Spatial overview", self.spatial_view,
+                                        lock_ratio=True, parent=self)
+
+        self.frame_label = ""   # what the spectrum window currently holds
+        #: Whether the spatial panel shows the scan's Y axis horizontally.
+        #: The file says which stage was scanned first, and that is what this
+        #: program calls X -- but a lab whose own convention is the other way
+        #: round would see its maps transposed, so the view can be flipped
+        #: without touching the data. Only the *display* swaps: the cursor
+        #: readout, every export and every saved slice keep the axes the
+        #: measurement had.
+        self.swap_xy = False
+        self._spatial_map = None      # the current map in (y, x) data order
+        #: the measured pixel under the red target, (y index, x index)
+        self._pixel = (len(scan.y) // 2, len(scan.x) // 2)
+        #: None, or which spectrum against position is drawn: "E" or "k"
+        self.profile_mode = None
+        self.profile_boxes = {}
+        self.selection_bar = None
+        self.right_profile = self.bottom_profile = None
+        self._profile_items = ()
+        # The side spectra read a line of the cube; while the target is being
+        # dragged they wait until it rests a moment, not every pixel crossed.
+        self._profile_timer = QTimer(self)
+        self._profile_timer.setSingleShot(True)
+        self._profile_timer.setInterval(120)
+        self._profile_timer.timeout.connect(self.refresh_profiles)
+
+        if is_4d:
+            strip = QWidget()
+            row = QHBoxLayout(strip)
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(6)
+            self.selection_bar = SelectionBar(
+                self.spatial_panel,
+                "Integrate the spectra inside the box and show the sum in the "
+                "spectrum window.")
+            row.addWidget(self.selection_bar)
+            row.addWidget(separator())
+            for key, text in PROFILE_MODES.items():
+                box = QCheckBox(text)
+                box.setToolTip(
+                    f"Draw {'energy' if key == 'E' else 'k'} against position "
+                    "through the cursor, beside and under the map, integrated "
+                    f"over the {'k' if key == 'E' else 'energy'} band between the "
+                    "two lines in the spectrum window. One of the two at a time.")
+                box.toggled.connect(lambda on, key=key: self._profile_box_toggled(key, on))
+                row.addWidget(box)
+                self.profile_boxes[key] = box
+            row.addStretch(1)
+            self.root.addWidget(scroll_strip(strip))
+            self._build_profile_views()
+        self.root.addWidget(self.spatial_panel, stretch=1)
+
+        if is_4d:
+            self._set_spatial_map(data.spatial_overview)
+            self.spatial_view.enable_swap_action(True)
+            self.spatial_view.swapToggled.connect(self.set_swap_xy)
+        else:  # spem_1d
+            self.spatial_view.set_axis_labels(labels.get("x"), labels.get("y"))
+            self.spatial_view.set_data(data.line_kmap.T, scan.x, scan.y)
+
+        # The spectrum, in the cut viewer.
+        self.cut_window = SpemCutWindow(self)
+        self.cut_window.datasetCreated.connect(self.datasetCreated.emit)
+        self.cut_window.closed.connect(self._on_cut_closed)
+        self.cut_window.selectionApplied.connect(self._on_frame_selection)
+        self.cut_window.selectionCleared.connect(self._restore_overview)
+        self.cut_window.rangeChanged.connect(self._schedule_profiles)
+        if self.selection_bar is not None:
+            self.selection_bar.applied.connect(self._on_spatial_selection)
+            self.selection_bar.toggled.connect(self._on_spatial_box_toggled)
+        if is_4d:
+            self._show_frame_at(*self._pixel)
+        else:
+            self._show_frame_at_x(len(scan.x) // 2)
+
+        self.spatial_view.enable_popout_action(True, "Open this position in a new window")
+        self.spatial_view.pixelChanged.connect(self._on_cursor_moved)
+        self.spatial_view.popoutRequested.connect(self.open_popout)
+        self.spatial_view.view_box.sigStateChanged.connect(self._sync_profile_axes)
+
+        self._apply_default_orientation()
+        self.set_colormap(colormap, flip)
+        self.apply_display_options()
+
+    def image_panels(self):
+        return (self.spatial_panel,)
+
+    def panel_export_names(self):
+        return ("SpatialMap",)
+
+    def slice_label(self) -> str:
+        return self.frame_label
+
+    # -- the two windows open and close together -----------------------------
+    def showEvent(self, event):
+        super().showEvent(event)
+        cut = self.cut_window
+        if cut is None:
+            return
+        # The launcher's hooks are set after this window is made, so they
+        # are handed on when it first goes on screen.
+        for name in ("_name_source", "_dataset_opener", "_dataset_entries",
+                     "_dataset_loader"):
+            setattr(cut, name, getattr(self, name, None))
+        if not cut.isVisible():
+            geometry = self.frameGeometry()
+            cut.move(geometry.right() + 8, geometry.top())
+            cut.show()
+
+    def _on_cut_closed(self, window):
+        """The spectrum window went: the map goes with it."""
+        if window is self.cut_window:
+            self._detach_cut()
+            self.close()
+
+    def _detach_cut(self):
+        """Let go of the spectrum window and every connection to it."""
+        cut, self.cut_window = self.cut_window, None
+        if cut is None:
+            return None
+        for signal, slot in ((cut.closed, self._on_cut_closed),
+                             (cut.datasetCreated, self.datasetCreated.emit),
+                             (cut.selectionApplied, self._on_frame_selection),
+                             (cut.selectionCleared, self._restore_overview),
+                             (cut.rangeChanged, self._schedule_profiles)):
+            try:
+                signal.disconnect(slot)
+            except (TypeError, RuntimeError):
+                pass
+        return cut
+
+    def closeEvent(self, event):
+        if not getattr(self, "_released", False):
+            self._profile_timer.stop()
+            cut = self._detach_cut()
+            if cut is not None:
+                try:
+                    cut.close()
+                except RuntimeError:
+                    pass
+            for item in self._profile_items:
+                item.clear()
+            self._profile_items = ()
+            self._spatial_map = None
+        super().closeEvent(event)
+
+    # -- which way round the spatial map is drawn -------------------------
+    def _set_spatial_map(self, map_yx, reset_cursor: bool = True):
+        """Draw a spatial map given in the data's own (y, x) order, the way
+        round the swap setting asks for."""
+        scan = self.data.scan
+        labels = scan.labels
+        self._spatial_map = np.asarray(map_yx)
+        if self.swap_xy:
+            self.spatial_view.set_axis_labels(labels.get("y"), labels.get("x"))
+            self.spatial_view.set_data(self._spatial_map.T, scan.y, scan.x,
+                                       reset_cursor=reset_cursor)
+        else:
+            self.spatial_view.set_axis_labels(labels.get("x"), labels.get("y"))
+            self.spatial_view.set_data(self._spatial_map, scan.x, scan.y,
+                                       reset_cursor=reset_cursor)
+
+    def _apply_default_orientation(self):
+        """Draw the spatial map the way its beamline does, where the loader
+        said how (``Spatial.swap_xy`` / ``Spatial.invert_x`` /
+        ``Spatial.invert_y`` in the metadata -- set for ANTARES scans only,
+        see ``loader.beamlines.antares.antares_spatial_orientation``). Anything else
+        keeps the plotting default. Display only, and only the starting
+        state: right-click "swap" and the view bar's "Inv" boxes still
+        change it, and the data keeps the order the file has."""
+        info = getattr(self.data.scan, "info", {}) or {}
+
+        def flag(key):
+            value = info.get(key)
+            if value is None:
+                return None
+            if isinstance(value, (bytes, np.bytes_)):
+                value = value.decode("utf-8", "replace")
+            if isinstance(value, str):
+                return value.strip().lower() in ("1", "true", "yes")
+            return bool(value)
+
+        # Swap first: it carries any inversion with it, and the inversions
+        # below are for the screen axes as they end up.
+        if flag("Spatial.swap_xy") and self.data.kind == "spem_4d":
+            self.set_swap_xy(True)
+        for axis, key in ((0, "Spatial.invert_x"), (1, "Spatial.invert_y")):
+            value = flag(key)
+            if value is not None:
+                self.spatial_view.set_axis_inverted(axis, value)
+
+    def set_swap_xy(self, on: bool):
+        """Exchange the spatial panel's two axes, keeping the cursor on the
+        same measured pixel."""
+        on = bool(on)
+        if on == self.swap_xy or self._spatial_map is None:
+            return
+        cursor = self.spatial_view.cursor.pos()
+        # A reversed axis stays reversed when it moves to the other side:
+        # the direction belongs to the measured axis, not to the screen.
+        inverted = (self.spatial_view.axis_inverted(0),
+                    self.spatial_view.axis_inverted(1))
+        self.spatial_view.set_axis_inverted(0, inverted[1])
+        self.spatial_view.set_axis_inverted(1, inverted[0])
+        self.swap_xy = on
+        # The selection box is in screen coordinates; it would land on other
+        # pixels once the axes swap, so it goes.
+        if self.selection_bar is not None and self.selection_bar.is_on():
+            self.selection_bar.checkbox.setChecked(False)
+        self._set_spatial_map(self._spatial_map, reset_cursor=False)
+        # The pixel the cursor was on has not moved; its coordinates have
+        # swapped places, so the cursor follows them.
+        self.spatial_view.cursor.setPos((float(cursor.y()), float(cursor.x())))
+        self.spatial_panel.sync_level_range()
+        self.set_colormap(self.colormap, self.flip)
+        self.spatial_view.fit_to_data()
+        action = self.spatial_view.action_swap
+        if action.isChecked() != on:
+            action.blockSignals(True)
+            action.setChecked(on)
+            action.blockSignals(False)
+        view_bar = getattr(self, "view_bar", None)
+        if view_bar is not None and view_bar.panels:
+            view_bar.sync_from_view()
+        self._sync_profile_axes()
+        self.refresh_profiles()
+        self.statusBar().showMessage(
+            "Spatial map drawn with Y horizontal" if on
+            else "Spatial map drawn with X horizontal")
+
+    def _axis_names(self):
+        """Short names of the scan's two spatial axes for readouts -- the
+        stage ("ST", "PIX") where the title carries one, else x/y."""
+        labels = self.data.scan.labels or {}
+        names = []
+        for slot in ("x", "y"):
+            title = str(labels.get(slot) or "").split(" (")[0].strip()
+            names.append(title if title and title not in ("X", "Y") else slot)
+        return tuple(names)
+
+    def _data_pixel(self, row: int, col: int):
+        """(y index, x index) for a pixel the *display* reported."""
+        return (col, row) if self.swap_xy else (row, col)
+
+    # -- cursor / frames -------------------------------------------------
+    def _show_frame_at(self, row, col):
+        scan = self.data.scan
+        nx, ny = self._axis_names()
+        self.frame_label = f"{nx}={scan.x[col]:.4g}, {ny}={scan.y[row]:.4g}"
+        if self.cut_window is not None:
+            self.cut_window.show_frame(self.data.frame_at(row, col), self.frame_label)
+        self.statusBar().showMessage(f"pixel ({self.frame_label})")
+
+    def _show_frame_at_x(self, xi):
+        scan = self.data.scan
+        self.frame_label = f"{self._axis_names()[0]}={scan.x[xi]:.4g}"
+        if self.cut_window is not None:
+            self.cut_window.show_frame(self.data.frame_at_x(xi), self.frame_label)
+        self.statusBar().showMessage(self.frame_label)
+
+    def _on_cursor_moved(self, row, col):
+        if self.data.kind != "spem_4d":
+            self._show_frame_at_x(col)
+            return
+        self._pixel = self._data_pixel(row, col)
+        # While the selection box is on, the spectrum is the box's sum and
+        # changes only on Refresh.
+        if self.selection_bar is None or not self.selection_bar.is_on():
+            self._show_frame_at(*self._pixel)
+        self._schedule_profiles()
+
+    # -- region integration (on Refresh only) -----------------------------
+    def _on_spatial_box_toggled(self, on: bool):
+        if on:
+            self.statusBar().showMessage(
+                "Place the box, then Refresh: the spectrum window shows its sum.")
+        elif self.data.kind == "spem_4d":
+            # back to following the cursor
+            self._show_frame_at(*self._pixel)
+
+    def _on_spatial_selection(self):
+        """Refresh on the map's box: the spectrum summed over it."""
+        if self.data.kind != "spem_4d" or self.cut_window is None:
+            return None
+        ranges = self.spatial_view.selection_index_ranges()
+        if ranges is None:
+            return None
+        (ia0, ia1), (ib0, ib1) = ranges
+        # The ranges come back in display order; swapped, the horizontal one
+        # is the scan's Y.
+        (ix0, ix1), (iy0, iy1) = (((ib0, ib1), (ia0, ia1)) if self.swap_xy
+                                  else ((ia0, ia1), (ib0, ib1)))
+        scan = self.data.scan
+        frame = jobs.busy_work(self, "Integrating the selection",
+                               self.data.frame_over_region,
+                               slice(iy0, iy1 + 1), slice(ix0, ix1 + 1))
+        nx, ny = self._axis_names()
+        self.frame_label = (f"{nx}[{scan.x[ix0]:.4g}..{scan.x[ix1]:.4g}], "
+                            f"{ny}[{scan.y[iy0]:.4g}..{scan.y[iy1]:.4g}] integrated")
+        self.cut_window.show_frame(frame, self.frame_label)
+        self.statusBar().showMessage(
+            f"Spectrum integrated over {self.spatial_view.selection_summary()}")
+        return frame
+
+    def _on_frame_selection(self):
+        """Refresh on the spectrum's box: the map summed over its (k, E)."""
+        if self.data.kind != "spem_4d" or self.cut_window is None:
+            return None
+        ranges = self.cut_window.view.selection_index_ranges()
+        if ranges is None:
+            return None
+        (ik0, ik1), (ie0, ie1) = ranges
+        smap = jobs.busy_work(self, "Integrating the selection",
+                              self.data.spatial_over_region,
+                              slice(ik0, ik1 + 1), slice(ie0, ie1 + 1))
+        # The cursor stays put: this changes what the map shows, not which
+        # pixel the user was looking at.
+        self._set_spatial_map(smap, reset_cursor=False)
+        self.spatial_panel.sync_level_range()
+        self.set_colormap(self.colormap, self.flip)
+        self.statusBar().showMessage(
+            f"Spatial map integrated over {self.cut_window.view.selection_summary()}")
+        return smap
+
+    def _restore_overview(self):
+        """The spectrum's box was taken away: the full map again."""
+        if self.data.kind != "spem_4d":
+            return
+        self._set_spatial_map(self.data.spatial_overview, reset_cursor=False)
+        self.spatial_panel.sync_level_range()
+        self.set_colormap(self.colormap, self.flip)
+        self.statusBar().showMessage("Spatial map summed over the whole spectrum")
+
+    # -- spectra against position, beside and under the map -----------------
+    def _build_profile_views(self):
+        """Two pictures in the spatial panel's free cells: on the right the
+        spectral axis (horizontal) against the map's vertical axis, under it
+        the map's horizontal axis against the spectral axis (vertical),
+        each sharing its spatial axis with the map."""
+        self.right_profile = pg.PlotWidget()
+        self.bottom_profile = pg.PlotWidget()
+        self.right_profile.setMinimumWidth(90)
+        self.bottom_profile.setMinimumHeight(90)
+        self.right_profile.hideAxis("left")
+        self.bottom_profile.hideAxis("bottom")
+        items = []
+        for plot in (self.right_profile, self.bottom_profile):
+            strip_stock_menu(plot.getPlotItem())
+            plot.getPlotItem().showAxes(True, showValues=(
+                plot is self.bottom_profile, False, False, plot is self.right_profile))
+            box = plot.getPlotItem().getViewBox()
+            box.setDefaultPadding(0.0)
+            box.disableAutoRange()
+            item = pg.ImageItem()
+            plot.addItem(item)
+            items.append(item)
+        self._profile_items = tuple(items)
+        self.right_profile.getPlotItem().setYLink(self.spatial_view.view)
+        self.bottom_profile.getPlotItem().setXLink(self.spatial_view.view)
+        self.spatial_panel.set_side_views(self.right_profile, self.bottom_profile)
+
+    def _profile_box_toggled(self, key: str, on: bool):
+        if on:
+            self.set_profile_mode(key)
+        elif self.profile_mode == key:
+            self.set_profile_mode(None)
+
+    def set_profile_mode(self, mode):
+        """Show energy (``"E"``) or k (``"k"``) against position beside and
+        under the map, or neither (None). The two are exclusive."""
+        if mode not in (None, *PROFILE_MODES):
+            raise ValueError(f"profile mode must be None, 'E' or 'k', not {mode!r}")
+        if self.data.kind != "spem_4d":
+            mode = None
+        for key, box in self.profile_boxes.items():
+            if box.isChecked() != (key == mode):
+                box.blockSignals(True)
+                box.setChecked(key == mode)
+                box.blockSignals(False)
+        self.profile_mode = mode
+        if self.right_profile is None:
+            return
+        self.spatial_panel.show_side_views(mode is not None)
+        if self.cut_window is not None:
+            self.cut_window.set_range_mode(mode)
+        if mode is None:
+            self._profile_timer.stop()
+            for item in self._profile_items:
+                item.clear()
+            return
+        labels = self.data.scan.labels
+        spectral = labels.get("z" if mode == "E" else "k") or mode
+        self.right_profile.setLabel("bottom", spectral)
+        self.bottom_profile.setLabel("left", spectral)
+        self._sync_profile_axes()
+        self.refresh_profiles()
+
+    def _schedule_profiles(self):
+        if self.profile_mode is not None:
+            self._profile_timer.start()
+
+    def _sync_profile_axes(self, *_):
+        """Keep the side pictures' spatial axes reversed when the map's are."""
+        if self.right_profile is None:
+            return
+        view = self.spatial_view
+        self.bottom_profile.getPlotItem().getViewBox().invertX(view.axis_inverted(0))
+        self.right_profile.getPlotItem().getViewBox().invertY(view.axis_inverted(1))
+
+    def profile_arrays(self):
+        """``{"right": (values, x_axis, y_axis), "bottom": (...)}``, each
+        ``values`` rows along ``y_axis`` and columns along ``x_axis``, or
+        None with no profile mode on. Read through the cursor's pixel over
+        the spectrum window's band."""
+        mode = self.profile_mode
+        cut = self.cut_window
+        if mode is None or cut is None or self.data.kind != "spem_4d":
+            return None
+        scan = self.data.scan
+        band = cut.range_slice()
+        kslice, eslice = (band, slice(None)) if mode == "E" else (slice(None), band)
+        spectral = np.asarray(scan.z if mode == "E" else scan.k, dtype=float)
+        yi, xi = self._pixel
+        along_x = self.data.spatial_profile("x", yi, kslice, eslice, mode)
+        along_y = self.data.spatial_profile("y", xi, kslice, eslice, mode)
+        x_pos, y_pos = np.asarray(scan.x, dtype=float), np.asarray(scan.y, dtype=float)
+        if self.swap_xy:
+            # across the screen is the scan's Y
+            horizontal, h_axis, vertical, v_axis = along_y, y_pos, along_x, x_pos
+        else:
+            horizontal, h_axis, vertical, v_axis = along_x, x_pos, along_y, y_pos
+        return {"bottom": (horizontal.T, h_axis, spectral),
+                "right": (vertical, spectral, v_axis)}
+
+    def refresh_profiles(self):
+        arrays = self.profile_arrays()
+        if arrays is None:
+            return None
+        right, bottom = self._profile_items
+        _place_image(bottom, *arrays["bottom"])
+        _place_image(right, *arrays["right"])
+        spectral = arrays["right"][1]
+        lo, hi = float(np.nanmin(spectral)), float(np.nanmax(spectral))
+        self.right_profile.getPlotItem().getViewBox().setXRange(lo, hi, padding=0)
+        self.bottom_profile.getPlotItem().getViewBox().setYRange(lo, hi, padding=0)
+        self._tint_profiles()
+        return arrays
+
+    def _tint_profiles(self):
+        from arpes_viewer.tools.output import colormaps
+        try:
+            lut = colormaps.get_lut(self.colormap, flip=self.flip)
+        except Exception:                                   # noqa: BLE001
+            return
+        for item in self._profile_items:
+            item.setLookupTable(lut)
+
+    def set_colormap(self, name: str, flip: bool):
+        super().set_colormap(name, flip)
+        if self._profile_items:
+            self._tint_profiles()
+
+    # -- comparison snapshots --------------------------------------------
+    def open_popout(self):
+        cut = self.cut_window
+        frame = None if cut is None else cut.view.last_frame
+        if frame is None:
+            return None
+        scan = cut.data.scan
+        window = FrameWindow(f"{self.filename}  @ {self.frame_label or 'current view'}",
+                             frame, scan.x, scan.y,
+                             x_label=cut.view.x_label,
+                             y_label=cut.view.y_label,
+                             colormap=self.colormap, flip=self.flip,
+                             **cut._display_levels(frame))
+        self._arm_figure_source(window)
+        window.closed.connect(lambda w: self.popout_windows.remove(w)
+                              if w in self.popout_windows else None)
+        self.popout_windows.append(window)
+        window.show()
+        self.statusBar().showMessage(f"Opened snapshot ({len(self.popout_windows)} open)")
+        return window
+
+    def exportable_panels(self):
+        scan = self.data.scan
+        labels = scan.labels
+        if self._spatial_map is not None:
+            # Always the measurement's own orientation, whichever way the
+            # panel happens to be drawn: an exported map should not depend on
+            # how it was being looked at.
+            return [("SpatialMap", np.asarray(self._spatial_map).T, scan.x, scan.y,
+                     labels.get("x", "x"), labels.get("y", "y"))]
+        if self.spatial_view._image2d is not None:
+            return [("SpatialMap", self.spatial_view._image2d.T, scan.x, scan.y,
+                     labels.get("x", "x"), labels.get("y", "y"))]
+        return []
 
 
 # --------------------------------------------------------------------------
@@ -3683,7 +4158,6 @@ class ContourWindow(ViewerWindow):
         self.root.addWidget(self.panel, stretch=1)
 
         self.view.set_axis_labels(self.defl_label, self.slit_label)
-        self.view.enable_selection_action(False)
         self.e_control.configure(len(self.E), self.E)
         self.e_control.changed.connect(self.refresh_contour)
         self.refresh_contour()
@@ -4388,7 +4862,6 @@ class MapCutWindow(ViewerWindow):
         self.root.addWidget(self.panel, stretch=1)
 
         self.view.set_axis_labels(self.x_label, contour.energy_label)
-        self.view.enable_selection_action(False)
         self.panel.set_axis_colors(AXIS_COLORS["slit" if which == "slit" else "defl"],
                                    AXIS_COLORS["energy"])
         self.control.configure(len(self.sum_axis), self.sum_axis)
