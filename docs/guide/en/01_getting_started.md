@@ -182,7 +182,7 @@ in the order a processing usually runs (`arpes_viewer/tools/runtime/naming.py`):
 | `[bg]` | Background subtraction… | background subtracted |
 | `[E-E_F]` | Fermi edge fit (offset), `L.shift_energy` | energy referred to the Fermi level |
 | `[dFD]` | Fermi edge fit (divide) | divided by the Fermi–Dirac function |
-| `[FS corr]` | Straighten bands (FS correction) | bands straightened along the slit |
+| `[FS corr]` | Fermi surface correction…, `L.fs_correction` | bands straightened along the slit |
 | `[sm]` | Smooth… | smoothed |
 | `[symm]` | Symmetrise… | mirrored or rotated |
 | `[k]` | k conversion (cut / map) | converted to momentum |

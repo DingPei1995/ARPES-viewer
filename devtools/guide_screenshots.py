@@ -541,13 +541,31 @@ class Shots:
         shot(window, "arbitrary_cut_result", (1000, 700))
 
     def fs_correction(self):
-        cut = self.cut
-        dialog = cut.open_fs_correction()
+        """The tool panel's Fermi surface correction, step by step: the
+        choice, the Fermi edge clicked on the cut, the fit to check, and
+        the reference page."""
+        self._select("Gamma_cut_LH")
+        dialog = self.av.open_fs_correction()      # the tool panel's route
+        cut = dialog.window_
+        cut.resize(1000, 760)
         pump()
-        if dialog is None:
-            dialog = cut._fs_dialog
+        shot(dialog, "fs_correction_step1")
+        dialog.go_next()
+        axis = np.asarray(cut.fs_angle_axis(), dtype=float)
+        lo, hi = float(axis.min()), float(axis.max())
+        for angle in np.linspace(lo + 0.1 * (hi - lo), hi - 0.1 * (hi - lo), 6):
+            dialog.add_point(float(angle), demo_EF() - 2e-4 * angle ** 2)
+        pump()
         shot(cut, "fs_correction_cut", (1000, 760))
+        dialog.go_next()
+        pump()
         shot(dialog, "fs_correction_dialog")
+        dialog.go_back()
+        dialog.go_back()
+        dialog.reference_radio.setChecked(True)
+        dialog.go_next()
+        pump()
+        shot(dialog, "fs_correction_reference")
         dialog.reject()
 
     def process(self):

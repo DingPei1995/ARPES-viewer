@@ -807,8 +807,11 @@ def test_keep_recording_logs_each_file_added_to_the_list(launcher, tmp_path,
     assert rows == [["File name", "hv"], ["new_cut", "95,5"]]
 
 
-def test_fs_correction_is_a_basic_tool_tied_to_its_window(launcher):
+def test_fs_correction_is_a_basic_tool_tied_to_its_window(launcher, monkeypatch):
     lv = launcher
+    # opening the cut loads it, which makes the information window: this
+    # launcher's own, gone with it
+    monkeypatch.setattr(lv, "info_window", None)
     button = lv.ui.ToolButtons["fscorr"]
     assert lv.ui.ToolSections["Basic"].isAncestorOf(button)
     _select(lv)

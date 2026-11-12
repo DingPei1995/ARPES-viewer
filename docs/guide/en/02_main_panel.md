@@ -189,7 +189,7 @@ there and click again.
 
 A photon-energy series of angle cuts becomes a `kz map`, so *Align Fermi
 levels (kz map)* and *Convert to momentum (kz, k∥)* take it (see
-[§4.9](#49-aligning-the-fermi-levels-of-a-kz-map)); any other axis gives a `map` whose first
+[§4.10](#410-aligning-the-fermi-levels-of-a-kz-map)); any other axis gives a `map` whose first
 axis is marked as not an angle, so no k conversion is offered for it.
 
 **Joining pieces of a measurement**

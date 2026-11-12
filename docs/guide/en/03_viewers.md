@@ -44,15 +44,15 @@ the tools that take a dataset are in the launcher's tool panel
 | Viewer | Functions |
 |---|---|
 | map / kz map / k-map (contour) | Arbitrary cut; Slice: save / freeze the slice |
-| cut | Straighten bands (FS correction); Slice: save / freeze |
-| a map's slit cut | Straighten bands (FS correction) for the whole cube; Show the map |
+| cut | Slice: save / freeze |
+| a map's slit cut | Show the map |
 | curve | Curve fit, Spin analysis; Crop, Bin, Normalise, Background, Shift axis, Add √N errors |
 
 An entry that applies but cannot run yet is greyed, with the reason in its
 tooltip.
 
 **Brillouin zone tick box.** A k-map or converted kz map on which a zone has
-been plotted ([§4.11](#411-brillouin-zone)) keeps it: its viewer has a
+been plotted ([§4.12](#412-brillouin-zone)) keeps it: its viewer has a
 **Brillouin zone** tick box on the top row that shows or hides it.
 
 ### Plot tools: guide lines and labels on the plot
@@ -113,9 +113,7 @@ From the list you can also open a map's cut straight away (right-click →
 **Open slit cut** / **Open scan-axis cut**); the contour then stays hidden
 until you ask for it (*Functions → Show the map*).
 
-## 3.3 Arbitrary cuts and Fermi-surface correction
-
-### Arbitrary cut
+## 3.3 Arbitrary cuts
 
 *Functions → Arbitrary cut...* on any contour: click up to six points (or type
 them) and the cut runs through them in order — here Γ → M → K → Γ on the
@@ -131,16 +129,9 @@ physics.
 
 ![The cut along Γ–M–K–Γ](../../images/arbitrary_cut_result.png)
 
-### Fermi-surface (FS) correction
-
-*Functions → Straighten bands (FS correction)...* on a cut (or a map's slit cut) straightens a
-feature that should be flat — usually the Fermi edge, which curves across the
-analyser angle. Click along the feature; a polynomial (order 2 by default) is
-fitted and every angle column is shifted in energy. **From a reference
-(Au)...** takes the curve from a gold spectrum in the list instead. On a
-map's slit cut the same shift is applied to the whole cube.
-
-![FS correction](../../images/fs_correction_dialog.png)
+The Fermi-surface (FS) correction, which straightens a Fermi edge the
+analyser bends, is a tool of the tool panel's Basic tab
+([§4.3](#43-fermi-surface-correction)).
 
 ## 3.4 kz maps and k-maps
 
@@ -148,14 +139,14 @@ A **kz map** (photon-energy scan) opens like an angle map: its contour shows
 photon energy against the analyser angle at the energy chosen by the slider,
 and its two cuts are the spectrum at one photon energy and the
 photon-energy dispersion at one angle. Align its Fermi levels and convert it
-to (k_z, k∥) from the Basic tab ([§4.9](#49-aligning-the-fermi-levels-of-a-kz-map),
-[§4.10](#410-converting-a-kz-map-to-momentum)).
+to (k_z, k∥) from the Basic tab ([§4.10](#410-aligning-the-fermi-levels-of-a-kz-map),
+[§4.11](#411-converting-a-kz-map-to-momentum)).
 
 ![A kz map](../../images/kz_map_contour.png)
 
-A **k-map** (a map converted to momentum, [§4.8](#48-converting-a-map-to-momentum))
+A **k-map** (a map converted to momentum, [§4.9](#49-converting-a-map-to-momentum))
 and a **converted kz map** open in the same contour viewer, on momentum axes.
-When a Brillouin zone has been drawn on them ([§4.11](#411-brillouin-zone)),
+When a Brillouin zone has been drawn on them ([§4.12](#412-brillouin-zone)),
 they keep it, and a **Brillouin zone** tick box on the top row shows or hides
 it. Slice series ([§5.6](#56-slice-series-figure)) and exports draw it too.
 
@@ -266,7 +257,7 @@ with the colormap applied (PNG, TIFF or JPEG, at a chosen size and dpi, with
 or without the axes, with the Plot tools guides if there are any, and with
 the Brillouin zone if the dataset has one); or the frame, ticks and labels as
 vector PostScript to place the image in, in Illustrator (optionally with the
-Brillouin zone drawn in the box — see [§4.11](#411-brillouin-zone)).
+Brillouin zone drawn in the box — see [§4.12](#412-brillouin-zone)).
 
 ![Export](../../images/export_dialog.png)
 

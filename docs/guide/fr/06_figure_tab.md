@@ -401,10 +401,10 @@ l'agent au [§7.7](#77-exemple--un-agent-de-la-configuration-à-la-figure), fait
    front ; notez E_F ([§4.2](#42-ajustement-du-front-de-fermi)).
 3. **En impulsion.** Basic → **k conversion (map)** : Γ en émission normale,
    E_F ajusté comme référence d'énergie. Une nouvelle ligne `… [k]` apparaît
-   ([§4.8](#48-conversion-en-k-dune-carte)).
+   ([§4.9](#49-conversion-en-k-dune-carte)).
 4. **La zone.** Sélectionnez la carte k → Basic → **BZ overlap...** : groupe
    d'espace 164 (P-3m1), a = 3,3 Å, c = 6 Å, plan (001) passant par Γ
-   ([§4.11](#411-zone-de-brillouin)).
+   ([§4.12](#412-zone-de-brillouin)).
 5. **Tranches.** Advanced → **Slice series figure...** : énergies 0, −0,2,
    −0,4 eV, ±20 meV, trois colonnes, la zone en tirets ([§5.6](#56-figure-en-série-de-tranches)). La
    figure s'ouvre dans le composeur.
@@ -431,7 +431,7 @@ script à lire en parallèle de cette section.
 ![Figure d'exemple 1](../../images/example_figure_1.png)
 
 **(a) Le cube entaillé.** Convertissez la carte du plan Γ en impulsion
-([§4.8](#48-conversion-en-k-dune-carte)) ; sélectionnez la k-map → Advanced →
+([§4.9](#49-conversion-en-k-dune-carte)) ; sélectionnez la k-map → Advanced →
 **Notched cube...**. *Change sampling...* : k_x, k_y dans ±1,25 Å⁻¹ et E
 jusqu'à E_F ; placez l'entaille en k_x = k_y = 0 jusqu'à l'énergie la plus
 basse, coin **+ − +** ; palette *blue*, inversée ; azimut −52°, élévation
@@ -490,7 +490,7 @@ list**). *Path* `K-H` (la ligne où les deux bandes se croisent) ; *Label on
 the left* `L, M`. **To figure composer...** → la figure de (a).
 
 **(c) Les coupes empilées selon k_z.** Convertissez le balayage en énergie
-de photon en impulsion ([§4.9](#49-aligner-les-niveaux-de-fermi-dune-carte-kz)),
+de photon en impulsion ([§4.10](#410-aligner-les-niveaux-de-fermi-dune-carte-kz)),
 sélectionnez-le → Advanced → **Stacked slices...** : *Layers* selon k_z aux
 quatre k_z des coupes (8,0, 8,3, 8,6 et 9,0 π/c), *Fade* 30 %, **Spread** 3,
 azimut 40°, élévation 12°. Dans **Mark a curve through the layers**, ajoutez

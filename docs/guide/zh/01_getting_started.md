@@ -149,7 +149,7 @@ python devtools/figure_tests.py docs/images [存放 .afig 文件的文件夹]
 | `[bg]` | Background subtraction… | 扣除背底 |
 | `[E-E_F]` | Fermi edge fit（平移）、`L.shift_energy` | 能量以费米能级为零点 |
 | `[dFD]` | Fermi edge fit（相除） | 除以费米–狄拉克函数 |
-| `[FS corr]` | Straighten bands (FS correction) | 沿狭缝方向拉直能带 |
+| `[FS corr]` | Fermi surface correction…、`L.fs_correction` | 沿狭缝方向拉直能带 |
 | `[sm]` | Smooth… | 平滑 |
 | `[symm]` | Symmetrise… | 对称化 |
 | `[k]` | k 转换（cut / map） | 转换到动量空间 |

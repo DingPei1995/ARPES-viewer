@@ -59,7 +59,66 @@ corrected map.
 
 ![Fermi fit on a map, one E_F per cut](../../images/fermi_map_cuts.png)
 
-## 4.3 Removing the detector grid
+## 4.3 Fermi surface correction
+
+The analyser bends the Fermi edge: at the ends of the slit it sits a few
+tens of meV lower than in the middle, so a band that should be flat comes
+out curved. Tool panel → Basic → **Fermi surface correction...** straightens
+it: the curve of the Fermi edge is fitted with a polynomial, and every angle
+column is shifted in energy so that it comes out flat. Correct it before a
+k conversion.
+
+Select a **cut**, or a **map** (or kz map) still in angle, and press the
+button. A cut opens in its viewer; a map opens on its **slit cut**, and the
+shift fitted there is applied to the whole cube. The viewer and the
+correction window belong together: closing either closes the other. The
+window leads through three steps (**Back** and **Next** move between them).
+
+**Step 1 — how to find the Fermi edge.** Choose one:
+
+- **By hand**: click the Fermi edge on the data viewer;
+- **From a reference**: fit the Fermi edge of a cut or map in the main list
+  (a gold reference, or anything with a clean edge at every angle).
+
+![Step 1: by hand or from a reference](../../images/fs_correction_step1.png)
+
+**Step 2, by hand — click the Fermi edge on the data viewer.** Click on the
+picture in the data viewer where the Fermi edge is, at several angles
+spread across the whole edge, ends included. Each click puts an orange
+cross on the picture and a row in the table of points; the fitted curve is
+drawn dashed as you go. A point placed badly can be retyped in the table,
+or removed (**Remove selected**, **Clear**). Clicks count only while
+picking by hand (steps 2 and 3).
+
+![The Fermi edge clicked on the cut, with the fitted curve](../../images/fs_correction_cut.png)
+
+**Step 2, from a reference — choose the reference in the main list.** Pick
+the reference cut or map in **Reference** (a map is summed over the
+deflector, since every deflector position sees the same slit curvature).
+The temperature is read from its file; **Neighbours** adds channels on each
+side of each one before fitting, **Fit every Nth channel** samples the
+detector. **Fit the reference ›** fits its Fermi edge channel by channel and
+puts the result in the table.
+
+**A reference fitted before is not fitted again.** When the chosen reference
+has already been fitted in this session — by this tool, or by the Fermi edge
+fit's channel-by-channel fit ([§4.2](#42-fermi-edge-fit)) — the window says
+so, and the button reads **Use the earlier fit ›**: that result is used as
+it stands. Tick **Fit it again** to redo it with new settings.
+
+![Step 2: the reference](../../images/fs_correction_reference.png)
+
+**Step 3 — check the fit and correct.** The fitted curve is drawn dashed
+over the data; check that it follows the Fermi edge and remove a stray
+point if it does not. **Fit order** sets the polynomial (2, a parabola, is
+what the analyser's curvature normally looks like; an order-n fit needs n+1
+points), **Name** the result's. **Correct** shifts every angle column to
+flatten the curve and lists the result (`[FS corr]`); the energy axis grows
+by the curve's span, and the bins no column reaches are left empty.
+
+![Step 3: the fit, checked before correcting](../../images/fs_correction_dialog.png)
+
+## 4.4 Removing the detector grid
 
 MCP (hexagonal) and mesh (square) patterns print on every image. **Do it
 first**: only data still on the detector's pixels can be de-gridded, so the
@@ -80,7 +139,7 @@ every slice while the photoemission moves. **Find and remove the grid**:
 - **Also list the grid pattern** keeps a `[grid]` dataset, which a cut taken
   later with the same lens mode and pass energy will find and use.
 
-## 4.4 Detector corrections
+## 4.5 Detector corrections
 
 On a cut, map or kz map as measured:
 
@@ -93,7 +152,7 @@ On a cut, map or kz map as measured:
 3. **Apply** -- **Apply to list**. Do the grid removal, Fermi level and k
    conversion on the result.
 
-## 4.5 Background subtraction
+## 4.6 Background subtraction
 
 Tool panel → Basic → **Background subtraction...** (cuts) removes the
 intensity that is not the bands: a **Shirley** or **Tougaard** inelastic
@@ -105,7 +164,7 @@ EDC). The window is the same as the Advanced tab's processing windows —
 source and result side by side, live preview, **Apply** lists the result —
 described in [§5.1](#51-smoothing-derivatives-curvature-and-symmetrising).
 
-## 4.6 Converting a cut to momentum
+## 4.7 Converting a cut to momentum
 
 Tool panel → Basic → **k conversion (cut)...** converts the angle axis to k∥
 (Å⁻¹). A **vertical line** is drawn on the cut: drag it to the slit angle of
@@ -135,7 +194,7 @@ the only choice when only this cut was measured.
 
 ![The cut in momentum](../../images/cut_in_k.png)
 
-## 4.7 Core-level check
+## 4.8 Core-level check
 
 A wide scan of the core levels is listed as a cut too. Select it and press
 tool panel → Basic → **Core-level check...** to find out what its peaks are.
@@ -188,7 +247,7 @@ the whole result as text. Measuring at a second photon energy settles what
 stays doubtful: core levels stay put in binding energy, Auger lines and
 higher-order light move.
 
-## 4.8 Converting a map to momentum
+## 4.9 Converting a map to momentum
 
 Select an angle map and press tool panel → Basic → **k conversion (map)...**.
 The map opens on a bare constant-energy contour — no cuts, no other
@@ -221,7 +280,7 @@ new `k-map` row in the list.
 
 ![The converted k-map](../../images/k_map_contour.png)
 
-## 4.9 Aligning the Fermi levels of a kz map
+## 4.10 Aligning the Fermi levels of a kz map
 
 A photon-energy scan is listed as a `kz map`; its contour is photon energy
 against angle at one energy.
@@ -249,7 +308,7 @@ E_F against photon energy is plotted. A smooth curve means the fits are
 sound; points whose fit is not believed are marked and filled in from their
 neighbours.
 
-## 4.10 Converting a kz map to momentum
+## 4.11 Converting a kz map to momentum
 
 Tool panel → Basic → **kz conversion...** converts the scan to (k_z, k∥). It
 starts from the last conversion of a scan of the same size.
@@ -288,7 +347,7 @@ starts from the last conversion of a scan of the same size.
   direction, through Γ), the high-symmetry points it holds, and the measured
   k_z range in zone periods; it follows the settings as they change.
 - The yellow banner warns when the Fermi edge still bends across the analyser
-  angle — correct it first (Straighten bands (FS correction) on the slit cut).
+  angle — correct it first (Fermi surface correction, [§4.3](#43-fermi-surface-correction)).
   The bend is a parabola fitted through the edge of blocks of neighbouring
   channels, the weak channels at the slit ends left out, so one noisy
   channel or a band crossing E_F does not set it.
@@ -296,7 +355,7 @@ starts from the last conversion of a scan of the same size.
 
 ![The converted kz map](../../images/kz_map_in_k.png)
 
-## 4.11 Brillouin zone
+## 4.12 Brillouin zone
 
 Select a k-map (or a converted kz map) and press tool panel → Basic →
 **BZ overlap...**. Like the map conversion, it opens a contour of its

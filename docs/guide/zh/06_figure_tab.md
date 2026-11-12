@@ -333,9 +333,9 @@ E_F）。
 2. **费米能级。** 选中 map → Basic → **Fermi edge fit...**。在原始数据上、在费米边附近的窗口内拟合，
    记下 E_F（[§4.2](#42-费米边拟合)）。
 3. **转换到动量空间。** Basic → **k conversion (map)**：Γ 在法向出射，以拟合的 E_F 为能量参考。
-   出现新行 `… [k]`（[§4.8](#48-map-的-k-转换)）。
+   出现新行 `… [k]`（[§4.9](#49-map-的-k-转换)）。
 4. **布里渊区。** 选中 k-map → Basic → **BZ overlap...**：空间群 164（P-3m1），a = 3.3 Å，
-   c = 6 Å，过 Γ 的 (001) 面（[§4.11](#411-布里渊区)）。
+   c = 6 Å，过 Γ 的 (001) 面（[§4.12](#412-布里渊区)）。
 5. **切片。** Advanced → **Slice series figure...**：能量 0、−0.2、−0.4 eV，±20 meV，三列，
    布里渊区用虚线（[§5.6](#56-切片序列图slice-series-figure)）。图在作图器中打开。
 6. **排版与导出。** 在作图器中设置页面宽度、色图和色阶、面板字母 (a)(b)(c)，然后 **Export** 为 PNG
@@ -354,7 +354,7 @@ E_F）。
 
 ![示例图 1](../../images/example_figure_1.png)
 
-**(a) 切角立方体。** 把 Γ 平面 map 转换到动量空间（[第 13 节](#48-map-的-k-转换)）；
+**(a) 切角立方体。** 把 Γ 平面 map 转换到动量空间（[第 13 节](#49-map-的-k-转换)）；
 选中 k-map → Advanced → **Notched cube...**。用 *Change sampling...* 把 k_x、k_y
 限制在 ±1.25 Å⁻¹ 内、E 到 E_F 为止；切口放在 k_x = k_y = 0、一直到最低能量，角为
 **+ − +**；色图 *blue*，反转；方位角 −52°，仰角 24°。**To figure composer...**：
@@ -401,7 +401,7 @@ k-map，或点 **↻ Maps from the list**）。*Path* 填 `K-H`（两条能带�
 left* 填 `L, M`。**To figure composer...** → (a) 所在的图。
 
 **(c) 沿 k_z 层叠的 cut。** 把光子能量扫描转换到动量空间
-（[第 14 节](#49-对齐-kz-map-的费米能级)），选中它 → Advanced → **Stacked slices...**：
+（[第 14 节](#410-对齐-kz-map-的费米能级)），选中它 → Advanced → **Stacked slices...**：
 *Layers* 沿 k_z，位于各 cut 的四个 k_z（8.0、8.3、8.6 和 9.0 π/c），*Fade* 30 %，
 **Spread** 3，方位角 40°，仰角 12°。在 **Mark a curve through the layers** 中加入
 每张 cut 上的交叉点（k_z, k_∥, E）——取自 (d)——红色。**To figure composer...**。

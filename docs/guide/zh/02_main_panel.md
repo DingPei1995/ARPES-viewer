@@ -150,7 +150,7 @@
 ![合并 cut](../../images/combine_cuts_dialog.png)
 
 由角度 cut 组成的光子能量序列会成为 `kz map`，可直接使用 *Align Fermi levels (kz
-map)* 和 *Convert to momentum (kz, k∥)*（见[第 14 节](#49-对齐-kz-map-的费米能级)）；
+map)* 和 *Convert to momentum (kz, k∥)*（见[第 14 节](#410-对齐-kz-map-的费米能级)）；
 其他轴得到的是 `map`，其第一个轴被标记为非角度，因此不会提供 k 转换。
 
 **拼接分段采集的数据**

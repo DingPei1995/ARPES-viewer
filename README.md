@@ -46,9 +46,9 @@ as a publication figure.
   ([the viewers](docs/USER_GUIDE_en.md#31-what-the-viewers-have-in-common)).
 - **Converts** maps and cuts to momentum, photon-energy scans to k_z, with the
   Brillouin zone drawn over them
-  ([§4.8](docs/USER_GUIDE_en.md#48-converting-a-map-to-momentum),
-  [§4.9–4.10](docs/USER_GUIDE_en.md#49-aligning-the-fermi-levels-of-a-kz-map),
-  [§4.11](docs/USER_GUIDE_en.md#411-brillouin-zone)).
+  ([§4.9](docs/USER_GUIDE_en.md#49-converting-a-map-to-momentum),
+  [§4.10–4.11](docs/USER_GUIDE_en.md#410-aligning-the-fermi-levels-of-a-kz-map),
+  [§4.12](docs/USER_GUIDE_en.md#412-brillouin-zone)).
 - **Analyses**: Fermi-edge fits, Fermi-surface correction, MDC / EDC fits
   and the self-energy, ridge detection, curvature, second derivatives and
   the minimum gradient, dichroism, core levels, spin, de-gridding, detector

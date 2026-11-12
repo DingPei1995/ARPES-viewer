@@ -60,7 +60,7 @@ références à côté du code : [lecture des données](../arpes_viewer/loader/R
 
 - [3.1 Ce que les fenêtres de visualisation ont en commun](#31-ce-que-les-fenêtres-de-visualisation-ont-en-commun)
 - [3.2 Les cartes : le contour et ses deux coupes](#32-les-cartes--le-contour-et-ses-deux-coupes)
-- [3.3 Coupes arbitraires et correction de la surface de Fermi](#33-coupes-arbitraires-et-correction-de-la-surface-de-fermi)
+- [3.3 Coupes arbitraires](#33-coupes-arbitraires)
 - [3.4 Cartes kz et cartes k](#34-cartes-kz-et-cartes-k)
 - [3.5 Courbes : EDC, MDC et ajustement de courbes](#35-courbes--edc-mdc-et-ajustement-de-courbes)
 - [3.6 Données résolues en spin](#36-données-résolues-en-spin)
@@ -71,15 +71,16 @@ références à côté du code : [lecture des données](../arpes_viewer/loader/R
 
 - [4.1 Comment fonctionnent les boutons d'outils](#41-comment-fonctionnent-les-boutons-doutils)
 - [4.2 Ajustement du front de Fermi](#42-ajustement-du-front-de-fermi)
-- [4.3 Supprimer la grille du détecteur](#43-supprimer-la-grille-du-détecteur)
-- [4.4 Corrections du détecteur](#44-corrections-du-détecteur)
-- [4.5 Soustraction du fond](#45-soustraction-du-fond)
-- [4.6 Conversion en k d'une coupe](#46-conversion-en-k-dune-coupe)
-- [4.7 Vérification des niveaux de cœur](#47-vérification-des-niveaux-de-cœur)
-- [4.8 Conversion en k d'une carte](#48-conversion-en-k-dune-carte)
-- [4.9 Aligner les niveaux de Fermi d'une carte kz](#49-aligner-les-niveaux-de-fermi-dune-carte-kz)
-- [4.10 Convertir une carte kz en impulsion](#410-convertir-une-carte-kz-en-impulsion)
-- [4.11 Zone de Brillouin](#411-zone-de-brillouin)
+- [4.3 Correction de la surface de Fermi](#43-correction-de-la-surface-de-fermi)
+- [4.4 Supprimer la grille du détecteur](#44-supprimer-la-grille-du-détecteur)
+- [4.5 Corrections du détecteur](#45-corrections-du-détecteur)
+- [4.6 Soustraction du fond](#46-soustraction-du-fond)
+- [4.7 Conversion en k d'une coupe](#47-conversion-en-k-dune-coupe)
+- [4.8 Vérification des niveaux de cœur](#48-vérification-des-niveaux-de-cœur)
+- [4.9 Conversion en k d'une carte](#49-conversion-en-k-dune-carte)
+- [4.10 Aligner les niveaux de Fermi d'une carte kz](#410-aligner-les-niveaux-de-fermi-dune-carte-kz)
+- [4.11 Convertir une carte kz en impulsion](#411-convertir-une-carte-kz-en-impulsion)
+- [4.12 Zone de Brillouin](#412-zone-de-brillouin)
 
 **[Partie 5 — Le panneau d'outils : onglet Advanced](#partie-5--le-panneau-doutils--onglet-advanced)**
 
@@ -317,7 +318,7 @@ traitement (`arpes_viewer/tools/runtime/naming.py`) :
 | `[bg]` | Background subtraction… | fond soustrait |
 | `[E-E_F]` | Ajustement du niveau de Fermi (décalage), `L.shift_energy` | énergie rapportée au niveau de Fermi |
 | `[dFD]` | Ajustement du niveau de Fermi (division) | divisé par la fonction de Fermi–Dirac |
-| `[FS corr]` | Straighten bands (FS correction) | bandes redressées le long de la fente |
+| `[FS corr]` | Fermi surface correction…, `L.fs_correction` | bandes redressées le long de la fente |
 | `[sm]` | Smooth… | lissé |
 | `[symm]` | Symmetrise… | symétrisé |
 | `[k]` | Conversion en k (coupe / carte) | converti en impulsion |
@@ -603,7 +604,7 @@ laquelle :
 
 Une série en énergie de photon de coupes en angle devient une `kz map`, que
 *Align Fermi levels (kz map)* et *Convert to momentum (kz, k∥)* acceptent
-(voir [§4.9](#49-aligner-les-niveaux-de-fermi-dune-carte-kz)) ; tout autre axe donne une
+(voir [§4.10](#410-aligner-les-niveaux-de-fermi-dune-carte-kz)) ; tout autre axe donne une
 `map` dont le premier axe est marqué comme n'étant pas un angle, si bien
 qu'aucune conversion en k n'est proposée.
 
@@ -726,15 +727,15 @@ d'outils de la fenêtre principale ([§2.1](#21-la-fenêtre-principale-en-un-cou
 | Fenêtre | Functions |
 |---|---|
 | carte / carte kz / carte k (contour) | Arbitrary cut ; Slice : enregistrer / figer la tranche |
-| coupe | Straighten bands (FS correction) ; Slice : enregistrer / figer |
-| coupe selon la fente d'une carte | Straighten bands (FS correction) pour tout le cube ; Show the map |
+| coupe | Slice : enregistrer / figer |
+| coupe selon la fente d'une carte | Show the map |
 | courbe | Curve fit, Spin analysis ; Crop, Bin, Normalise, Background, Shift axis, Add √N errors |
 
 Une entrée qui s'applique mais ne peut pas encore être lancée est grisée, et
 son infobulle en donne la raison.
 
 **Case Brillouin zone.** Une carte k ou une carte kz convertie sur laquelle
-une zone a été tracée ([§4.11](#411-zone-de-brillouin)) la garde : sa fenêtre a
+une zone a été tracée ([§4.12](#412-zone-de-brillouin)) la garde : sa fenêtre a
 une case **Brillouin zone** sur la ligne du haut pour l'afficher ou la
 masquer.
 
@@ -800,9 +801,7 @@ On peut aussi ouvrir directement une coupe d'une carte depuis la liste (clic
 droit → **Open slit cut** / **Open scan-axis cut**) ; le contour reste alors
 caché jusqu'à ce qu'on le demande (*Functions → Show the map*).
 
-## 3.3 Coupes arbitraires et correction de la surface de Fermi
-
-### Coupe arbitraire
+## 3.3 Coupes arbitraires
 
 *Functions → Arbitrary cut...* sur n'importe quel contour : cliquez jusqu'à
 six points (ou saisissez-les) ; la coupe les parcourt dans l'ordre — ici
@@ -819,17 +818,9 @@ endroit ne soit pas pris pour de la physique.
 
 ![La coupe le long de Γ–M–K–Γ](images/arbitrary_cut_result.png)
 
-### Correction de la surface de Fermi (FS)
-
-*Functions → Straighten bands (FS correction)...* sur une coupe (ou sur la coupe selon la fente
-d'une carte) redresse une structure qui devrait être plate — en général le
-front de Fermi, courbé en fonction de l'angle de l'analyseur. Cliquez le long
-de la structure : un polynôme (d'ordre 2 par défaut) est ajusté et chaque
-colonne d'angle est décalée en énergie. **From a reference (Au)...** prend
-plutôt la courbe sur un spectre d'or présent dans la liste. Sur la coupe
-selon la fente d'une carte, le même décalage est appliqué à tout le cube.
-
-![Correction FS](images/fs_correction_dialog.png)
+La correction de la surface de Fermi (FS), qui redresse un front de Fermi
+courbé par l'analyseur, est un outil de l'onglet Basic du panneau d'outils
+([§4.3](#43-correction-de-la-surface-de-fermi)).
 
 ## 3.4 Cartes kz et cartes k
 
@@ -838,13 +829,13 @@ angle : son contour montre l'énergie de photon en fonction de l'angle de
 l'analyseur à l'énergie choisie par le curseur, et ses deux coupes sont le
 spectre à une énergie de photon et la dispersion en énergie de photon à un
 angle. Alignez ses niveaux de Fermi et convertissez-la en (k_z, k∥) depuis
-l'onglet Basic ([§4.9](#49-aligner-les-niveaux-de-fermi-dune-carte-kz), [§4.10](#410-convertir-une-carte-kz-en-impulsion)).
+l'onglet Basic ([§4.10](#410-aligner-les-niveaux-de-fermi-dune-carte-kz), [§4.11](#411-convertir-une-carte-kz-en-impulsion)).
 
 ![Une carte kz](images/kz_map_contour.png)
 
-Une **carte k** (une carte convertie en impulsion, [§4.8](#48-conversion-en-k-dune-carte)) et une
+Une **carte k** (une carte convertie en impulsion, [§4.9](#49-conversion-en-k-dune-carte)) et une
 **carte kz convertie** s'ouvrent dans la même fenêtre de contour, sur des axes
-en impulsion. Quand une zone de Brillouin y a été tracée ([§4.11](#411-zone-de-brillouin)),
+en impulsion. Quand une zone de Brillouin y a été tracée ([§4.12](#412-zone-de-brillouin)),
 elles la gardent, et une case **Brillouin zone** sur la barre du haut l'affiche
 ou la masque. Les séries de tranches ([§5.6](#56-figure-en-série-de-tranches)) et les exports la
 dessinent aussi.
@@ -965,7 +956,7 @@ ou sans les axes, avec les guides des Plot tools s'il y en a, et avec la zone
 de Brillouin si le jeu de données en a une) ; ou le cadre, les graduations et
 les étiquettes en PostScript vectoriel, pour y placer l'image dans
 Illustrator (avec, au choix, la zone de Brillouin tracée dans le cadre — voir
-[§4.11](#411-zone-de-brillouin)).
+[§4.12](#412-zone-de-brillouin)).
 
 ![Exportation](images/export_dialog.png)
 
@@ -1043,7 +1034,74 @@ these fits** ajoute la carte corrigée à la liste.
 
 ![Ajustement de Fermi sur une carte, un E_F par coupe](images/fermi_map_cuts.png)
 
-## 4.3 Supprimer la grille du détecteur
+## 4.3 Correction de la surface de Fermi
+
+L'analyseur courbe le front de Fermi : aux extrémités de la fente, il se
+trouve quelques dizaines de meV plus bas qu'au milieu, si bien qu'une bande
+qui devrait être plate paraît courbée. Panneau → Basic → **Fermi surface
+correction...** le redresse : la courbe du front de Fermi est ajustée par un
+polynôme, et chaque colonne d'angle est décalée en énergie pour qu'elle
+devienne plate. À faire avant une conversion en k.
+
+Sélectionnez une **coupe**, ou une **carte** (ou carte kz) encore en angle,
+et appuyez sur le bouton. Une coupe s'ouvre dans sa fenêtre ; une carte
+s'ouvre sur sa **coupe selon la fente**, et le décalage ajusté là est
+appliqué à tout le cube. La fenêtre de données et celle de la correction
+vont ensemble : fermer l'une ferme l'autre. La fenêtre guide en trois
+étapes (**Back** et **Next** pour passer de l'une à l'autre).
+
+**Étape 1 — comment trouver le front de Fermi.** Au choix :
+
+- **By hand** (à la main) : cliquer le front de Fermi sur la fenêtre de
+  données ;
+- **From a reference** (référence) : ajuster le front de Fermi d'une coupe ou
+  d'une carte de la liste principale (une référence d'or, ou tout ce qui a un
+  front net à chaque angle).
+
+![Étape 1 : à la main ou par une référence](images/fs_correction_step1.png)
+
+**Étape 2, à la main — cliquer le front de Fermi sur la fenêtre de
+données.** Cliquez sur l'image de la fenêtre de données là où se trouve le
+front de Fermi, à plusieurs angles répartis sur tout le front, extrémités
+comprises. Chaque clic place une croix orange sur l'image et une ligne dans
+le tableau des points ; la courbe ajustée est tracée en tirets au fur et à
+mesure. Un point mal placé se corrige dans le tableau, ou se supprime
+(**Remove selected**, **Clear**). Les clics ne comptent que pendant la
+saisie à la main (étapes 2 et 3).
+
+![Le front de Fermi cliqué sur la coupe, avec la courbe ajustée](images/fs_correction_cut.png)
+
+**Étape 2, par une référence — choisir la référence dans la liste
+principale.** Choisissez la coupe ou la carte de référence dans
+**Reference** (une carte est sommée sur le déflecteur, chaque position du
+déflecteur voyant la même courbure de fente). La température est lue dans
+son fichier ; **Neighbours** ajoute des canaux de part et d'autre de chacun
+avant l'ajustement, **Fit every Nth channel** échantillonne le détecteur.
+**Fit the reference ›** ajuste son front de Fermi canal par canal et place
+le résultat dans le tableau.
+
+**Une référence déjà ajustée ne l'est pas une seconde fois.** Si la
+référence choisie a déjà été ajustée pendant cette session — par cet outil,
+ou par l'ajustement canal par canal de l'ajustement du front de Fermi
+([§4.2](#42-ajustement-du-front-de-fermi)) — la fenêtre le dit, et le bouton
+devient **Use the earlier fit ›** : ce résultat est repris tel quel. Cochez
+**Fit it again** pour le refaire avec d'autres réglages.
+
+![Étape 2 : la référence](images/fs_correction_reference.png)
+
+**Étape 3 — vérifier l'ajustement et corriger.** La courbe ajustée est
+tracée en tirets sur les données ; vérifiez qu'elle suit le front de Fermi
+et supprimez un point égaré sinon. **Fit order** fixe le polynôme (2, une
+parabole, est la forme habituelle de la courbure de l'analyseur ; un
+ajustement d'ordre n demande n+1 points), **Name** le nom du résultat.
+**Correct** décale chaque colonne d'angle pour aplatir la courbe et ajoute
+le résultat à la liste (`[FS corr]`) ; l'axe en énergie s'allonge de
+l'amplitude de la courbe, et les cases qu'aucune colonne n'atteint restent
+vides.
+
+![Étape 3 : l'ajustement, vérifié avant de corriger](images/fs_correction_dialog.png)
+
+## 4.4 Supprimer la grille du détecteur
 
 Les motifs du MCP (hexagonal) et de la grille (carré) s'impriment sur chaque
 image. **À faire en premier** : seules les données encore sur les pixels du
@@ -1066,7 +1124,7 @@ que la photoémission se déplace. **Find and remove the grid** :
   coupe prise plus tard avec le même mode de lentille et la même énergie de
   passage retrouvera et utilisera.
 
-## 4.4 Corrections du détecteur
+## 4.5 Corrections du détecteur
 
 Sur une coupe, une carte ou une carte kz telle que mesurée :
 
@@ -1079,7 +1137,7 @@ Sur une coupe, une carte ou une carte kz telle que mesurée :
 3. **Appliquer** -- **Apply to list**. Faites ensuite la suppression de la
    grille, le niveau de Fermi et la conversion en k sur le résultat.
 
-## 4.5 Soustraction du fond
+## 4.6 Soustraction du fond
 
 Panneau → Basic → **Background subtraction...** (coupes) retire l'intensité
 qui n'appartient pas aux bandes : un fond inélastique de **Shirley** ou de
@@ -1092,7 +1150,7 @@ traitement de l'onglet Advanced — source et résultat côte à côte, aperçu 
 direct, **Apply** ajoute le résultat à la liste — décrite au
 [§5.1](#51-lissage-dérivées-courbure-et-symétrisation).
 
-## 4.6 Conversion en k d'une coupe
+## 4.7 Conversion en k d'une coupe
 
 Panneau → Basic → **k conversion (cut)...** convertit l'axe angulaire en k∥
 (Å⁻¹). Une **ligne verticale** est tracée sur la coupe : faites-la glisser
@@ -1124,7 +1182,7 @@ coupe a été mesurée.
 
 ![La coupe en impulsion](images/cut_in_k.png)
 
-## 4.7 Vérification des niveaux de cœur
+## 4.8 Vérification des niveaux de cœur
 
 Un balayage large des niveaux de cœur est lui aussi listé comme une coupe.
 Sélectionnez-le et appuyez sur panneau → Basic → **Core-level check...** pour
@@ -1182,7 +1240,7 @@ Si tous les pics sont décalés de la même quantité, les notes le disent et
 restent fixes en énergie de liaison, les raies Auger et la lumière d'ordre
 supérieur se déplacent.
 
-## 4.8 Conversion en k d'une carte
+## 4.9 Conversion en k d'une carte
 
 Sélectionnez une carte en angle et appuyez sur panneau → Basic → **k
 conversion (map)...**. La carte s'ouvre sur un contour nu — sans coupes ni
@@ -1217,7 +1275,7 @@ résultat est une nouvelle ligne `k-map` dans la liste.
 
 ![La carte convertie en k](images/k_map_contour.png)
 
-## 4.9 Aligner les niveaux de Fermi d'une carte kz
+## 4.10 Aligner les niveaux de Fermi d'une carte kz
 
 Un balayage en énergie de photon est listé comme `kz map` ; son contour est
 l'énergie de photon en fonction de l'angle, à une énergie donnée.
@@ -1247,7 +1305,7 @@ E_F en fonction de l'énergie de photon est tracé. Une courbe régulière
 signifie des ajustements fiables ; les points dont l'ajustement n'est pas
 crédible sont signalés et remplacés par interpolation de leurs voisins.
 
-## 4.10 Convertir une carte kz en impulsion
+## 4.11 Convertir une carte kz en impulsion
 
 Panneau → Basic → **kz conversion...** convertit le balayage en (k_z, k∥). Il
 part de la dernière conversion d'un balayage de même taille.
@@ -1275,13 +1333,13 @@ part de la dernière conversion d'un balayage de même taille.
   structure, distants d'une zone ; les plans du réseau réciproque compatibles
   sont listés.
 - Le bandeau jaune avertit quand le front de Fermi est encore courbé en
-  fonction de l'angle de l'analyseur — corrigez-le d'abord (Straighten bands (FS correction) sur
-  la coupe selon la fente).
+  fonction de l'angle de l'analyseur — corrigez-le d'abord (correction de la surface de Fermi,
+  [§4.3](#43-correction-de-la-surface-de-fermi)).
 - **Convert the whole cube** ajoute une `kz map (k)` à la liste.
 
 ![La carte kz convertie](images/kz_map_in_k.png)
 
-## 4.11 Zone de Brillouin
+## 4.12 Zone de Brillouin
 
 Sélectionnez une carte k (ou une carte kz convertie) et appuyez sur panneau
 → Basic → **BZ overlap...**.
@@ -2124,10 +2182,10 @@ l'agent au [§7.7](#77-exemple--un-agent-de-la-configuration-à-la-figure), fait
    front ; notez E_F ([§4.2](#42-ajustement-du-front-de-fermi)).
 3. **En impulsion.** Basic → **k conversion (map)** : Γ en émission normale,
    E_F ajusté comme référence d'énergie. Une nouvelle ligne `… [k]` apparaît
-   ([§4.8](#48-conversion-en-k-dune-carte)).
+   ([§4.9](#49-conversion-en-k-dune-carte)).
 4. **La zone.** Sélectionnez la carte k → Basic → **BZ overlap...** : groupe
    d'espace 164 (P-3m1), a = 3,3 Å, c = 6 Å, plan (001) passant par Γ
-   ([§4.11](#411-zone-de-brillouin)).
+   ([§4.12](#412-zone-de-brillouin)).
 5. **Tranches.** Advanced → **Slice series figure...** : énergies 0, −0,2,
    −0,4 eV, ±20 meV, trois colonnes, la zone en tirets ([§5.6](#56-figure-en-série-de-tranches)). La
    figure s'ouvre dans le composeur.
@@ -2154,7 +2212,7 @@ script à lire en parallèle de cette section.
 ![Figure d'exemple 1](images/example_figure_1.png)
 
 **(a) Le cube entaillé.** Convertissez la carte du plan Γ en impulsion
-([§4.8](#48-conversion-en-k-dune-carte)) ; sélectionnez la k-map → Advanced →
+([§4.9](#49-conversion-en-k-dune-carte)) ; sélectionnez la k-map → Advanced →
 **Notched cube...**. *Change sampling...* : k_x, k_y dans ±1,25 Å⁻¹ et E
 jusqu'à E_F ; placez l'entaille en k_x = k_y = 0 jusqu'à l'énergie la plus
 basse, coin **+ − +** ; palette *blue*, inversée ; azimut −52°, élévation
@@ -2213,7 +2271,7 @@ list**). *Path* `K-H` (la ligne où les deux bandes se croisent) ; *Label on
 the left* `L, M`. **To figure composer...** → la figure de (a).
 
 **(c) Les coupes empilées selon k_z.** Convertissez le balayage en énergie
-de photon en impulsion ([§4.9](#49-aligner-les-niveaux-de-fermi-dune-carte-kz)),
+de photon en impulsion ([§4.10](#410-aligner-les-niveaux-de-fermi-dune-carte-kz)),
 sélectionnez-le → Advanced → **Stacked slices...** : *Layers* selon k_z aux
 quatre k_z des coupes (8,0, 8,3, 8,6 et 9,0 π/c), *Fade* 30 %, **Spread** 3,
 azimut 40°, élévation 12°. Dans **Mark a curve through the layers**, ajoutez

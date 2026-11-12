@@ -49,15 +49,15 @@ d'outils de la fenêtre principale ([§2.1](#21-la-fenêtre-principale-en-un-cou
 | Fenêtre | Functions |
 |---|---|
 | carte / carte kz / carte k (contour) | Arbitrary cut ; Slice : enregistrer / figer la tranche |
-| coupe | Straighten bands (FS correction) ; Slice : enregistrer / figer |
-| coupe selon la fente d'une carte | Straighten bands (FS correction) pour tout le cube ; Show the map |
+| coupe | Slice : enregistrer / figer |
+| coupe selon la fente d'une carte | Show the map |
 | courbe | Curve fit, Spin analysis ; Crop, Bin, Normalise, Background, Shift axis, Add √N errors |
 
 Une entrée qui s'applique mais ne peut pas encore être lancée est grisée, et
 son infobulle en donne la raison.
 
 **Case Brillouin zone.** Une carte k ou une carte kz convertie sur laquelle
-une zone a été tracée ([§4.11](#411-zone-de-brillouin)) la garde : sa fenêtre a
+une zone a été tracée ([§4.12](#412-zone-de-brillouin)) la garde : sa fenêtre a
 une case **Brillouin zone** sur la ligne du haut pour l'afficher ou la
 masquer.
 
@@ -123,9 +123,7 @@ On peut aussi ouvrir directement une coupe d'une carte depuis la liste (clic
 droit → **Open slit cut** / **Open scan-axis cut**) ; le contour reste alors
 caché jusqu'à ce qu'on le demande (*Functions → Show the map*).
 
-## 3.3 Coupes arbitraires et correction de la surface de Fermi
-
-### Coupe arbitraire
+## 3.3 Coupes arbitraires
 
 *Functions → Arbitrary cut...* sur n'importe quel contour : cliquez jusqu'à
 six points (ou saisissez-les) ; la coupe les parcourt dans l'ordre — ici
@@ -142,17 +140,9 @@ endroit ne soit pas pris pour de la physique.
 
 ![La coupe le long de Γ–M–K–Γ](../../images/arbitrary_cut_result.png)
 
-### Correction de la surface de Fermi (FS)
-
-*Functions → Straighten bands (FS correction)...* sur une coupe (ou sur la coupe selon la fente
-d'une carte) redresse une structure qui devrait être plate — en général le
-front de Fermi, courbé en fonction de l'angle de l'analyseur. Cliquez le long
-de la structure : un polynôme (d'ordre 2 par défaut) est ajusté et chaque
-colonne d'angle est décalée en énergie. **From a reference (Au)...** prend
-plutôt la courbe sur un spectre d'or présent dans la liste. Sur la coupe
-selon la fente d'une carte, le même décalage est appliqué à tout le cube.
-
-![Correction FS](../../images/fs_correction_dialog.png)
+La correction de la surface de Fermi (FS), qui redresse un front de Fermi
+courbé par l'analyseur, est un outil de l'onglet Basic du panneau d'outils
+([§4.3](#43-correction-de-la-surface-de-fermi)).
 
 ## 3.4 Cartes kz et cartes k
 
@@ -161,13 +151,13 @@ angle : son contour montre l'énergie de photon en fonction de l'angle de
 l'analyseur à l'énergie choisie par le curseur, et ses deux coupes sont le
 spectre à une énergie de photon et la dispersion en énergie de photon à un
 angle. Alignez ses niveaux de Fermi et convertissez-la en (k_z, k∥) depuis
-l'onglet Basic ([§4.9](#49-aligner-les-niveaux-de-fermi-dune-carte-kz), [§4.10](#410-convertir-une-carte-kz-en-impulsion)).
+l'onglet Basic ([§4.10](#410-aligner-les-niveaux-de-fermi-dune-carte-kz), [§4.11](#411-convertir-une-carte-kz-en-impulsion)).
 
 ![Une carte kz](../../images/kz_map_contour.png)
 
-Une **carte k** (une carte convertie en impulsion, [§4.8](#48-conversion-en-k-dune-carte)) et une
+Une **carte k** (une carte convertie en impulsion, [§4.9](#49-conversion-en-k-dune-carte)) et une
 **carte kz convertie** s'ouvrent dans la même fenêtre de contour, sur des axes
-en impulsion. Quand une zone de Brillouin y a été tracée ([§4.11](#411-zone-de-brillouin)),
+en impulsion. Quand une zone de Brillouin y a été tracée ([§4.12](#412-zone-de-brillouin)),
 elles la gardent, et une case **Brillouin zone** sur la barre du haut l'affiche
 ou la masque. Les séries de tranches ([§5.6](#56-figure-en-série-de-tranches)) et les exports la
 dessinent aussi.
@@ -288,7 +278,7 @@ ou sans les axes, avec les guides des Plot tools s'il y en a, et avec la zone
 de Brillouin si le jeu de données en a une) ; ou le cadre, les graduations et
 les étiquettes en PostScript vectoriel, pour y placer l'image dans
 Illustrator (avec, au choix, la zone de Brillouin tracée dans le cadre — voir
-[§4.11](#411-zone-de-brillouin)).
+[§4.12](#412-zone-de-brillouin)).
 
 ![Exportation](../../images/export_dialog.png)
 

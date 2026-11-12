@@ -433,10 +433,10 @@ done by hand.
    ([§4.2](#42-fermi-edge-fit)).
 3. **To momentum.** Basic → **k conversion (map)**: Γ at normal emission,
    the fitted E_F as the energy reference. A new row `… [k]` appears
-   ([§4.8](#48-converting-a-map-to-momentum)).
+   ([§4.9](#49-converting-a-map-to-momentum)).
 4. **The zone.** Select the k-map → Basic → **BZ overlap...**: space group
    164 (P-3m1), a = 3.3 Å, c = 6 Å, plane (001) through Γ
-   ([§4.11](#411-brillouin-zone)).
+   ([§4.12](#412-brillouin-zone)).
 5. **Slices.** Advanced → **Slice series figure...**: energies 0, −0.2,
    −0.4 eV, ±20 meV, three columns, the zone dashed
    ([§5.6](#56-slice-series-figure)). The figure opens in the composer.
@@ -460,7 +460,7 @@ these steps, so it is also a script to read alongside this section.
 ![Example figure 1](../../images/example_figure_1.png)
 
 **(a) The notched cube.** Convert the Γ-plane map to momentum
-([§4.8](#48-converting-a-map-to-momentum)); select the k-map → Advanced →
+([§4.9](#49-converting-a-map-to-momentum)); select the k-map → Advanced →
 **Notched cube...**. *Change sampling...* to k_x, k_y within ±1.25 Å⁻¹ and E
 up to E_F; put the notch at k_x = k_y = 0 down to the lowest energy, corner
 **+ − +**; colormap *blue*, reversed; azimuth −52°, elevation 24°. **To
@@ -516,7 +516,7 @@ plane is through Γ, the second at the zone top); the first plane's *map* →
 **To figure composer...** → the figure of (a).
 
 **(c) The cuts stacked along k_z.** Convert the photon-energy scan to
-momentum ([§4.9](#49-aligning-the-fermi-levels-of-a-kz-map)), select it → Advanced →
+momentum ([§4.10](#410-aligning-the-fermi-levels-of-a-kz-map)), select it → Advanced →
 **Stacked slices...**: *Layers* along k_z at the four k_z of the cuts
 (8.0, 8.3, 8.6 and 9.0 π/c), *Fade* 30 %, **Spread** 3, azimuth 40°,
 elevation 12°. In **Mark a curve through the layers**, add the crossing on

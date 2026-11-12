@@ -5606,6 +5606,8 @@ class FSCorrectionDialog(_PickerDialog):
         }
         self.step_title.setText(titles[index])
         self.points_box.setVisible(index in (self.STEP_POINTS, self.STEP_REVIEW))
+        # the count of points and the fit's span: about the points only
+        self.note.setVisible(index in (self.STEP_POINTS, self.STEP_REVIEW))
         bar = getattr(self.window_, "statusBar", None)
         message = {
             self.STEP_METHOD: "Fermi-surface correction: choose how the Fermi "

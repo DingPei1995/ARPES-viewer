@@ -40,6 +40,10 @@ agent's steps saved as one script.
   corrected from a reference (it could not before). For agents, the
   operation `L.fs_correction(name, points=... | reference=..., order=2)`;
   the reference (`arpes_viewer/agent/API.md`) is regenerated.
+  - *User guides (en, zh, fr).* A new §4.3 *Fermi surface correction*
+    describes the three steps, with new screenshots; the Basic tab's
+    later sections move down one (§4.4 to §4.12), and §3.3 is *Arbitrary
+    cuts* only, pointing to §4.3.
 
 - **The SPEM viewer is two windows: the spatial map, and its spectrum in
   the cut viewer.** Each can be sized and placed on its own, and the

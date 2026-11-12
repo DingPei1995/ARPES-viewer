@@ -192,7 +192,7 @@ traitement (`arpes_viewer/tools/runtime/naming.py`) :
 | `[bg]` | Background subtraction… | fond soustrait |
 | `[E-E_F]` | Ajustement du niveau de Fermi (décalage), `L.shift_energy` | énergie rapportée au niveau de Fermi |
 | `[dFD]` | Ajustement du niveau de Fermi (division) | divisé par la fonction de Fermi–Dirac |
-| `[FS corr]` | Straighten bands (FS correction) | bandes redressées le long de la fente |
+| `[FS corr]` | Fermi surface correction…, `L.fs_correction` | bandes redressées le long de la fente |
 | `[sm]` | Smooth… | lissé |
 | `[symm]` | Symmetrise… | symétrisé |
 | `[k]` | Conversion en k (coupe / carte) | converti en impulsion |

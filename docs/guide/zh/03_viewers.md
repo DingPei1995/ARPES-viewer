@@ -36,13 +36,13 @@
 | 窗口 | Functions |
 |---|---|
 | map / kz map / k-map（等能面） | Arbitrary cut；Slice：保存 / 冻结切片 |
-| cut | Straighten bands (FS correction)；Slice：保存 / 冻结 |
-| map 的 slit cut | 对整个数据立方的 Straighten bands (FS correction)；Show the map |
+| cut | Slice：保存 / 冻结 |
+| map 的 slit cut | Show the map |
 | 曲线 | Curve fit、Spin analysis；Crop、Bin、Normalise、Background、Shift axis、Add √N errors |
 
 适用但暂时无法运行的条目显示为灰色，悬停提示会说明原因。
 
-**布里渊区勾选框。** 画过布里渊区（见[第 15 节](#411-布里渊区)）的 k-map 或已转换的
+**布里渊区勾选框。** 画过布里渊区（见[第 15 节](#412-布里渊区)）的 k-map 或已转换的
 kz map 会保留它：其查看窗口顶部一行有 **Brillouin zone** 勾选框，用于显示或隐藏。
 
 ### Plot tools：在图上画辅助线和文字
@@ -97,9 +97,7 @@ map 时扫描的那个量——通常是偏转器角，也可能是样品转角�
 也可以直接从列表中打开 map 的切面（右键 → **Open slit cut** / **Open scan-axis
 cut**），此时等能面窗口保持隐藏，需要时用 *Functions → Show the map* 调出。
 
-## 3.3 任意路径切面与费米面校正
-
-### 任意路径切面
+## 3.3 任意路径切面
 
 在任意等能面上 *Functions → Arbitrary cut...*：点击（或输入）最多六个点，切面
 按顺序经过这些点——这里是 k-map 上的 Γ → M → K → Γ。勾选 **One dataset per
@@ -114,26 +112,19 @@ segment** 可让每一段分别成为一个数据集。
 
 ![沿 Γ–M–K–Γ 的切面](../../images/arbitrary_cut_result.png)
 
-### 费米面（FS）校正
-
-在 cut（或 map 的 slit cut）上 *Functions → Straighten bands (FS correction)...*，把本应平直的特征
-拉直——通常是随分析器角度弯曲的费米边。沿该特征点击若干点，程序拟合多项式
-（默认 2 阶），并把每一列在能量方向上平移。**From a reference (Au)...** 改用列表
-中的金参考谱确定曲线。在 map 的 slit cut 上操作时，同样的平移会应用到整个数据
-立方体。
-
-![费米面校正](../../images/fs_correction_dialog.png)
+费米面（FS）校正（拉直被分析器弯曲的费米边）是工具面板 Basic 标签页中的一个工具
+（[§4.3](#43-费米面校正)）。
 
 ## 3.4 kz map 与 k-map
 
 **kz map**（光子能量扫描）的打开方式与角度 map 相同：等能面显示滑块所选能量处光子能量对分析器
 角度的强度，两个切面分别是某一光子能量下的谱和某一角度下随光子能量的色散。在 Basic 标签页中
-对齐其费米能级并转换到 (k_z, k∥)（[§4.9](#49-对齐-kz-map-的费米能级)、[§4.10](#410-把-kz-map-转换到动量空间)）。
+对齐其费米能级并转换到 (k_z, k∥)（[§4.10](#410-对齐-kz-map-的费米能级)、[§4.11](#411-把-kz-map-转换到动量空间)）。
 
 ![kz map](../../images/kz_map_contour.png)
 
-**k-map**（转换到动量空间的 map，[§4.8](#48-map-的-k-转换)）和**转换后的 kz map** 在同一个等能面查看窗口中、
-以动量为坐标打开。画过布里渊区（[§4.11](#411-布里渊区)）的数据会保留它，顶栏的 **Brillouin zone** 复选框
+**k-map**（转换到动量空间的 map，[§4.9](#49-map-的-k-转换)）和**转换后的 kz map** 在同一个等能面查看窗口中、
+以动量为坐标打开。画过布里渊区（[§4.12](#412-布里渊区)）的数据会保留它，顶栏的 **Brillouin zone** 复选框
 可显示或隐藏。切片序列图（[§5.6](#56-切片序列图slice-series-figure)）和导出也会画出它。
 
 ![带布里渊区的 k-map](../../images/k_map_with_bz.png)
@@ -225,7 +216,7 @@ EDC/MDC 的读数光标、Export）。空间图上的**读数光标**（readout 
 单位，元数据写在 wave note 中）；图片应用当前色表（PNG、TIFF 或 JPEG，可设定尺寸和 dpi，
 可带或不带坐标轴，如有 Plot tools 辅助线或布里渊区也可一并画出）；或者把边框、刻度
 和标签导出为矢量 PostScript，便于在 Illustrator 中放入图片（可在框内画出布里渊区，
-见[第 15 节](#411-布里渊区)）。
+见[第 15 节](#412-布里渊区)）。
 
 ![导出](../../images/export_dialog.png)
 

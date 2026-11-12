@@ -205,7 +205,7 @@ laquelle :
 
 Une série en énergie de photon de coupes en angle devient une `kz map`, que
 *Align Fermi levels (kz map)* et *Convert to momentum (kz, k∥)* acceptent
-(voir [§4.9](#49-aligner-les-niveaux-de-fermi-dune-carte-kz)) ; tout autre axe donne une
+(voir [§4.10](#410-aligner-les-niveaux-de-fermi-dune-carte-kz)) ; tout autre axe donne une
 `map` dont le premier axe est marqué comme n'étant pas un angle, si bien
 qu'aucune conversion en k n'est proposée.
 
