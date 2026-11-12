@@ -1273,6 +1273,10 @@ def ensure_info_window():
     while other files are browsed, or be closed and forgotten.
     """
     global info_window
+    if info_window is not None:
+        from PyQt5 import sip
+        if sip.isdeleted(info_window):      # its main window went first
+            info_window = None
     if info_window is None:
         info_window = main_window_ui.InfoWindow(win)
         info_window.InfoFilterLE.textChanged.connect(apply_info_filter)
