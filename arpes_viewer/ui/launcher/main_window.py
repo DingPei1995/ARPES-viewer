@@ -446,6 +446,14 @@ TOOLS = {
              "with its slit cut, whose slider picks the cut to fit -- one "
              "E_F for the whole map, or one per cut, interpolated between "
              "them."),
+    "fscorr": ("Fermi surface correction...",
+             "Straighten a Fermi edge the analyser bends, step by step: "
+             "first how its curve is found -- clicked on the data viewer "
+             "where the Fermi edge is, or fitted channel by channel on a "
+             "reference cut or map of the main list (gold; a reference "
+             "fitted before is not fitted again) -- then a polynomial "
+             "through it, and every angle column shifted to flatten it. A "
+             "map is corrected whole, from its slit cut."),
     "smooth": ("Smooth...",
              "Gaussian, Savitzky-Golay or moving-average smoothing, with "
              "spike removal. A map is smoothed plane by plane, on the plane "
@@ -596,7 +604,7 @@ TOOLS = {
 #: 2D cuts, 3D maps (angle maps, kz maps, k-maps).
 TOOL_SECTIONS = (
     ("Basic", (
-        ("2D && 3D \u2014 cuts, maps", ("fermi", "degrid", "detcorr")),
+        ("2D && 3D \u2014 cuts, maps", ("fermi", "fscorr", "degrid", "detcorr")),
         ("2D only \u2014 cuts", ("background", "kcut", "corelevel")),
         ("3D only \u2014 maps", ("kmap", "kzalign", "kzconv", "bz")),
     )),

@@ -18,6 +18,29 @@ A Fermi-pocket analysis for quasi-two-dimensional samples (under test), a
 minimum-gradient window, a self-energy that states its bare band, and the
 agent's steps saved as one script.
 
+- **Fermi surface correction moved to the tool panel (Basic), step by
+  step.** "Straighten bands (FS correction)..." left the cut viewer's (and
+  a map's slit cut's) Functions menu; **Fermi surface correction...** is now
+  a button of the tool panel's Basic tab, beside the Fermi edge fit, for a
+  cut, or a map or kz map before its k conversion (a map opens on its slit
+  cut and is corrected whole). The window and the dialog close together.
+  The dialog walks through three steps (`FSCorrectionDialog`):
+  1. *how the Fermi edge is found* -- by hand, or from a reference;
+  2. *by hand:* click on the data viewer where the Fermi edge is, at
+     several angles; clicks count only on this step and the next.
+     *From a reference:* choose a cut or map of the main list (gold); its
+     edge is fitted channel by channel. **A reference fitted before in this
+     session is not fitted again**: its earlier result -- from this tool,
+     or from the Fermi edge fit's "Fit by channel" -- is used as it stands,
+     unless "Fit it again" is ticked (`remember_reference_fit`,
+     `recall_reference_fit`);
+  3. *check the fit and correct*: the polynomial drawn dashed over the
+     data, its order, the result's name, and **Correct**.
+  A map's slit cut now has the main list's hooks too, so a map can be
+  corrected from a reference (it could not before). For agents, the
+  operation `L.fs_correction(name, points=... | reference=..., order=2)`;
+  the reference (`arpes_viewer/agent/API.md`) is regenerated.
+
 - **The SPEM viewer is two windows: the spatial map, and its spectrum in
   the cut viewer.** Each can be sized and placed on its own, and the
   spectrum window has every tool a cut window has (k conversion, band

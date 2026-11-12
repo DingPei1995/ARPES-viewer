@@ -70,6 +70,9 @@ RULES = {
     # Only on the detector's own pixels: a map in momentum has been
     # resampled, and the grid is no longer anywhere fixed to find.
     "fermi": ("one", PLANES, "a cut or a map"),
+    # Along the analyser's slit, so before the k conversion.
+    "fscorr": ("one", frozenset({"cut", "map", "kz_map"}),
+               "a cut, or a map or kz map before its k conversion"),
     "kmap": ("one", frozenset({"map"}),
              "an angle map (one in k or a kz map is not converted this way)"),
     "kcut": ("one", frozenset({"cut"}), "a cut in angle"),

@@ -157,8 +157,8 @@ class KzConversionDialog(QDialog):
                 "border: 1px solid #ffe69c; border-radius: 4px; }")
             banner.setText(
                 f"<b>The Fermi edge still bends by {spread:.3f} eV across the "
-                f"analyser angle.</b> Straighten it first -- open the slit "
-                f"cut and use Fermi-surface correction -- or that bend is "
+                f"analyser angle.</b> Straighten it first -- the tool panel's "
+                f"Fermi surface correction (Basic) -- or that bend is "
                 f"converted into k_z and comes out looking like dispersion. "
                 f"Converting anyway is allowed; this is a reminder, not a "
                 f"refusal.")

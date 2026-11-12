@@ -100,9 +100,8 @@ def test_cut_viewer_keeps_no_tool_buttons(app):
     window = W.CutWindow(_cut(), "c", "gray", False)
     assert _toolbar_buttons(window) == ["Plot tools"]
     texts = _visible_texts(window)
-    assert "Straighten bands (FS correction)..." in texts
     # Tools of the launcher's tool panel are not repeated in a viewer.
-    for gone in ("Fermi edge fit...", "Convert to momentum (k)...",
+    for gone in ("Fermi edge fit...", "Straighten bands (FS correction)...", "Convert to momentum (k)...",
                  "MDC fit (k-cut only)...", "EDC fit...",
                  "Cut arithmetic...", "Remove detector grid..."):
         assert gone not in texts

@@ -792,3 +792,20 @@ def test_a_fermi_pocket_through_the_operation(program, tmp_path):
     with pytest.raises(ValueError, match="no contour"):
         L.fermi_pocket("FS [k-map]", (0.0, 0.0), 0.02, 0.08, energy=-0.05)
     assert "pocket" in {tool["action"] for tool in L.tools()}
+
+
+def test_fs_correction_by_points_and_from_a_reference(program):
+    from arpes_viewer.ui.common.live import Live
+    from arpes_viewer.ui.viewers import windows as W
+    W._REFERENCE_FITS.clear()
+    L = Live(program)
+    before = len(L.rows())
+    out = L.fs_correction("cut1", points=[(-8, EF - 0.02), (0, EF), (8, EF - 0.02)])
+    assert len(L.rows()) == before + 1 and "FS corr" in out["row"]
+    assert out["points"] == 3 and out["coefficients"][0] < 0
+    out = L.fs_correction("map1", reference="cut1", order=1)
+    assert L.describe(out["row"])["kind"].lower().startswith("map")
+    assert out["points"] > 3 and abs(out["coefficients"][0]) < 1e-3
+    assert len(W._REFERENCE_FITS) == 1                # fitted once, kept
+    with pytest.raises(ValueError, match="either points"):
+        L.fs_correction("cut1")

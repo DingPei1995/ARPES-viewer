@@ -724,6 +724,7 @@ def run_list_action(name):
         "background": lambda: open_processing("background"),
         "degrid": open_degrid,
         "fermi": open_fermi_fit,
+        "fscorr": open_fs_correction,
         "kmap": lambda: open_k_conversion("map"),
         "kcut": lambda: open_k_conversion("cut"),
         "kzconv": open_kz_conversion,
@@ -1485,6 +1486,32 @@ def open_fermi_fit():
     if window is None or not hasattr(window, "open_fermi_fit"):
         return None
     return window.open_fermi_fit(bound=True)
+
+
+def open_fs_correction():
+    """The Fermi-surface correction of the selected cut or map, step by
+    step, with the picture it straightens beside it: the cut in its viewer,
+    or a map's slit cut (the correction fitted there is applied to the
+    whole map). First how the curve of the Fermi edge is found -- clicked
+    on that picture, or fitted on a reference cut or map of this list (a
+    reference fitted before is not fitted again) -- then the fit, and
+    Correct. The dialog and that window are tied together: closing either
+    closes the other."""
+    key = selected_key()
+    if key is None:
+        return None
+    kind = str(loaded_items.get(key, {}).get("kind", "")).lower()
+    if kind == "cut":
+        window = open_selected()
+    else:
+        cuts = open_map_cuts("slit")
+        window = cuts[0] if cuts else None
+    if window is None or not hasattr(window, "open_fs_correction"):
+        return None
+    dialog = window.open_fs_correction(bound=True)
+    if dialog is None:
+        window.close()
+    return dialog
 
 
 def _window_for_tool(key):

@@ -438,7 +438,7 @@ def test_settings_are_remembered_per_size(tmp_path):
 def test_the_panel_has_a_basic_and_an_advanced_section(launcher):
     ui = launcher.ui
     basic, advanced = ui.ToolSections["Basic"], ui.ToolSections["Advanced"]
-    for name in ("fermi", "degrid", "background", "kcut", "corelevel", "kmap",
+    for name in ("fermi", "fscorr", "degrid", "background", "kcut", "corelevel", "kmap",
                  "kzalign", "kzconv", "bz"):
         assert basic.isAncestorOf(ui.ToolButtons[name]), name
     for name in ("smooth", "derivative", "curvature", "symmetry",
@@ -805,3 +805,33 @@ def test_keep_recording_logs_each_file_added_to_the_list(launcher, tmp_path,
     with open(tmp_path / "auto.csv", encoding="utf-8-sig") as handle:
         rows = list(csv.reader(handle, delimiter=";"))
     assert rows == [["File name", "hv"], ["new_cut", "95,5"]]
+
+
+def test_fs_correction_is_a_basic_tool_tied_to_its_window(launcher):
+    lv = launcher
+    button = lv.ui.ToolButtons["fscorr"]
+    assert lv.ui.ToolSections["Basic"].isAncestorOf(button)
+    _select(lv)
+    assert not button.isEnabled()
+    _select(lv, "c")
+    assert button.isEnabled()
+    button.click()
+    window = lv.viewer_windows[-1]
+    dialog = window._fs_dialog
+    assert dialog is not None and dialog.isVisible()
+    assert dialog.step() == dialog.STEP_METHOD
+    # the main list's cut and map can be the reference
+    assert dialog.reference_radio.isEnabled()
+    assert dialog.reference_combo.count() == 2
+    dialog.reject()
+    assert not window.isVisible()                   # closed with it
+    _select(lv, "m")
+    assert button.isEnabled()
+    button.click()
+    contour = next(w for w in reversed(lv.viewer_windows)
+                   if isinstance(w, W.ContourWindow))
+    cut = next(w for w in contour.cut_windows.values()
+               if getattr(w, "_fs_dialog", None) is not None)
+    assert cut.which == "slit"
+    assert cut._fs_dialog.reference_combo.count() == 2
+    cut._fs_dialog.reject()

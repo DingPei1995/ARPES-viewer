@@ -758,6 +758,71 @@ class Live:
                        "fitted": np.asarray(result.ok).tolist(),
                        "spread_eV": float(result.spread)})
 
+    @operation("Energy")
+    @_keeps_selection
+    def fs_correction(self, name: str, points=None, reference: str = "",
+                      order: int = 2, refit: bool = False,
+                      new_name: str = "") -> dict:
+        """Fermi-surface correction (tool panel, Basic): straighten a Fermi
+        edge the analyser bends. Its curve is either ``points``, [(angle,
+        E), ...] on the Fermi edge in the row's own units (at least
+        ``order`` + 1), or the Fermi edge of the row ``reference`` (a cut or
+        map, gold) fitted channel by channel -- a reference fitted before in
+        this session (here, or by the Fermi edge fit's channel fit) is not
+        fitted again unless ``refit``. A polynomial of ``order`` goes
+        through them, and every angle column is shifted to flatten it; a
+        map (or kz map) is corrected whole, fitted along its slit. Before
+        the k conversion. Returns the new row, the polynomial (highest
+        power first) and the number of points."""
+        if (points is None) == (not reference):
+            raise ValueError("give either points=[(angle, E), ...] on the "
+                             "Fermi edge or reference=<a row's name>")
+        key = self._key(name)
+        ref_key = self._key(reference) if reference else None
+        self.select(self._name(key))
+        before = set(self.A.loaded_items)
+        dialog = self.A.open_fs_correction()
+        if dialog is None:
+            raise ValueError(f"{self._name(key)!r} cannot be corrected: a cut, "
+                             f"or a map or kz map in angle, is")
+        try:
+            if points is not None:
+                dialog.manual_radio.setChecked(True)
+                dialog.go_next()
+                for x, y in points:
+                    dialog.add_point(float(x), float(y))
+            else:
+                dialog.reference_radio.setChecked(True)
+                dialog.go_next()
+                keys = [k for _label, k in dialog._entries()]
+                if ref_key not in keys:
+                    raise ValueError(f"{reference!r} is not a cut or a map: it "
+                                     f"cannot be the reference")
+                dialog.reference_combo.setCurrentIndex(keys.index(ref_key))
+                dialog.refit_box.setChecked(bool(refit))
+                if dialog.from_reference(refit=bool(refit)) is None:
+                    raise ValueError(f"the Fermi edge of {reference!r} could "
+                                     f"not be fitted")
+                dialog.show_step(dialog.STEP_REVIEW)
+            dialog.order_box.setValue(int(order))
+            if new_name:
+                dialog.name_box.setText(str(new_name))
+            coefficients = dialog.coefficients()
+            if coefficients is None:
+                raise ValueError(f"an order-{int(order)} fit needs at least "
+                                 f"{int(order) + 1} points")
+            count = len(dialog.points())
+            dialog.accept()
+        finally:
+            if dialog.isVisible():
+                dialog.reject()
+        added = [self._name(k) for k in self.A.loaded_items if k not in before]
+        if not added:
+            raise ValueError("the correction made no row")
+        return _plain({"row": added[-1],
+                       "coefficients": np.asarray(coefficients).tolist(),
+                       "points": count})
+
     # ==================================================================
     # Processing
     # ==================================================================

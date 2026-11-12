@@ -245,6 +245,20 @@ row (its per-hv E_F kept in ``kz.fermi_level_eV``, which the kz
 conversion's hv calibration uses). Returns the new row and the
 Fermi levels.
 
+#### `L.fs_correction(name, points=None, reference='', order=2, refit=False, new_name='')`
+
+Fermi-surface correction (tool panel, Basic): straighten a Fermi
+edge the analyser bends. Its curve is either ``points``, [(angle,
+E), ...] on the Fermi edge in the row's own units (at least
+``order`` + 1), or the Fermi edge of the row ``reference`` (a cut or
+map, gold) fitted channel by channel -- a reference fitted before in
+this session (here, or by the Fermi edge fit's channel fit) is not
+fitted again unless ``refit``. A polynomial of ``order`` goes
+through them, and every angle column is shifted to flatten it; a
+map (or kz map) is corrected whole, fitted along its slit. Before
+the k conversion. Returns the new row, the polynomial (highest
+power first) and the number of points.
+
 ### Processing
 
 #### `L.crop(name, bounds, new_name='')`
@@ -580,6 +594,7 @@ The tool panel's buttons, for what has no operation of its own above. The window
 | action | button | takes | what it does |
 |---|---|---|---|
 | `fermi` | Fermi edge fit... | a cut or a map | Fit the Fermi edge: E_F and the resolution, then offset the energy axis to E - E_F. A cut opens with its viewer; a map with its slit cut, whose slider picks the cut to fit -- one E_F for the whole map, or one per cut, interpolated between them. |
+| `fscorr` | Fermi surface correction... | a cut, or a map or kz map before its k conversion | Straighten a Fermi edge the analyser bends, step by step: first how its curve is found -- clicked on the data viewer where the Fermi edge is, or fitted channel by channel on a reference cut or map of the main list (gold; a reference fitted before is not fitted again) -- then a polynomial through it, and every angle column shifted to flatten it. A map is corrected whole, from its slit cut. |
 | `degrid` | Remove detector grid... | a cut, or a map or kz map before its k conversion | Remove the detector's grid pattern. From a whole map (or kz map), using the map itself as the reference -- do this first, before a k conversion or Fermi-surface correction. From a cut, with a grid found on a map with the same settings if one is in the list, by notching the cut's own grid peaks otherwise. |
 | `detcorr` | Detector corrections... | a cut, or a map or kz map before its k conversion | Before anything else, on the detector's own pixels: make a trapezoidal (keystone) image rectangular again, and patch dead or bad regions of the detector from their neighbours. A cut, or every slice of a map at once. |
 | `background` | Background subtraction... | cuts | Remove the intensity that is not the bands: Shirley or Tougaard inelastic background, a floor common to every angle, a smooth polynomial -- or divide out the Fermi cut-off. |
