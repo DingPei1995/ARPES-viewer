@@ -18,6 +18,36 @@ A Fermi-pocket analysis for quasi-two-dimensional samples (under test), a
 minimum-gradient window, a self-energy that states its bare band, and the
 agent's steps saved as one script.
 
+- **Fermi edge fit: two columns, a box drawn on the data, and channel by
+  channel beside Fit.** The window is laid out left to right: the region,
+  the parameters and the buttons on the left, the fit on the right -- its
+  plot always shows the whole fit and no longer zooms with the mouse wheel
+  or pans. **Draw on the data** lets the box that sets the angle range and
+  the energy window be dragged out on the cut itself
+  (`FrameImageView.start_box_drawing`). **Fit channel by channel** moved out
+  of Advanced onto its own row under Fit, with a new **Offset channel by
+  channel** beside it: every channel put on its own E - E_F (a map's slit
+  cut: the whole map, along the slit; `offset_energy_per_channel`,
+  `tools.processing.analysis.offset_per_channel`). The blank borders some
+  detectors leave on either side of a cut are cut off before a channel fit
+  and in the offset (`tools.spectra.fermi.measured_channels`). Both fits
+  are kept with the dataset's row (`FERMI_FIT_KEY`, `record_fermi_fit`);
+  `L.fermi_edge` keeps its fit there too.
+- **Fermi surface correction, from a reference: the reference's own fit,
+  one offset or channel by channel.** The reference list holds only the
+  other rows whose Fermi edge has been fitted -- never the data itself --
+  and their fit is read from them instead of being fitted again here, so
+  "Fit it again" and the fitting settings are gone. Applied as **one
+  offset** (the reference's E_F) or **channel by channel** (its E_F per
+  channel, the blank borders and the channels it did not fit cut off); the
+  reference's edge is drawn on the data, and the reference path is two
+  steps (`FSCorrectionDialog`, `apply_reference_fit`, `app.fermi_references`).
+  `L.fs_correction(..., reference=..., mode="offset" | "channels")`.
+- **Fixed: going back from picking the Fermi edge by hand left the points
+  on the picture.** Back to step 1 now erases them.
+- **User guides (en, zh, fr):** §4.2 and §4.3 rewritten for the above, with
+  new screenshots.
+
 - **Fermi surface correction moved to the tool panel (Basic), step by
   step.** "Straighten bands (FS correction)..." left the cut viewer's (and
   a map's slit cut's) Functions menu; **Fermi surface correction...** is now
@@ -28,12 +58,8 @@ agent's steps saved as one script.
   1. *how the Fermi edge is found* -- by hand, or from a reference;
   2. *by hand:* click on the data viewer where the Fermi edge is, at
      several angles; clicks count only on this step and the next.
-     *From a reference:* choose a cut or map of the main list (gold); its
-     edge is fitted channel by channel. **A reference fitted before in this
-     session is not fitted again**: its earlier result -- from this tool,
-     or from the Fermi edge fit's "Fit by channel" -- is used as it stands,
-     unless "Fit it again" is ticked (`remember_reference_fit`,
-     `recall_reference_fit`);
+     *From a reference:* a cut or map of the main list (gold) whose Fermi
+     edge has been fitted; its fit is applied (see the entry above);
   3. *check the fit and correct*: the polynomial drawn dashed over the
      data, its order, the result's name, and **Correct**.
   A map's slit cut now has the main list's hooks too, so a map can be

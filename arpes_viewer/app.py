@@ -1685,6 +1685,10 @@ def _adopt_viewer(window, key=None):
     # correction fits a gold reference, which is a different measurement.
     window._dataset_entries = listed_datasets
     window._dataset_loader = load_dataset
+    # The rows whose Fermi edge has been fitted: the Fermi-surface
+    # correction's references.
+    window._fermi_references = fermi_references
+    window._row_key = key
     # The row it came from -- the row, not the object: a cut read from a
     # file is re-read on every load, so the same row hands back a different
     # object each time.
@@ -1708,6 +1712,21 @@ def listed_datasets():
     another dataset."""
     return [(f"{label_for(key)}   [{loaded_items[key]['kind']}]", key)
             for key in loaded_items]
+
+
+def fermi_references():
+    """``(label, key, fits)`` for every row whose Fermi edge has been fitted
+    (the Fermi edge fit keeps its results with the row): what the
+    Fermi-surface correction can take as its reference. ``fits`` is
+    ``{"edge": {...}, "channels": {...}}``, a part missing when it was not
+    fitted. Read from the rows' records -- nothing is loaded."""
+    from arpes_viewer.ui.viewers.windows import fermi_fit_of
+    out = []
+    for key, record in loaded_items.items():
+        fits = fermi_fit_of(record.get("properties") or {})
+        if fits.get("edge") or fits.get("channels"):
+            out.append((f"{label_for(key)}   [{record['kind']}]", key, fits))
+    return out
 
 
 def _set_row_properties(key, properties):

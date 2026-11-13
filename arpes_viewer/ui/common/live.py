@@ -565,12 +565,31 @@ class Live:
                                   f"{self._name(self._key(name))}: refused")
             raise ValueError(f"{exc}{hint}; fermi_edge_search(name) lists the "
                              f"candidate edges") from None
+        self._record_edge(name, out, energy_window)
         if picture:
             energy, edc = self._edc(workspace, ident, ranges)
             out["picture"] = self._edc_picture(
                 picture, energy, edc, energy_window, out["values"],
                 f"{self._name(self._key(name))}: E_F = {out['values']['ef']:.4f} eV")
         return _plain(out)
+
+    def _record_edge(self, name, out, energy_window):
+        """Keep a Fermi edge fit with the row, as the Fermi edge fit tool
+        does: the row is then a reference for ``fs_correction``."""
+        import json
+        from arpes_viewer.ui.viewers.windows import FERMI_FIT_KEY, fermi_fit_of
+        key = self._key(name)
+        record = self.A.loaded_items.get(key) or {}
+        state = fermi_fit_of(record.get("properties") or {})
+        values, errors = out.get("values", {}), out.get("errors", {})
+        state["edge"] = {
+            "ef": float(values["ef"]),
+            "ef_err": float(errors.get("ef", float("nan"))),
+            "resolution": float(values.get("resolution", float("nan"))),
+            "temperature": float(values.get("temperature", float("nan"))),
+            "window": [float(v) for v in energy_window] if energy_window else None}
+        self.A._set_row_properties(key, {FERMI_FIT_KEY: json.dumps(
+            state, separators=(",", ":"))})
 
     @staticmethod
     def _edc(workspace, ident, ranges):
@@ -761,22 +780,23 @@ class Live:
     @operation("Energy")
     @_keeps_selection
     def fs_correction(self, name: str, points=None, reference: str = "",
-                      order: int = 2, refit: bool = False,
+                      mode: str = "channels", order: int = 2,
                       new_name: str = "") -> dict:
-        """Fermi-surface correction (tool panel, Basic): straighten a Fermi
-        edge the analyser bends. Its curve is either ``points``, [(angle,
-        E), ...] on the Fermi edge in the row's own units (at least
-        ``order`` + 1), or the Fermi edge of the row ``reference`` (a cut or
-        map, gold) fitted channel by channel -- a reference fitted before in
-        this session (here, or by the Fermi edge fit's channel fit) is not
-        fitted again unless ``refit``. A polynomial of ``order`` goes
-        through them, and every angle column is shifted to flatten it; a
-        map (or kz map) is corrected whole, fitted along its slit. Before
-        the k conversion. Returns the new row, the polynomial (highest
-        power first) and the number of points."""
+        """Fermi-surface correction (tool panel, Basic). Either by hand:
+        ``points``, [(angle, E), ...] on the Fermi edge in the row's own
+        units (at least ``order`` + 1); a polynomial of ``order`` through
+        them is flattened, every angle column shifted. Or from a
+        ``reference``: another row whose Fermi edge has been fitted
+        (``fermi_edge``, or the Fermi edge fit tool), its fit applied --
+        ``mode="offset"``, the energy axis shifted by its E_F;
+        ``mode="channels"``, every channel on its own E - E_F from its
+        channel-by-channel fit (blank borders and unfitted channels cut
+        off). A map (or kz map) is corrected whole, along its slit. Before
+        the k conversion. Returns the new row (and, by hand, the polynomial,
+        highest power first, and the number of points)."""
         if (points is None) == (not reference):
             raise ValueError("give either points=[(angle, E), ...] on the "
-                             "Fermi edge or reference=<a row's name>")
+                             "Fermi edge or reference=<a fitted row's name>")
         key = self._key(name)
         ref_key = self._key(reference) if reference else None
         self.select(self._name(key))
@@ -785,33 +805,44 @@ class Live:
         if dialog is None:
             raise ValueError(f"{self._name(key)!r} cannot be corrected: a cut, "
                              f"or a map or kz map in angle, is")
+        out = {}
         try:
             if points is not None:
                 dialog.manual_radio.setChecked(True)
                 dialog.go_next()
                 for x, y in points:
                     dialog.add_point(float(x), float(y))
+                dialog.go_next()
+                dialog.order_box.setValue(int(order))
+                if new_name:
+                    dialog.name_box.setText(str(new_name))
+                coefficients = dialog.coefficients()
+                if coefficients is None:
+                    raise ValueError(f"an order-{int(order)} fit needs at least "
+                                     f"{int(order) + 1} points")
+                out = {"coefficients": np.asarray(coefficients).tolist(),
+                       "points": len(dialog.points())}
             else:
+                keys = [k for _label, k, _fits in dialog.references()]
+                if ref_key not in keys:
+                    raise ValueError(
+                        f"{reference!r} cannot be the reference: only another "
+                        f"row whose Fermi edge has been fitted can "
+                        f"(fermi_edge, or the Fermi edge fit tool)")
                 dialog.reference_radio.setChecked(True)
                 dialog.go_next()
-                keys = [k for _label, k in dialog._entries()]
-                if ref_key not in keys:
-                    raise ValueError(f"{reference!r} is not a cut or a map: it "
-                                     f"cannot be the reference")
                 dialog.reference_combo.setCurrentIndex(keys.index(ref_key))
-                dialog.refit_box.setChecked(bool(refit))
-                if dialog.from_reference(refit=bool(refit)) is None:
-                    raise ValueError(f"the Fermi edge of {reference!r} could "
-                                     f"not be fitted")
-                dialog.show_step(dialog.STEP_REVIEW)
-            dialog.order_box.setValue(int(order))
-            if new_name:
-                dialog.name_box.setText(str(new_name))
-            coefficients = dialog.coefficients()
-            if coefficients is None:
-                raise ValueError(f"an order-{int(order)} fit needs at least "
-                                 f"{int(order) + 1} points")
-            count = len(dialog.points())
+                if mode not in ("offset", "channels"):
+                    raise ValueError("mode is 'offset' or 'channels'")
+                radio = (dialog.channels_radio if mode == "channels"
+                         else dialog.offset_radio)
+                if not radio.isEnabled():
+                    raise ValueError(
+                        f"{reference!r} has no "
+                        f"{'channel-by-channel' if mode == 'channels' else 'whole-edge'}"
+                        f" Fermi fit to apply")
+                radio.setChecked(True)
+                out = {"mode": mode}
             dialog.accept()
         finally:
             if dialog.isVisible():
@@ -819,9 +850,10 @@ class Live:
         added = [self._name(k) for k in self.A.loaded_items if k not in before]
         if not added:
             raise ValueError("the correction made no row")
-        return _plain({"row": added[-1],
-                       "coefficients": np.asarray(coefficients).tolist(),
-                       "points": count})
+        if reference and new_name:
+            added[-1] = self.rename(added[-1], new_name)
+        out["row"] = added[-1]
+        return _plain(out)
 
     # ==================================================================
     # Processing

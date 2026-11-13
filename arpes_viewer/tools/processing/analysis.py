@@ -181,3 +181,80 @@ def fs_correction(values, angle_axis, energy_axis, coeffs, *,
     step = _axis_step(energy_axis)
     new_axis = float(energy_axis[0]) + (np.arange(lo, hi) * step)
     return np.moveaxis(out, (0, -1), (angle_dim, energy_dim)), new_axis
+
+
+def offset_per_channel(values, angle_axis, energy_axis, ref_angles, ref_levels,
+                       *, angle_dim: int = 0, energy_dim: int = -1,
+                       measured: slice = None):
+    """Put every angle channel on its own E - E_F: the Fermi edge fitted
+    channel by channel (``ref_levels`` at ``ref_angles``, from this data or
+    from a reference measured with the same analyser) is subtracted from
+    each channel's energies, and the channels are resampled (linearly) onto
+    one energy axis they all cover.
+
+    Channels outside the fitted ones -- the blank borders the fit left out,
+    and anything the reference did not reach -- are cut off rather than
+    extrapolated, as are those outside ``measured`` (this data's own
+    measured channels, see :func:`tools.spectra.fermi.measured_channels`).
+    Between fitted channels the level is interpolated linearly.
+
+    Works on a 2D frame and on a cube alike (``angle_dim``/``energy_dim``
+    name the axes; the rest are carried through). Returns ``(values,
+    angle_axis, energy_axis)``, the first two cropped to the kept channels.
+    """
+    values = np.asarray(values, dtype=float)
+    angle_axis = np.asarray(angle_axis, dtype=float)
+    energy_axis = np.asarray(energy_axis, dtype=float)
+    ref_angles = np.asarray(ref_angles, dtype=float)
+    ref_levels = np.asarray(ref_levels, dtype=float)
+    good = np.isfinite(ref_angles) & np.isfinite(ref_levels)
+    if good.sum() < 1:
+        raise ValueError("no fitted channel to offset by")
+    order = np.argsort(ref_angles[good])
+    ref_angles, ref_levels = ref_angles[good][order], ref_levels[good][order]
+
+    span = max(abs(float(np.median(np.diff(angle_axis)))) if angle_axis.size > 1
+               else 0.0, 1e-12)
+    keep = ((angle_axis >= ref_angles[0] - 0.5 * span)
+            & (angle_axis <= ref_angles[-1] + 0.5 * span))
+    if measured is not None:
+        inside = np.zeros(angle_axis.size, dtype=bool)
+        inside[measured] = True
+        keep &= inside
+    if not keep.any():
+        raise ValueError("none of this data's channels lies inside the "
+                         "fitted ones")
+    first = int(np.argmax(keep))
+    last = int(keep.size - np.argmax(keep[::-1]))
+    kept = slice(first, last)
+    levels = np.interp(angle_axis[kept], ref_angles, ref_levels)
+
+    moved = np.moveaxis(values, (angle_dim, energy_dim), (0, -1))[kept]
+    ascending = energy_axis.size < 2 or energy_axis[-1] >= energy_axis[0]
+    energy = energy_axis if ascending else energy_axis[::-1]
+    if not ascending:
+        moved = moved[..., ::-1]
+    step = _axis_step(energy)
+    lo = float(energy[0] - levels.min())
+    hi = float(energy[-1] - levels.max())
+    if hi <= lo:
+        raise ValueError("the channels' Fermi levels differ by more than "
+                         "the energy range: no energy is common to all")
+    count = int(np.floor((hi - lo) / step + 1e-9)) + 1
+    new_energy = lo + step * np.arange(count)
+
+    out = np.empty(moved.shape[:-1] + (count,), dtype=float)
+    for i, level in enumerate(levels):
+        position = (new_energy + level - energy[0]) / step
+        position = np.clip(position, 0.0, energy.size - 1.0)
+        below = np.minimum(np.floor(position).astype(int), energy.size - 2)
+        below = np.maximum(below, 0)
+        frac = position - below
+        block = moved[i]
+        upper = np.minimum(below + 1, energy.size - 1)
+        out[i] = block[..., below] * (1.0 - frac) + block[..., upper] * frac
+    if not ascending:
+        out = out[..., ::-1]
+        new_energy = new_energy[::-1]
+    return (np.moveaxis(out, (0, -1), (angle_dim, energy_dim)),
+            angle_axis[kept], new_energy)

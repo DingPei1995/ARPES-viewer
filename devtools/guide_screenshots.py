@@ -366,7 +366,15 @@ class Shots:
         dialog.run_fit()
         pump()
         shot(cut, "fermi_cut_box", (1000, 760))
-        shot(dialog, "fermi_dialog")
+        shot(dialog, "fermi_dialog", (1060, 640))
+        # E_F channel by channel, drawn on the cut (kept with the row: the
+        # Fermi surface correction's reference)
+        dialog.energy_from.setValue(demo_EF() - 0.08)
+        dialog.energy_to.setValue(demo_EF() + 0.08)
+        dialog.channel_step.setValue(4)
+        dialog.fit_by_channel()
+        pump()
+        shot(cut, "fermi_channels_cut", (1000, 760))
         dialog.offset_energy_axis()
         pump()
         dialog.close()
@@ -543,8 +551,8 @@ class Shots:
     def fs_correction(self):
         """The tool panel's Fermi surface correction, step by step: the
         choice, the Fermi edge clicked on the cut, the fit to check, and
-        the reference page."""
-        self._select("Gamma_cut_LH")
+        the reference page (Gamma_cut_LH, fitted in ``fermi``)."""
+        self._select("Gamma_cut_LV")
         dialog = self.av.open_fs_correction()      # the tool panel's route
         cut = dialog.window_
         cut.resize(1000, 760)
@@ -562,10 +570,14 @@ class Shots:
         shot(dialog, "fs_correction_dialog")
         dialog.go_back()
         dialog.go_back()
-        dialog.reference_radio.setChecked(True)
-        dialog.go_next()
-        pump()
-        shot(dialog, "fs_correction_reference")
+        if dialog.reference_radio.isEnabled():
+            dialog.reference_radio.setChecked(True)
+            dialog.go_next()
+            pump()
+            shot(dialog, "fs_correction_reference")
+            shot(cut, "fs_correction_reference_cut", (1000, 760))
+        else:
+            print("FAILED fs_correction_reference (no fitted reference)")
         dialog.reject()
 
     def process(self):

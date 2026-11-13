@@ -245,19 +245,20 @@ row (its per-hv E_F kept in ``kz.fermi_level_eV``, which the kz
 conversion's hv calibration uses). Returns the new row and the
 Fermi levels.
 
-#### `L.fs_correction(name, points=None, reference='', order=2, refit=False, new_name='')`
+#### `L.fs_correction(name, points=None, reference='', mode='channels', order=2, new_name='')`
 
-Fermi-surface correction (tool panel, Basic): straighten a Fermi
-edge the analyser bends. Its curve is either ``points``, [(angle,
-E), ...] on the Fermi edge in the row's own units (at least
-``order`` + 1), or the Fermi edge of the row ``reference`` (a cut or
-map, gold) fitted channel by channel -- a reference fitted before in
-this session (here, or by the Fermi edge fit's channel fit) is not
-fitted again unless ``refit``. A polynomial of ``order`` goes
-through them, and every angle column is shifted to flatten it; a
-map (or kz map) is corrected whole, fitted along its slit. Before
-the k conversion. Returns the new row, the polynomial (highest
-power first) and the number of points.
+Fermi-surface correction (tool panel, Basic). Either by hand:
+``points``, [(angle, E), ...] on the Fermi edge in the row's own
+units (at least ``order`` + 1); a polynomial of ``order`` through
+them is flattened, every angle column shifted. Or from a
+``reference``: another row whose Fermi edge has been fitted
+(``fermi_edge``, or the Fermi edge fit tool), its fit applied --
+``mode="offset"``, the energy axis shifted by its E_F;
+``mode="channels"``, every channel on its own E - E_F from its
+channel-by-channel fit (blank borders and unfitted channels cut
+off). A map (or kz map) is corrected whole, along its slit. Before
+the k conversion. Returns the new row (and, by hand, the polynomial,
+highest power first, and the number of points).
 
 ### Processing
 
@@ -668,7 +669,7 @@ Qt-free functions, for a computation of your own on `L.data(row).values` / `.axe
 - **`spectra.corelevel`** -- A quick core-level check of a cut, as plain numpy/scipy with no Qt: which element and orbital each peak of the angle-integrated EDC comes from. `assign`, `candidates_near`, `check`, `common_elements`, `describe_candidates`, `detect_scale`, `element_lines`, `expected_fermi_level`, `find_peaks`, `info_number`, `integrated_edc`, `locate_fermi_edge`, `parse_elements`, `peak_at`, `photon_energy_of`, `reference_lines`, `suggest_shift`, `work_function_of`
 - **`spectra.curves`** -- One-dimensional data: EDCs, MDCs, spin EDCs -- as tables, with no Qt. `channel_names`, `crop`, `curve_info`, `data_channels`, `is_sigma`, `looks_like_counts`, `normalise`, `rebin`, `shift_x`, `sigma_name`, `sigma_of`, `subtract_background`, `table`, `value_label`, `with_poisson_sigma`
 - **`spectra.dispersion`** -- What comes out of a fitted band: the dispersion, the Fermi velocity, the effective mass, and the self-energy. `bare_band_from_anchors`, `bare_band_line`, `fermi_crossing`, `fit_dispersion`, `kramers_kronig`, `line_crossing`, `self_energy`, `suggest_bare_velocity`, `window_scan`
-- **`spectra.fermi`** -- Fermi-edge fitting, as plain numpy/scipy with no Qt -- the same split as ``tools.momentum.kspace`` and ``tools.processing.analysis``. `broadened_fermi`, `divide_fermi`, `edge_candidates`, `edge_problems`, `fermi_edge_model`, `fermi_function`, `fit_channels`, `fit_fermi_edge`, `initial_guess`, `levels_along`, `steepest_drop`
+- **`spectra.fermi`** -- Fermi-edge fitting, as plain numpy/scipy with no Qt -- the same split as ``tools.momentum.kspace`` and ``tools.processing.analysis``. `broadened_fermi`, `divide_fermi`, `edge_candidates`, `edge_problems`, `fermi_edge_model`, `fermi_function`, `fit_channels`, `fit_fermi_edge`, `initial_guess`, `levels_along`, `measured_channels`, `steepest_drop`
 - **`spectra.peaks`** -- MDC and EDC peak fitting, with no Qt: a band model that carries its own identity and the energy range it exists over, hand-placed seeds interpolated into a star. `fit_line`, `fit_series`, `peak_profile`, `suggest_seed`
 - **`spectra.pocket`** -- A Fermi pocket of a **quasi-two-dimensional** sample, from a k-map: its contour, its area, and what the area says. `cell_area`, `energy_plane`, `fit_ray`, `numbers`, `radial_profiles`, `series`, `trace`
 - **`spectra.spin`** -- Spin polarisation from the channels of a spin-resolved EDC, with no Qt. `analyse`, `axes_available`, `channels_from_info`, `design_report`, `pairs`, `parse_channel`, `parse_channels`
@@ -677,7 +678,7 @@ Qt-free functions, for a computation of your own on `L.data(row).values` / `.axe
 - **`momentum.kzconv`** -- A photon-energy scan into momentum: (hv, angle, E) -> (k_z, k_par, E). `calibrated_photon_axis`, `default_grid`, `edge_flatness`, `forward`, `inner_potential_for_gamma`, `inverse`, `kz_bounds`, `measured_work_functions`, `photon_arc`, `scan_inner_potential`, `to_kz_cube`
 - **`momentum.kzmap`** -- Putting a photon-energy scan onto one Fermi level. `align`, `fit_levels`, `normalise_totals`, `process_kz_map`, `region_edc`
 - **`momentum.rebin`** -- Averaging for a conversion onto a grid coarser than the measurement. `bin_average`, `box_filter`, `box_kernel`, `is_reduction`
-- **`processing.analysis`** -- Two analysis operations, as plain numpy/scipy functions with no Qt anywhere -- the same split as ``tools/momentum/kspace.py``, so both can be tested (and reused. `arbitrary_cut`, `fit_feature`, `fs_correction`, `line_samples`, `shift_bins`
+- **`processing.analysis`** -- Two analysis operations, as plain numpy/scipy functions with no Qt anywhere -- the same split as ``tools/momentum/kspace.py``, so both can be tested (and reused. `arbitrary_cut`, `fit_feature`, `fs_correction`, `line_samples`, `offset_per_channel`, `shift_bins`
 - **`processing.combine`** -- Datasets measured in pieces, joined back into one. `interp_axis`, `join`, `plan`
 - **`processing.cutops`** -- Arithmetic between two cuts: dichroism, asymmetries, and dividing by a reference. `axis_unit`, `combine`, `looks_like_counts`, `metadata_differences`, `polarisation_warnings`
 - **`processing.dataops`** -- Three bulk operations, as plain numpy functions with no Qt: **truncate**, **self-normalisation** and **compress** (binning -- resampling is deliberately left ou. `axis_index`, `axis_summary`, `compress`, `normalise_presets`, `resolve_bounds`, `same_format`, `self_normalize`, `truncate`

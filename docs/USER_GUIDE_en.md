@@ -936,13 +936,17 @@ select the cut in the list and press it.
 Tool panel → Basic → **Fermi edge fit...** fits a Fermi edge (Fermi–Dirac ×
 linear DOS, convolved with a Gaussian resolution) to the EDC summed over a
 box. It opens the cut's viewer together with the fit window; the two belong
-together, and closing either closes the other.
+together, and closing either closes the other. The window has two columns:
+on the left everything that is set (the region, the parameters, the
+buttons), on the right the fit — the EDC and the fitted curve, always shown
+whole (the plot does not zoom or pan), and the summary under it.
 
 ![Fermi level dialog](images/fermi_dialog.png)
 
-1. Press **Show the selection box** and drag the box on the cut over the edge
-   (or type the angle and energy ranges). The angle range says which channels
-   are summed; the energy range is the fit window.
+1. Set the region: press **Draw on the data** and drag a box on the cut —
+   its width is the angle range summed, its height the energy window
+   fitted — or **Show the selection box** and drag it, or type the ranges.
+   The three follow each other.
 
    ![The fit box on the cut](images/fermi_cut_box.png)
 
@@ -951,8 +955,23 @@ together, and closing either closes the other.
    parameter is reported with its uncertainty.
 3. **Offset energy axis** lists a copy of the cut on **E − E_F**.
 
+**Channel by channel.** On the row under Fit, **Fit channel by channel**
+fits the edge in every detector channel over the fit window
+(**Neighbours ±** adds channels on each side first, **every Nth channel**
+samples the detector) and draws E_F against angle on the cut — the
+curvature of the Fermi edge, measured. Blank channels at the two ends of
+the cut (no counts, or NaN, as some detectors leave) are cut off, not
+fitted. **Offset channel by channel**, beside it, lists a copy with every
+channel on its own **E − E_F** (on a map's slit cut: the whole map, along
+the slit), the blank borders cut off.
+
+![E_F fitted channel by channel, drawn on the cut](images/fermi_channels_cut.png)
+
+Both fits are kept with the dataset's row: that row is then a **reference**
+for the Fermi surface correction ([§4.3](#43-fermi-surface-correction)).
+
 The *Advanced* corner divides the Fermi cut-off out (for gaps and reference
-samples) or fits E_F channel by channel.
+samples).
 
 **On a map.** Select a map (angle map or k-map) and press the same button:
 the map's **slit cut** opens with the fit window, and the slit cut's slider
@@ -979,15 +998,17 @@ k conversion.
 
 Select a **cut**, or a **map** (or kz map) still in angle, and press the
 button. A cut opens in its viewer; a map opens on its **slit cut**, and the
-shift fitted there is applied to the whole cube. The viewer and the
-correction window belong together: closing either closes the other. The
-window leads through three steps (**Back** and **Next** move between them).
+correction is applied to the whole cube. The viewer and the correction
+window belong together: closing either closes the other. The window leads
+through the steps (**Back** and **Next** move between them).
 
 **Step 1 — how to find the Fermi edge.** Choose one:
 
-- **By hand**: click the Fermi edge on the data viewer;
-- **From a reference**: fit the Fermi edge of a cut or map in the main list
-  (a gold reference, or anything with a clean edge at every angle).
+- **By hand**: click the Fermi edge on the data viewer (three steps);
+- **From a reference**: apply the Fermi edge fit of another cut or map of
+  the main list (two steps). Only rows whose Fermi edge has been fitted
+  with the Fermi edge fit ([§4.2](#42-fermi-edge-fit)) are offered; until
+  there is one, this choice is greyed.
 
 ![Step 1: by hand or from a reference](images/fs_correction_step1.png)
 
@@ -997,35 +1018,39 @@ spread across the whole edge, ends included. Each click puts an orange
 cross on the picture and a row in the table of points; the fitted curve is
 drawn dashed as you go. A point placed badly can be retyped in the table,
 or removed (**Remove selected**, **Clear**). Clicks count only while
-picking by hand (steps 2 and 3).
+picking by hand. **Back** to step 1 erases the points picked.
 
 ![The Fermi edge clicked on the cut, with the fitted curve](images/fs_correction_cut.png)
 
-**Step 2, from a reference — choose the reference in the main list.** Pick
-the reference cut or map in **Reference** (a map is summed over the
-deflector, since every deflector position sees the same slit curvature).
-The temperature is read from its file; **Neighbours** adds channels on each
-side of each one before fitting, **Fit every Nth channel** samples the
-detector. **Fit the reference ›** fits its Fermi edge channel by channel and
-puts the result in the table.
-
-**A reference fitted before is not fitted again.** When the chosen reference
-has already been fitted in this session — by this tool, or by the Fermi edge
-fit's channel-by-channel fit ([§4.2](#42-fermi-edge-fit)) — the window says
-so, and the button reads **Use the earlier fit ›**: that result is used as
-it stands. Tick **Fit it again** to redo it with new settings.
-
-![Step 2: the reference](images/fs_correction_reference.png)
-
-**Step 3 — check the fit and correct.** The fitted curve is drawn dashed
-over the data; check that it follows the Fermi edge and remove a stray
-point if it does not. **Fit order** sets the polynomial (2, a parabola, is
-what the analyser's curvature normally looks like; an order-n fit needs n+1
-points), **Name** the result's. **Correct** shifts every angle column to
-flatten the curve and lists the result (`[FS corr]`); the energy axis grows
-by the curve's span, and the bins no column reaches are left empty.
+**Step 3, by hand — check the fit and correct.** The fitted curve is drawn
+dashed over the data; check that it follows the Fermi edge and remove a
+stray point if it does not. **Fit order** sets the polynomial (2, a
+parabola, is what the analyser's curvature normally looks like; an order-n
+fit needs n+1 points), **Name** the result's. **Correct** shifts every angle
+column to flatten the curve and lists the result (`[FS corr]`); the energy
+axis grows by the curve's span, and the bins no column reaches are left
+empty.
 
 ![Step 3: the fit, checked before correcting](images/fs_correction_dialog.png)
+
+**Step 2 of 2, from a reference — the reference, and how to apply it.**
+**Reference** lists the other rows whose Fermi edge has been fitted (never
+the data itself). Their fit parameters are read from them and shown —
+nothing is fitted here. Then choose how the fit is applied, matching the
+two ways of the Fermi edge fit:
+
+- **One offset**: the whole data is shifted by the reference's E_F (its
+  *Fit*, the whole edge). The result is on E − E_F, every channel alike.
+- **Channel by channel**: every channel is shifted by the reference's E_F
+  in that channel (its *Fit channel by channel*). Channels outside those
+  the reference fitted — its blank borders included — are cut off, as are
+  this data's own blank borders.
+
+The reference's edge is drawn dashed on the data, to compare with the edge
+seen there. **Correct** lists the result (`[E-E_F]`, or `[E-E_F ch]`
+channel by channel).
+
+![Step 2 of 2: the reference](images/fs_correction_reference.png)
 
 ## 4.4 Removing the detector grid
 

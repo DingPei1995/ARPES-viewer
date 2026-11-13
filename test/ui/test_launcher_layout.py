@@ -823,9 +823,8 @@ def test_fs_correction_is_a_basic_tool_tied_to_its_window(launcher, monkeypatch)
     dialog = window._fs_dialog
     assert dialog is not None and dialog.isVisible()
     assert dialog.step() == dialog.STEP_METHOD
-    # the main list's cut and map can be the reference
-    assert dialog.reference_radio.isEnabled()
-    assert dialog.reference_combo.count() == 2
+    # nothing fitted yet: no reference to offer
+    assert not dialog.reference_radio.isEnabled()
     dialog.reject()
     assert not window.isVisible()                   # closed with it
     _select(lv, "m")
@@ -836,5 +835,24 @@ def test_fs_correction_is_a_basic_tool_tied_to_its_window(launcher, monkeypatch)
     cut = next(w for w in contour.cut_windows.values()
                if getattr(w, "_fs_dialog", None) is not None)
     assert cut.which == "slit"
-    assert cut._fs_dialog.reference_combo.count() == 2
     cut._fs_dialog.reject()
+    # a row whose Fermi edge was fitted is offered -- to the others only
+    import json
+    key_c = next(k for k, r in lv.loaded_items.items() if r["name"] == "c")
+    lv._set_row_properties(key_c, {W.FERMI_FIT_KEY: json.dumps(
+        {"edge": {"ef": 55.0, "ef_err": 0.001, "resolution": 0.01,
+                  "temperature": 20.0}})})
+    assert [k for _l, k, _f in lv.fermi_references()] == [key_c]
+    button.click()
+    contour = next(w for w in reversed(lv.viewer_windows)
+                   if isinstance(w, W.ContourWindow))
+    dialog = next(w for w in contour.cut_windows.values()
+                  if getattr(w, "_fs_dialog", None) is not None)._fs_dialog
+    assert dialog.reference_radio.isEnabled()
+    assert [k for _l, k, _f in dialog.references()] == [key_c]
+    dialog.reject()
+    _select(lv, "c")
+    button.click()
+    dialog = lv.viewer_windows[-1]._fs_dialog
+    assert dialog.references() == []                # not its own reference
+    dialog.reject()

@@ -29,14 +29,18 @@ liste et appuyez dessus.
 Panneau → Basic → **Fermi edge fit...** ajuste un front de Fermi (Fermi–Dirac
 × densité d'états linéaire, convoluée par une résolution gaussienne) sur
 l'EDC sommée dans un cadre. Il ouvre la fenêtre de la coupe avec la fenêtre
-d'ajustement ; les deux vont ensemble, et fermer l'une ferme l'autre.
+d'ajustement ; les deux vont ensemble, et fermer l'une ferme l'autre. La
+fenêtre a deux colonnes : à gauche tout ce qui se règle (la région, les
+paramètres, les boutons), à droite l'ajustement — l'EDC et la courbe
+ajustée, toujours montrées en entier (le graphe ne zoome ni ne se déplace),
+et le résumé dessous.
 
 ![Fenêtre du niveau de Fermi](../../images/fermi_dialog.png)
 
-1. Appuyez sur **Show the selection box** et faites glisser le cadre sur le
-   front, sur la coupe (ou saisissez les intervalles d'angle et d'énergie).
-   L'intervalle d'angle fixe les canaux sommés ; l'intervalle d'énergie est
-   la fenêtre d'ajustement.
+1. Fixez la région : appuyez sur **Draw on the data** et tracez un cadre
+   sur la coupe — sa largeur est l'intervalle d'angle sommé, sa hauteur la
+   fenêtre d'énergie ajustée — ou **Show the selection box** et faites-le
+   glisser, ou saisissez les intervalles. Les trois se suivent.
 
    ![Le cadre d'ajustement sur la coupe](../../images/fermi_cut_box.png)
 
@@ -46,8 +50,25 @@ d'ajustement ; les deux vont ensemble, et fermer l'une ferme l'autre.
 3. **Offset energy axis** ajoute à la liste une copie de la coupe en
    **E − E_F**.
 
+**Canal par canal.** Sur la ligne sous Fit, **Fit channel by channel**
+ajuste le front dans chaque canal du détecteur, dans la fenêtre
+d'ajustement (**Neighbours ±** ajoute d'abord des canaux de part et
+d'autre, **every Nth channel** échantillonne le détecteur), et trace E_F en
+fonction de l'angle sur la coupe — la courbure du front de Fermi, mesurée.
+Les canaux vides aux deux bouts de la coupe (sans coups, ou NaN, comme en
+laissent certains détecteurs) sont coupés, pas ajustés. **Offset channel by
+channel**, à côté, ajoute une copie où chaque canal est sur son propre
+**E − E_F** (sur la coupe selon la fente d'une carte : toute la carte, le
+long de la fente), les bords vides coupés.
+
+![E_F ajusté canal par canal, tracé sur la coupe](../../images/fermi_channels_cut.png)
+
+Les deux ajustements sont gardés avec la ligne du jeu de données : elle
+devient une **référence** pour la correction de la surface de Fermi
+([§4.3](#43-correction-de-la-surface-de-fermi)).
+
 Le coin *Advanced* divise par la coupure de Fermi (pour les gaps et les
-échantillons de référence) ou ajuste E_F canal par canal.
+échantillons de référence).
 
 **Sur une carte.** Sélectionnez une carte (en angle ou en k) et appuyez sur
 le même bouton : la **coupe selon la fente** de la carte s'ouvre avec la
@@ -75,18 +96,20 @@ devienne plate. À faire avant une conversion en k.
 
 Sélectionnez une **coupe**, ou une **carte** (ou carte kz) encore en angle,
 et appuyez sur le bouton. Une coupe s'ouvre dans sa fenêtre ; une carte
-s'ouvre sur sa **coupe selon la fente**, et le décalage ajusté là est
-appliqué à tout le cube. La fenêtre de données et celle de la correction
-vont ensemble : fermer l'une ferme l'autre. La fenêtre guide en trois
-étapes (**Back** et **Next** pour passer de l'une à l'autre).
+s'ouvre sur sa **coupe selon la fente**, et la correction est appliquée à
+tout le cube. La fenêtre de données et celle de la correction vont
+ensemble : fermer l'une ferme l'autre. La fenêtre guide pas à pas
+(**Back** et **Next** pour passer d'une étape à l'autre).
 
 **Étape 1 — comment trouver le front de Fermi.** Au choix :
 
 - **By hand** (à la main) : cliquer le front de Fermi sur la fenêtre de
-  données ;
-- **From a reference** (référence) : ajuster le front de Fermi d'une coupe ou
-  d'une carte de la liste principale (une référence d'or, ou tout ce qui a un
-  front net à chaque angle).
+  données (trois étapes) ;
+- **From a reference** (référence) : appliquer l'ajustement du front de
+  Fermi d'une autre coupe ou carte de la liste principale (deux étapes).
+  Seules les lignes dont le front de Fermi a été ajusté avec l'ajustement du
+  front de Fermi ([§4.2](#42-ajustement-du-front-de-fermi)) sont proposées ;
+  sans elles, ce choix est grisé.
 
 ![Étape 1 : à la main ou par une référence](../../images/fs_correction_step1.png)
 
@@ -97,39 +120,42 @@ comprises. Chaque clic place une croix orange sur l'image et une ligne dans
 le tableau des points ; la courbe ajustée est tracée en tirets au fur et à
 mesure. Un point mal placé se corrige dans le tableau, ou se supprime
 (**Remove selected**, **Clear**). Les clics ne comptent que pendant la
-saisie à la main (étapes 2 et 3).
+saisie à la main. **Back** vers l'étape 1 efface les points saisis.
 
 ![Le front de Fermi cliqué sur la coupe, avec la courbe ajustée](../../images/fs_correction_cut.png)
 
-**Étape 2, par une référence — choisir la référence dans la liste
-principale.** Choisissez la coupe ou la carte de référence dans
-**Reference** (une carte est sommée sur le déflecteur, chaque position du
-déflecteur voyant la même courbure de fente). La température est lue dans
-son fichier ; **Neighbours** ajoute des canaux de part et d'autre de chacun
-avant l'ajustement, **Fit every Nth channel** échantillonne le détecteur.
-**Fit the reference ›** ajuste son front de Fermi canal par canal et place
-le résultat dans le tableau.
-
-**Une référence déjà ajustée ne l'est pas une seconde fois.** Si la
-référence choisie a déjà été ajustée pendant cette session — par cet outil,
-ou par l'ajustement canal par canal de l'ajustement du front de Fermi
-([§4.2](#42-ajustement-du-front-de-fermi)) — la fenêtre le dit, et le bouton
-devient **Use the earlier fit ›** : ce résultat est repris tel quel. Cochez
-**Fit it again** pour le refaire avec d'autres réglages.
-
-![Étape 2 : la référence](../../images/fs_correction_reference.png)
-
-**Étape 3 — vérifier l'ajustement et corriger.** La courbe ajustée est
-tracée en tirets sur les données ; vérifiez qu'elle suit le front de Fermi
-et supprimez un point égaré sinon. **Fit order** fixe le polynôme (2, une
-parabole, est la forme habituelle de la courbure de l'analyseur ; un
-ajustement d'ordre n demande n+1 points), **Name** le nom du résultat.
-**Correct** décale chaque colonne d'angle pour aplatir la courbe et ajoute
-le résultat à la liste (`[FS corr]`) ; l'axe en énergie s'allonge de
-l'amplitude de la courbe, et les cases qu'aucune colonne n'atteint restent
-vides.
+**Étape 3, à la main — vérifier l'ajustement et corriger.** La courbe
+ajustée est tracée en tirets sur les données ; vérifiez qu'elle suit le
+front de Fermi et supprimez un point égaré sinon. **Fit order** fixe le
+polynôme (2, une parabole, est la forme habituelle de la courbure de
+l'analyseur ; un ajustement d'ordre n demande n+1 points), **Name** le nom
+du résultat. **Correct** décale chaque colonne d'angle pour aplatir la
+courbe et ajoute le résultat à la liste (`[FS corr]`) ; l'axe en énergie
+s'allonge de l'amplitude de la courbe, et les cases qu'aucune colonne
+n'atteint restent vides.
 
 ![Étape 3 : l'ajustement, vérifié avant de corriger](../../images/fs_correction_dialog.png)
+
+**Étape 2 sur 2, par une référence — la référence, et comment
+l'appliquer.** **Reference** liste les autres lignes dont le front de Fermi
+a été ajusté (jamais les données elles-mêmes). Leurs paramètres
+d'ajustement sont lus sur elles et affichés — rien n'est ajusté ici.
+Choisissez ensuite comment l'appliquer, selon les deux façons de
+l'ajustement du front de Fermi :
+
+- **One offset** (un décalage) : toutes les données sont décalées de l'E_F
+  de la référence (son *Fit*, le front entier). Le résultat est en E − E_F,
+  tous les canaux de même.
+- **Channel by channel** (canal par canal) : chaque canal est décalé de
+  l'E_F de la référence dans ce canal (son *Fit channel by channel*). Les
+  canaux hors de ceux que la référence a ajustés — ses bords vides compris
+  — sont coupés, comme les bords vides des données elles-mêmes.
+
+Le front de la référence est tracé en tirets sur les données, pour le
+comparer au front qu'on y voit. **Correct** ajoute le résultat à la liste
+(`[E-E_F]`, ou `[E-E_F ch]` canal par canal).
+
+![Étape 2 sur 2 : la référence](../../images/fs_correction_reference.png)
 
 ## 4.4 Supprimer la grille du détecteur
 

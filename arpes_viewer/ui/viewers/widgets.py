@@ -2134,6 +2134,72 @@ class _InteractiveImageBase(pg.ImageView):
             if half > 0:
                 band.setRegion((centre - half, centre + half))
 
+    # -- drawing the selection box with the mouse ------------------------------
+    def start_box_drawing(self, callback=None):
+        """The next left-drag on the image draws the selection box, from
+        where the button went down to where it is let go (a dashed outline
+        follows the mouse meanwhile); ``callback`` then gets its corners
+        ``(x0, y0, x1, y1)``. Panning and the other buttons are unchanged;
+        one box is drawn, then the image drags as before."""
+        self.stop_box_drawing()
+        box = self.view_box
+        self._box_callback = callback
+        self._box_outline = None
+        original = box.mouseDragEvent
+
+        def drag(event, axis=None):
+            if axis is not None or event.button() != Qt.LeftButton:
+                return original(event, axis)
+            event.accept()
+            start = box.mapSceneToView(event.buttonDownScenePos())
+            here = box.mapSceneToView(event.scenePos())
+            if self._box_outline is None:
+                from PyQt5.QtWidgets import QGraphicsRectItem
+                self._box_outline = QGraphicsRectItem()
+                pen = pg.mkPen(ROI_PEN.color() if hasattr(ROI_PEN, "color")
+                               else "#f5a623", width=2, style=Qt.DashLine)
+                pen.setCosmetic(True)
+                self._box_outline.setPen(pen)
+                box.addItem(self._box_outline, ignoreBounds=True)
+            from PyQt5.QtCore import QRectF
+            self._box_outline.setRect(QRectF(start, here).normalized())
+            if event.isFinish():
+                self.finish_box(start.x(), start.y(), here.x(), here.y())
+
+        self._box_original_drag = original
+        box.mouseDragEvent = drag
+
+    def finish_box(self, x0, y0, x1, y1):
+        """The box drawn from (x0, y0) to (x1, y1): it becomes the selection
+        box, and the drawing ends."""
+        callback = getattr(self, "_box_callback", None)
+        self.stop_box_drawing()
+        self.set_selection_corners(x0, y0, x1, y1)
+        corners = self.selection_corners()
+        if callable(callback) and corners is not None:
+            callback(corners)
+        return corners
+
+    def stop_box_drawing(self):
+        original = getattr(self, "_box_original_drag", None)
+        if original is not None:
+            try:
+                self.view_box.mouseDragEvent = original
+            except RuntimeError:
+                pass
+        self._box_original_drag = None
+        self._box_callback = None
+        outline = getattr(self, "_box_outline", None)
+        if outline is not None:
+            try:
+                self.view_box.removeItem(outline)
+            except (RuntimeError, ValueError):
+                pass
+        self._box_outline = None
+
+    def box_drawing(self) -> bool:
+        return getattr(self, "_box_original_drag", None) is not None
+
     # -- rectangle selection ---------------------------------------------
     def set_selection_visible(self, visible: bool):
         if visible and self.selection_roi is None:

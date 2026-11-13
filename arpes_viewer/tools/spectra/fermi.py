@@ -503,6 +503,31 @@ def fit_fermi_edge(energy, intensity, *, start: dict = None,
 # --------------------------------------------------------------------------
 # Channel by channel, for a Fermi-surface correction from a reference
 # --------------------------------------------------------------------------
+def measured_channels(frame, fraction: float = 0.05):
+    """``slice`` of the channels of ``frame`` (angle first, energy last;
+    any axes between are summed) that hold a measurement: the blank borders
+    some detectors leave on either side of a cut -- channels that are all
+    NaN, all zero, or nearly empty -- cut off.
+
+    Only the two ends are trimmed: a weak channel in the middle is still a
+    channel. "Nearly empty" is a total under ``fraction`` of the median
+    total of the channels that have counts.
+    """
+    values = np.asarray(frame, dtype=float)
+    if values.ndim < 2 or values.shape[0] == 0:
+        return slice(0, values.shape[0] if values.ndim else 0)
+    flat = values.reshape(values.shape[0], -1)
+    finite = np.isfinite(flat).any(axis=1)
+    totals = np.where(finite, np.nansum(np.abs(flat), axis=1), 0.0)
+    positive = totals[totals > 0]
+    if positive.size == 0:
+        return slice(0, 0)
+    measured = totals > float(fraction) * float(np.median(positive))
+    first = int(np.argmax(measured))
+    last = int(measured.size - np.argmax(measured[::-1]))
+    return slice(first, last)
+
+
 def fit_channels(angles, energy, frame, *, half_width: int = 0, step: int = 1,
                  temperature: float = 30.0, fixed=("temperature",),
                  window=(None, None), weighting: str = "poisson",

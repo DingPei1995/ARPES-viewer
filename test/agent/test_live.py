@@ -796,16 +796,21 @@ def test_a_fermi_pocket_through_the_operation(program, tmp_path):
 
 def test_fs_correction_by_points_and_from_a_reference(program):
     from arpes_viewer.ui.common.live import Live
-    from arpes_viewer.ui.viewers import windows as W
-    W._REFERENCE_FITS.clear()
     L = Live(program)
     before = len(L.rows())
     out = L.fs_correction("cut1", points=[(-8, EF - 0.02), (0, EF), (8, EF - 0.02)])
     assert len(L.rows()) == before + 1 and "FS corr" in out["row"]
     assert out["points"] == 3 and out["coefficients"][0] < 0
-    out = L.fs_correction("map1", reference="cut1", order=1)
-    assert L.describe(out["row"])["kind"].lower().startswith("map")
-    assert out["points"] > 3 and abs(out["coefficients"][0]) < 1e-3
-    assert len(W._REFERENCE_FITS) == 1                # fitted once, kept
+    # only a row whose Fermi edge has been fitted is a reference
+    with pytest.raises(ValueError, match="fitted"):
+        L.fs_correction("map1", reference="cut1", mode="offset")
+    L.fermi_edge("cut1", energy_window=(16.3, 16.6), temperature=30)
+    with pytest.raises(ValueError, match="channel-by-channel"):
+        L.fs_correction("map1", reference="cut1", mode="channels")
+    out = L.fs_correction("map1", reference="cut1", mode="offset",
+                          new_name="map1 on E-E_F")
+    assert out["row"] == "map1 on E-E_F" and out["mode"] == "offset"
+    axes = L.describe(out["row"])["axes"]
+    assert axes[2]["min"] < 0 < axes[2]["max"]
     with pytest.raises(ValueError, match="either points"):
         L.fs_correction("cut1")

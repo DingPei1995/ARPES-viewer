@@ -46,10 +46,12 @@ from PyQt5.QtWidgets import (QWidget, QMainWindow, QVBoxLayout, QHBoxLayout,
                               QTabWidget, QRadioButton, QGroupBox, QStackedWidget,
                               QProgressDialog)
 
-from arpes_viewer.tools.processing.analysis import arbitrary_cut, fit_feature, fs_correction
+from arpes_viewer.tools.processing.analysis import (arbitrary_cut, fit_feature, fs_correction,
+                                                    offset_per_channel)
 from arpes_viewer.tools.spectra.fermi import (PARAMETERS, PARAMETER_LABELS, K_B, levels_along,
                                  initial_guess, fermi_edge_model,
-                                 fit_fermi_edge, fit_channels, divide_fermi)
+                                 fit_fermi_edge, fit_channels, divide_fermi,
+                                 measured_channels)
 from arpes_viewer.tools.processing.dataops import (truncate, self_normalize, compress,
                                       ARRAY_AXES, CONSTRUCTOR_AXES,
                                       normalise_presets)
@@ -381,11 +383,14 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
         self._fs_dialog = dialog
 
         def on_accepted():
-            coeffs, order = dialog.coefficients(), dialog.order_box.value()
-            points, name = dialog.points(), dialog.name_box.text().strip()
             self._fs_dialog = None
             try:
-                self.run_fs_correction(coeffs, name=name, order=order, points=points)
+                if dialog.method() == "reference":
+                    self.apply_reference_fit(dialog.reference_choice())
+                else:
+                    self.run_fs_correction(
+                        dialog.coefficients(), name=dialog.name_box.text().strip(),
+                        order=dialog.order_box.value(), points=dialog.points())
             finally:
                 if bound:
                     self.close()
@@ -402,6 +407,33 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
         dialog.show()
         dialog.raise_()
         return dialog
+
+    def apply_reference_fit(self, choice, open_window: bool = True):
+        """The Fermi-surface correction from a reference: its recorded Fermi
+        edge fit (``choice`` from :meth:`FSCorrectionDialog.reference_choice`)
+        applied to this data -- ``"offset"``, the energy axis shifted by
+        the reference's E_F; ``"channels"``, every channel put on its own
+        E - E_F by the reference's E_F in that channel, the blank borders
+        and the channels it did not fit cut off. Lists the result."""
+        if not choice:
+            return None
+        fits, label = choice["fits"], choice.get("label", "")
+        if choice["mode"] == "channels":
+            channels = fits["channels"]
+            info = {"reference": label, "reference_angle_label":
+                    channels.get("angle_label", ""),
+                    "reference_temperature": channels.get("temperature", float("nan"))}
+            result = self.offset_energy_per_channel(channels["angle"],
+                                                    channels["ef"], info)
+        else:
+            edge = fits["edge"]
+            info = {"reference": label,
+                    "reference_resolution": edge.get("resolution", float("nan")),
+                    "reference_temperature": edge.get("temperature", float("nan"))}
+            result = self.offset_energy_axis(float(edge["ef"]), info)
+        if result is not None and open_window:
+            self.open_computed(result)
+        return result
 
     def run_fs_correction(self, coeffs, name=None, order=2, points=(),
                           open_window: bool = True):
@@ -427,7 +459,8 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
             return None
 
         scan = self.data.scan
-        source_info = {k: v for k, v in scan.info.items() if not k.startswith("fscorr.")}
+        source_info = {k: v for k, v in scan.info.items()
+                       if not k.startswith("fscorr.") and k != FERMI_FIT_KEY}
         data = MemoryData(
             kind, axes_of(new_energy), corrected, dict(scan.labels),
             source_label=name or f"{self.filename} [FS corr]",
@@ -536,7 +569,8 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
         result = MemoryData(data.kind, tuple(axes), np.asarray(values, dtype=float),
                             labels, source_label=name, parameters=parameters,
                             prefix="fitEF", source_path=getattr(data, "path", ""),
-                            source_info=dict(scan.info),
+                            source_info={k: v for k, v in scan.info.items()
+                                         if k != FERMI_FIT_KEY},
                             source_motors=dict(scan.fourd_info))
         self.datasetCreated.emit(result)
         self.statusBar().showMessage(
@@ -584,7 +618,8 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
                             cube, labels, source_label=name,
                             parameters=parameters, prefix="fitEF",
                             source_path=getattr(data, "path", ""),
-                            source_info=dict(scan.info),
+                            source_info={k: v for k, v in scan.info.items()
+                                         if k != FERMI_FIT_KEY},
                             source_motors=dict(scan.fourd_info))
         self.datasetCreated.emit(result)
         self.statusBar().showMessage(
@@ -637,7 +672,10 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
     def fit_channels_here(self, *, temperature, fixed, window, half_width,
                           step=1, start=None):
         """Fit the edge channel by channel on this window's own data and draw
-        the result over the image."""
+        the result over the image. The blank borders of the cut are left
+        out (:func:`run_channel_fit`); the channels fitted are kept with the
+        dataset's row (:meth:`record_fermi_fit`), where the Fermi-surface
+        correction finds them when this is its reference."""
         try:
             angles, energy, frame, _, _ = self.fermi_frame()
         except ValueError as exc:
@@ -647,10 +685,98 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
                                  temperature=temperature, fixed=fixed,
                                  window=window, half_width=half_width,
                                  step=step, start=start, draw_on=self.view)
-        # what the Fermi-surface correction uses, if this is its reference
-        remember_reference_fit(angles, energy, frame, result,
-                               {"temperature": temperature,
-                                "half_width": half_width, "step": step})
+        if result is not None and result[2].any():
+            fitted, ef, ok = result
+            self.record_fermi_fit(channels={
+                "angle": [float(v) for v in fitted[ok]],
+                "ef": [float(v) for v in ef[ok]],
+                "angle_label": self.fs_angle_label(),
+                "temperature": float(temperature),
+                "half_width": int(half_width), "step": int(step)})
+        return result
+
+    # -- the Fermi edge fit, kept with the dataset ----------------------------
+    def fermi_fit_state(self) -> dict:
+        """The Fermi edge fits recorded on this dataset (see
+        :data:`FERMI_FIT_KEY`): ``{"edge": {...}, "channels": {...}}``,
+        either part missing when it has not been fitted."""
+        return fermi_fit_of(getattr(self.data.scan, "info", {}) or {})
+
+    def record_fermi_fit(self, **parts):
+        """Keep a Fermi edge fit with this dataset -- on it, and on its row
+        in the launcher's list, so it outlives this window and the dataset
+        being re-read: ``edge`` (the whole edge: E_F, its error, the
+        resolution, the temperature) and/or ``channels`` (E_F channel by
+        channel). This is what makes the row a reference for the
+        Fermi-surface correction."""
+        import json
+        state = self.fermi_fit_state()
+        state.update({k: v for k, v in parts.items() if v is not None})
+        text = json.dumps(state, separators=(",", ":"))
+        self.data.scan.info[FERMI_FIT_KEY] = text
+        keep = getattr(self, "_set_row_properties", None)
+        if callable(keep):
+            keep({FERMI_FIT_KEY: text})
+        return state
+
+    def offset_energy_per_channel(self, angles, levels, info: dict = None):
+        """List a copy of this dataset with every angle channel on its own
+        E - E_F: ``levels`` (E_F fitted channel by channel at ``angles``,
+        here or on a reference) subtracted channel by channel. The blank
+        borders and the channels outside the fitted ones are cut off
+        (:func:`tools.processing.analysis.offset_per_channel`). A map's slit
+        cut does this to the whole map, along the slit."""
+        target = self.fs_correction_target()
+        if target is None:
+            QMessageBox.warning(self, "Offset channel by channel",
+                                "Only a cut, or a map's slit cut, is offset "
+                                "channel by channel.")
+            return None
+        values, angle_axis, energy_axis, angle_dim, energy_dim, kind, _ = target
+        moved = np.moveaxis(np.asarray(values, dtype=float), (angle_dim, energy_dim),
+                            (0, -1))
+        measured = measured_channels(moved)
+        try:
+            shifted, new_angles, new_energy = jobs.busy_work(
+                self, "Offsetting channel by channel", offset_per_channel,
+                values, angle_axis, energy_axis, angles, levels,
+                angle_dim=angle_dim, energy_dim=energy_dim, measured=measured)
+        except Exception as exc:                            # noqa: BLE001
+            QMessageBox.warning(self, "Offset channel by channel", str(exc))
+            return None
+        scan = self.data.scan
+        names = ARRAY_AXES[kind]
+        axes = [np.asarray(getattr(scan, n), dtype=float) for n in names]
+        axes[angle_dim] = np.asarray(new_angles, dtype=float)
+        axes[energy_dim if energy_dim >= 0 else len(axes) + energy_dim] = new_energy
+        labels = dict(scan.labels)
+        energy_name = names[energy_dim]
+        unit = _unit_of(labels.get(energy_name, "")) or "eV"
+        labels[energy_name] = f"E - E_F ({unit})"
+        name = f"{self.filename} [E-E_F ch]"
+        naming = getattr(self, "existing_names", None)
+        taken = set(naming()) if callable(naming) else set()
+        if name in taken:
+            n = 2
+            while f"{name} {n}" in taken:
+                n += 1
+            name = f"{name} {n}"
+        levels = np.asarray(levels, dtype=float)
+        parameters = dict(info or {})
+        parameters.update({"channels": int(np.isfinite(levels).sum()),
+                           "ef_min": float(np.nanmin(levels)),
+                           "ef_max": float(np.nanmax(levels)),
+                           "kept_channels": f"{new_angles[0]:.6g}..{new_angles[-1]:.6g}"})
+        source_info = {k: v for k, v in scan.info.items() if k != FERMI_FIT_KEY}
+        result = MemoryData(kind, tuple(axes), shifted, labels,
+                            source_label=name, parameters=parameters,
+                            prefix="fitEF", source_path=getattr(self.data, "path", ""),
+                            source_info=source_info,
+                            source_motors=dict(scan.fourd_info))
+        self.datasetCreated.emit(result)
+        self.statusBar().showMessage(
+            f"Every channel put on its own E - E_F ({levels.size} fitted, "
+            f"{len(new_angles)} kept) -- added to the file list")
         return result
 
     def adopt_child(self, window):
@@ -665,9 +791,13 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
         window._dataset_opener = getattr(self, "_dataset_opener", None)
         # the main list, for a tool that works from another of its datasets
         # (the Fermi-surface correction's reference)
-        for hook in ("_dataset_entries", "_dataset_loader"):
+        # (the Fermi-surface correction's reference), and the row it shows,
+        # to keep what is learnt about it (a Fermi edge fit)
+        for hook in ("_dataset_entries", "_dataset_loader", "_fermi_references",
+                     "_set_row_properties"):
             if callable(getattr(self, hook, None)):
                 setattr(window, hook, getattr(self, hook))
+        window._row_key = getattr(self, "_row_key", None)
         window.datasetCreated.connect(self.datasetCreated.emit)
         return window
 
@@ -5326,71 +5456,54 @@ class ArbitraryCutDialog(_PickerDialog):
         self.accept()
 
 
-#: Channel-by-channel fits of reference measurements (gold, ...), by what
-#: was fitted (:func:`reference_fingerprint`): a reference fitted once in
-#: this session -- by the Fermi-surface correction, or by "Fit by channel"
-#: of the Fermi edge fit -- is not fitted again; its result is used as it
-#: stands, unless asked to fit it again.
-_REFERENCE_FITS = {}
+#: The ``scan.info`` key (and row property) a dataset's Fermi edge fits are
+#: kept under, as JSON: ``{"edge": {"ef", "ef_err", "resolution",
+#: "temperature", "window"}, "channels": {"angle": [...], "ef": [...]}}``.
+#: Written by the Fermi edge fit; read by the Fermi-surface correction,
+#: whose references are the rows that carry it.
+FERMI_FIT_KEY = "fermifit.json"
 
 
-def reference_fingerprint(angles, energy, frame) -> str:
-    """What identifies an angle-vs-energy frame for :data:`_REFERENCE_FITS`:
-    its axes and its counts, whatever row or window it was read through."""
-    import hashlib
-    digest = hashlib.sha1()
-    for part in (angles, energy, frame):
-        array = np.ascontiguousarray(np.asarray(part, dtype=float))
-        digest.update(str(array.shape).encode())
-        digest.update(array.tobytes())
-    return digest.hexdigest()
-
-
-def remember_reference_fit(angles, energy, frame, result, settings=None):
-    """Keep a channel-by-channel fit ``result`` (``(angles, ef, ok)``) of
-    ``frame``, for :func:`recall_reference_fit`."""
-    if result is None:
-        return None
-    fitted_angles, ef, ok = result
-    entry = {"angles": np.array(fitted_angles, dtype=float),
-             "ef": np.array(ef, dtype=float),
-             "ok": np.array(ok, dtype=bool),
-             "settings": dict(settings or {})}
-    _REFERENCE_FITS[reference_fingerprint(angles, energy, frame)] = entry
-    return entry
-
-
-def recall_reference_fit(angles, energy, frame):
-    """The earlier channel-by-channel fit of this very frame, or None."""
-    return _REFERENCE_FITS.get(reference_fingerprint(angles, energy, frame))
+def fermi_fit_of(info) -> dict:
+    """The Fermi edge fits recorded in ``info`` (a dataset's ``scan.info``,
+    or a row's properties), ``{}`` when there are none."""
+    import json
+    text = (info or {}).get(FERMI_FIT_KEY)
+    if not text:
+        return {}
+    try:
+        state = json.loads(str(text))
+    except ValueError:
+        return {}
+    return state if isinstance(state, dict) else {}
 
 
 class FSCorrectionDialog(_PickerDialog):
     """The Fermi-surface correction, step by step.
 
-    1. **How** the curve of the Fermi edge is found: picked by hand on the
-       data viewer, or fitted on a reference (a gold cut or map in the main
-       list).
-    2. **The points**: clicked on the data viewer where the Fermi edge is --
-       or the reference chosen and fitted channel by channel. A reference
-       fitted before is not fitted again: the earlier result is used.
-    3. **The fit**: the polynomial through the points, drawn dashed over the
-       data, its order and the result's name; *Correct* straightens the
-       data and lists the result.
+    1. **How** the Fermi edge is found: picked by hand on the data viewer,
+       or taken from a reference -- a row of the main list whose Fermi edge
+       has been fitted with the Fermi edge fit (:data:`FERMI_FIT_KEY`).
+    2. *By hand*: the points, clicked on the data viewer where the Fermi
+       edge is; then
+    3. the polynomial through them, drawn dashed over the data, its order
+       and the result's name; *Correct* straightens the data.
 
-    The points are listed in a table where they can be corrected or
-    removed, and the fit is drawn over the data as it is built, so a bad
-    point is obvious before anything is computed.
+    *From a reference* (step 2 of 2): the reference is chosen, and how its
+    fit is applied -- **one offset** (the reference's E_F, the whole edge)
+    or **channel by channel** (its E_F per channel; the blank borders, and
+    the channels it did not fit, cut off). Its fit parameters are read from
+    it; nothing is fitted here.
     """
 
     STEP_METHOD, STEP_POINTS, STEP_REFERENCE, STEP_REVIEW = range(4)
+    OFFSET, CHANNELS = "offset", "channels"
 
     def __init__(self, window, view, angle_label: str, energy_label: str):
         super().__init__(window, view, "Fermi-surface correction")
         self.angle_label = angle_label
         self.energy_label = energy_label
-        self._reference = None          # (row key, data) on the reference page
-        self.resize(520, 560)
+        self.resize(540, 560)
 
         layout = QVBoxLayout(self)
         self.step_title = QLabel("")
@@ -5407,7 +5520,7 @@ class FSCorrectionDialog(_PickerDialog):
         layout.addWidget(self.steps)
 
         # The points, shared by the steps that show them: clicked by hand on
-        # step 2, measured on the reference after its fit, checked on step 3.
+        # step 2, checked on step 3.
         self.points_box = QGroupBox("Points along the Fermi edge")
         points_layout = QVBoxLayout(self.points_box)
         self.table = QTableWidget(0, 2)
@@ -5459,31 +5572,33 @@ class FSCorrectionDialog(_PickerDialog):
         box = QVBoxLayout(page)
         box.setContentsMargins(0, 0, 0, 0)
         intro = QLabel(
-            "The correction straightens a Fermi edge that the analyser bends: "
-            "the curve of the edge is fitted with a polynomial, and every "
-            "angle column is shifted in energy so it comes out flat.\n\n"
-            "How should the curve of the Fermi edge be found?")
+            "The correction straightens a Fermi edge that the analyser bends, "
+            "or puts it at zero.\n\nHow should the Fermi edge be found?")
         intro.setWordWrap(True)
         box.addWidget(intro)
         self.manual_radio = QRadioButton(
             "By hand: click the Fermi edge on the data viewer")
         self.manual_radio.setToolTip(
             "Click, on this data's own picture, where its Fermi edge is, at "
-            "several angles across it.")
+            "several angles across it; a polynomial through the points is "
+            "flattened.")
         self.reference_radio = QRadioButton(
-            "From a reference: fit the Fermi edge of a cut or map in the main list")
+            "From a reference: a cut or map of the main list whose Fermi edge "
+            "has been fitted")
         self.reference_radio.setToolTip(
-            "Measure the curvature instead of clicking it: the Fermi edge of "
-            "a reference (gold, or anything with a clean edge at every "
-            "angle) is fitted channel by channel. A reference fitted before "
-            "is not fitted again.")
+            "Apply the Fermi edge fit of another measurement (gold, or "
+            "anything with a clean edge) -- one offset, or channel by "
+            "channel. Fit the reference first with the tool panel's Fermi "
+            "edge fit.")
         self.manual_radio.setChecked(True)
         box.addWidget(self.manual_radio)
         box.addWidget(self.reference_radio)
-        if not self._entries():
+        if not self.references():
             self.reference_radio.setEnabled(False)
             self.reference_radio.setToolTip(
-                "No cut or map in the main list to use as the reference.")
+                "No other row of the main list has had its Fermi edge fitted: "
+                "fit the reference first (tool panel → Fermi edge fit; Fit, "
+                "or Fit channel by channel).")
         box.addStretch(1)
         return page
 
@@ -5505,60 +5620,43 @@ class FSCorrectionDialog(_PickerDialog):
         box = QVBoxLayout(page)
         box.setContentsMargins(0, 0, 0, 0)
         hint = QLabel(
-            "Choose the reference in the main list: a cut or a map whose "
-            "Fermi edge is clean at every angle (gold, or a freshly scraped "
-            "polycrystal). A map is summed over the deflector. Its Fermi "
-            "edge is fitted channel by channel, and the result is the "
-            "curve to straighten.")
+            "Choose the reference: a cut or map of the main list whose Fermi "
+            "edge has been fitted (tool panel → Fermi edge fit). Its fit is "
+            "read from it and applied to this data; the result is on "
+            "E - E_F.")
         hint.setWordWrap(True)
         box.addWidget(hint)
 
         form = QFormLayout()
         self.reference_combo = QComboBox()
-        for label, _key in self._entries():
+        for label, _key, _fits in self.references():
             self.reference_combo.addItem(label)
         form.addRow("Reference", self.reference_combo)
-
-        self.temperature_box = QDoubleSpinBox()
-        self.temperature_box.setRange(0.1, 2000.0)
-        self.temperature_box.setDecimals(2)
-        self.temperature_box.setValue(metadata_temperature(self.window_.data))
-        self.temperature_box.setToolTip(
-            "Held during the fit. It cannot be separated from the resolution "
-            "on a single edge, and it does not affect where the edge is.")
-        form.addRow("Temperature (K)", self.temperature_box)
-
-        self.width_box = QSpinBox()
-        self.width_box.setRange(0, 200)
-        self.width_box.setValue(3)
-        self.width_box.setToolTip(
-            "Channels added on each side before fitting. A reference too thin "
-            "to fit alone becomes fittable; the channel's position does not move.")
-        form.addRow("Neighbours (+/- channels)", self.width_box)
-
-        self.step_box = QSpinBox()
-        self.step_box.setRange(1, 200)
-        self.step_box.setValue(1)
-        self.step_box.setToolTip(
-            "Fit every Nth channel. The curvature is smooth, so sampling it and "
-            "letting the polynomial interpolate is usually enough -- and a "
-            "thousand fits take minutes.")
-        form.addRow("Fit every Nth channel", self.step_box)
         box.addLayout(form)
 
-        self.refit_box = QCheckBox("Fit it again (do not use the earlier fit)")
-        self.refit_box.setToolTip(
-            "This reference was fitted before in this session; its result is "
-            "used unless this is ticked.")
-        self.refit_box.setVisible(False)
-        self.refit_box.toggled.connect(lambda *_: self._update_buttons())
-        box.addWidget(self.refit_box)
+        self.offset_radio = QRadioButton(
+            "One offset: the whole data shifted by the reference's E_F")
+        self.offset_radio.setToolTip(
+            "For a reference fitted with Fit (one E_F for the whole edge): "
+            "the energy axis is shifted by it, every channel alike.")
+        self.channels_radio = QRadioButton(
+            "Channel by channel: each channel shifted by the reference's E_F "
+            "in that channel")
+        self.channels_radio.setToolTip(
+            "For a reference fitted with Fit channel by channel: every "
+            "channel is put on its own E - E_F. The blank borders, and the "
+            "channels the reference did not fit, are cut off.")
+        box.addWidget(self.offset_radio)
+        box.addWidget(self.channels_radio)
+        self.offset_radio.toggled.connect(lambda *_: self._show_reference())
+        self.channels_radio.toggled.connect(lambda *_: self._show_reference())
 
         self.reference_note = QLabel("")
         self.reference_note.setWordWrap(True)
+        self.reference_note.setTextInteractionFlags(Qt.TextSelectableByMouse)
         box.addWidget(self.reference_note)
         box.addStretch(1)
-        self.reference_combo.currentIndexChanged.connect(self._describe_reference)
+        self.reference_combo.currentIndexChanged.connect(self._reference_changed)
         return page
 
     def _review_page(self):
@@ -5599,9 +5697,9 @@ class FSCorrectionDialog(_PickerDialog):
         index = int(index)
         self.steps.setCurrentIndex(index)
         titles = {
-            self.STEP_METHOD: "Step 1 of 3 — how to find the Fermi edge",
+            self.STEP_METHOD: "Step 1 — how to find the Fermi edge",
             self.STEP_POINTS: "Step 2 of 3 — click the Fermi edge on the data viewer",
-            self.STEP_REFERENCE: "Step 2 of 3 — choose the reference in the main list",
+            self.STEP_REFERENCE: "Step 2 of 2 — the reference, and how to apply it",
             self.STEP_REVIEW: "Step 3 of 3 — check the fit and correct",
         }
         self.step_title.setText(titles[index])
@@ -5614,15 +5712,16 @@ class FSCorrectionDialog(_PickerDialog):
                               "edge is found.",
             self.STEP_POINTS: "Click on the picture where the Fermi edge is, "
                               "at several angles across it.",
-            self.STEP_REFERENCE: "Choose the reference cut or map from the "
-                                 "main list.",
+            self.STEP_REFERENCE: "Choose the reference, and one offset or "
+                                 "channel by channel.",
             self.STEP_REVIEW: "Check the fitted curve, then press Correct.",
         }[index]
         if callable(bar):
             bar().showMessage(message)
-        if index == self.STEP_REFERENCE and self._reference is None:
-            self._describe_reference()
-        self._refresh_overlay()
+        if index == self.STEP_REFERENCE:
+            self._reference_changed()
+        else:
+            self._refresh_overlay()
         self._update_buttons()
         if index == self.STEP_POINTS:
             # the picture is where the work is now
@@ -5632,46 +5731,41 @@ class FSCorrectionDialog(_PickerDialog):
     def go_next(self):
         index = self.step()
         if index == self.STEP_METHOD:
-            if self.method() == "manual":
-                self.show_step(self.STEP_POINTS)
-            else:
-                self.clear_points()
-                self.show_step(self.STEP_REFERENCE)
+            self.show_step(self.STEP_POINTS if self.method() == "manual"
+                           else self.STEP_REFERENCE)
         elif index == self.STEP_POINTS:
             if len(self.points()) >= 2:
-                self.show_step(self.STEP_REVIEW)
-        elif index == self.STEP_REFERENCE:
-            if self.from_reference() is not None:
                 self.show_step(self.STEP_REVIEW)
         return self.step()
 
     def go_back(self):
         index = self.step()
         if index in (self.STEP_POINTS, self.STEP_REFERENCE):
+            # Back to the choice: whatever was picked or drawn for this way
+            # goes, so the other way starts on a clean picture.
+            self.clear_points()
+            self.view.show_overlay_path(None, None)
             self.show_step(self.STEP_METHOD)
         elif index == self.STEP_REVIEW:
-            self.show_step(self.STEP_POINTS if self.method() == "manual"
-                           else self.STEP_REFERENCE)
+            self.show_step(self.STEP_POINTS)
         return self.step()
 
     def _update_buttons(self):
         index = self.step()
+        final = index in (self.STEP_REVIEW, self.STEP_REFERENCE)
         self.back_button.setEnabled(index != self.STEP_METHOD)
-        self.next_button.setVisible(index != self.STEP_REVIEW)
-        self.correct_button.setVisible(index == self.STEP_REVIEW)
-        self.correct_button.setDefault(index == self.STEP_REVIEW)
-        self.next_button.setDefault(index != self.STEP_REVIEW)
+        self.next_button.setVisible(not final)
+        self.correct_button.setVisible(final)
+        self.correct_button.setDefault(final)
+        self.next_button.setDefault(not final)
         if index == self.STEP_POINTS:
-            self.next_button.setText("Next ›")
             self.next_button.setEnabled(len(self.points()) >= 2)
-        elif index == self.STEP_REFERENCE:
-            reuse = self._earlier_fit() is not None and not self.refit_box.isChecked()
-            self.next_button.setText("Use the earlier fit ›" if reuse
-                                     else "Fit the reference ›")
-            self.next_button.setEnabled(self._reference is not None)
         else:
-            self.next_button.setText("Next ›")
             self.next_button.setEnabled(True)
+        if index == self.STEP_REFERENCE:
+            self.correct_button.setEnabled(self.reference_choice() is not None)
+        else:
+            self.correct_button.setEnabled(True)
 
     def _on_pick(self, x: float, y: float):
         """A click on the picture: a point, while picking by hand."""
@@ -5724,140 +5818,108 @@ class FSCorrectionDialog(_PickerDialog):
         self.table.blockSignals(False)
         self._refresh_overlay()
 
-    # -- points measured on a reference, rather than clicked ---------------
-    def _entries(self):
-        """``(label, row key)`` of the main list's cuts and maps: what a
-        reference can be."""
-        from arpes_viewer.ui.launcher.list_actions import kind_of
-        entries = getattr(self.window_, "_dataset_entries", None)
-        loader = getattr(self.window_, "_dataset_loader", None)
-        if not callable(entries) or not callable(loader):
-            return []
-        kept = []
-        for label, key in entries():
-            text = str(label)
-            kind = (text[text.rfind("[") + 1:text.rfind("]")]
-                    if text.rstrip().endswith("]") else "")
-            if not kind or kind_of(kind) in ("cut", "map"):
-                kept.append((label, key))
-        return kept
+    # -- the reference ---------------------------------------------------
+    def _own_key(self):
+        return getattr(self.window_, "_row_key", None)
 
-    def _describe_reference(self, *_):
-        """Read the reference picked in the combo: its size, the
-        temperature it was measured at, and whether it was fitted before."""
-        self._reference = None
+    def references(self):
+        """``(label, row key, fits)`` of the rows of the main list whose
+        Fermi edge has been fitted -- this data's own row left out."""
+        if getattr(self, "_references", None) is None:
+            source = getattr(self.window_, "_fermi_references", None)
+            listed = source() if callable(source) else []
+            own = self._own_key()
+            self._references = [(label, key, fits) for label, key, fits in listed
+                                if own is None or key != own]
+        return self._references
+
+    def _reference_changed(self, *_):
+        """Another reference: offer the ways it was fitted, then show it."""
+        entries = self.references()
         index = self.reference_combo.currentIndex()
-        entries = self._entries()
+        fits = entries[index][2] if 0 <= index < len(entries) else {}
+        has_edge, has_channels = bool(fits.get("edge")), bool(fits.get("channels"))
+        self.offset_radio.setEnabled(has_edge)
+        self.channels_radio.setEnabled(has_channels)
+        for radio, available in ((self.offset_radio, has_edge),
+                                 (self.channels_radio, has_channels)):
+            if radio.isChecked() and not available:
+                radio.setAutoExclusive(False)
+                radio.setChecked(False)
+                radio.setAutoExclusive(True)
+        if not (self.offset_radio.isChecked() or self.channels_radio.isChecked()):
+            if has_channels:
+                self.channels_radio.setChecked(True)
+            elif has_edge:
+                self.offset_radio.setChecked(True)
+        self._show_reference()
+
+    def reference_choice(self):
+        """``{"key", "label", "mode", "fits"}`` -- the reference chosen and
+        how to apply it -- or None when there is none to apply."""
+        entries = self.references()
+        index = self.reference_combo.currentIndex()
         if not (0 <= index < len(entries)):
-            self.reference_note.setText("No cut or map in the main list.")
-            self._update_buttons()
             return None
-        key = entries[index][1]
-        try:
-            data = self.window_._dataset_loader(key)
-            angles, energy, frame, angle_label, _e = reference_frame(data)
-        except Exception as exc:                            # noqa: BLE001
-            self.reference_note.setText(f"It cannot be used: {exc}")
-            self.refit_box.setVisible(False)
-            self._update_buttons()
-            return None
-        self._reference = (key, data, (angles, energy, frame),
-                           reference_fingerprint(angles, energy, frame))
-        self.step_box.setValue(max(1, int(np.ceil(angles.size / 120))))
-        self.temperature_box.setValue(metadata_temperature(
-            data, self.temperature_box.value()))
-        text = (f"{angles.size} channels along {angle_label}, "
-                f"{energy.size} energy points.")
-        earlier = self._earlier_fit()
-        self.refit_box.blockSignals(True)
-        self.refit_box.setChecked(False)
-        self.refit_box.blockSignals(False)
-        self.refit_box.setVisible(earlier is not None)
-        if earlier is not None:
-            ok = earlier["ok"]
-            spread = (float(np.nanmax(earlier["ef"][ok]) - np.nanmin(earlier["ef"][ok]))
-                      if ok.any() else float("nan"))
-            text += (f"\nAlready fitted in this session: {int(ok.sum())} "
-                     f"channels, E_F varying by {spread * 1000:.3g} meV. That "
-                     f"result is used as it stands.")
-        self.reference_note.setText(text)
-        self._update_buttons()
-        return data
-
-    def _earlier_fit(self):
-        if self._reference is None:
-            return None
-        return _REFERENCE_FITS.get(self._reference[3])
-
-    def from_reference(self, refit: bool = None):
-        """Points from the reference chosen on step 2: its Fermi edge fitted
-        channel by channel -- or the earlier fit of it, if it has been
-        fitted before (and ``refit``, or the "Fit it again" box, does not
-        say otherwise). The points go into the table, where they are
-        smoothed by the same polynomial as hand-picked points, and can be
-        inspected and pruned the same way. Returns ``(angles, ef, ok)``,
-        or None."""
-        if self._reference is None:
-            self._describe_reference()
-        if self._reference is None:
-            QMessageBox.information(self, "Fermi surface from a reference",
-                                     "Choose a cut or a map of the main list "
-                                     "as the reference first.")
-            return None
-        _key, _data, (angles, energy, frame), _print = self._reference
-        label = self.reference_combo.currentText()
-        refit = self.refit_box.isChecked() if refit is None else bool(refit)
-        earlier = None if refit else self._earlier_fit()
-        if earlier is not None:
-            result = (earlier["angles"], earlier["ef"], earlier["ok"])
-            how = "the earlier fit of"
+        label, key, fits = entries[index]
+        if self.channels_radio.isChecked() and fits.get("channels"):
+            mode = self.CHANNELS
+        elif self.offset_radio.isChecked() and fits.get("edge"):
+            mode = self.OFFSET
         else:
-            settings = {"temperature": self.temperature_box.value(),
-                        "half_width": self.width_box.value(),
-                        "step": self.step_box.value()}
-            result = run_channel_fit(
-                self, angles, energy, frame,
-                temperature=settings["temperature"], window=(None, None),
-                half_width=settings["half_width"], step=settings["step"],
-                draw_on=None,
-                title=f"Fitting {label} channel by channel")
-            if result is None:
-                return None
-            remember_reference_fit(angles, energy, frame, result, settings)
-            how = "fitted on"
-        fitted, ef, ok = result
-        if not ok.any():
-            QMessageBox.warning(self, "Fermi surface from a reference",
-                                 "No channel of that reference could be fitted.")
             return None
+        return {"key": key, "label": label.split("   [")[0], "mode": mode,
+                "fits": fits}
 
-        target = np.asarray(self.window_.fs_angle_axis(), dtype=float)
-        note = ""
-        if (fitted.size != target.size
-                or not np.allclose(fitted, target, rtol=1e-3, atol=1e-6)):
-            # A reference taken on a different angle grid still describes the
-            # same analyser, so its points are kept as they are -- the
-            # polynomial is evaluated on whatever axis the data being
-            # corrected has.
-            note = (f"note: the reference's {fitted.size} channels do not match "
-                    f"this data's {target.size}; the fitted curve is used through "
-                    f"the polynomial, which is defined everywhere.")
-        self.clear_points()
-        self.table.blockSignals(True)
-        for angle, value in zip(fitted[ok], ef[ok]):
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(f"{angle:.5g}"))
-            self.table.setItem(row, 1, QTableWidgetItem(f"{value:.6g}"))
-        self.table.blockSignals(False)
-        self._refresh_overlay()
-        if note:
-            self.note.setText(f"{self.note.text()}\n{note}")
-        spread = float(np.nanmax(ef[ok]) - np.nanmin(ef[ok]))
-        self.window_.statusBar().showMessage(
-            f"{int(ok.sum())} channels {how} {label}; "
-            f"E_F varies by {spread * 1000:.3g} meV across the detector")
-        return result
+    def _show_reference(self):
+        """The reference's fit parameters, and its Fermi edge drawn on this
+        data so it can be checked against the edge seen here."""
+        choice = self.reference_choice()
+        self.view.show_picked_points([], [])
+        if choice is None:
+            self.view.show_overlay_path(None, None)
+            self.reference_note.setText(
+                "Choose a reference, and how its fit is applied.")
+            self._update_buttons()
+            return
+        fits = choice["fits"]
+        lines = []
+        edge = fits.get("edge")
+        if edge:
+            lines.append(
+                f"Whole edge: E_F = {edge['ef']:.6g} eV"
+                + (f" ± {edge['ef_err']:.2g}" if np.isfinite(edge.get("ef_err", np.nan))
+                   else "")
+                + f", resolution {edge.get('resolution', float('nan')) * 1000:.3g} meV, "
+                  f"T = {edge.get('temperature', float('nan')):.4g} K.")
+        channels = fits.get("channels")
+        if channels:
+            angles = np.asarray(channels["angle"], dtype=float)
+            levels = np.asarray(channels["ef"], dtype=float)
+            lines.append(
+                f"Channel by channel: {angles.size} channels, "
+                f"{angles.min():.4g} to {angles.max():.4g} "
+                f"({channels.get('angle_label') or 'angle'}); E_F "
+                f"{levels.min():.6g} to {levels.max():.6g} eV.")
+        axis = np.asarray(self.window_.fs_angle_axis(), dtype=float)
+        if choice["mode"] == self.CHANNELS:
+            angles = np.asarray(channels["angle"], dtype=float)
+            levels = np.asarray(channels["ef"], dtype=float)
+            order = np.argsort(angles)
+            self.view.show_overlay_path(angles[order], levels[order], dashed=True)
+            inside = (axis >= angles.min()) & (axis <= angles.max())
+            lines.append(
+                f"Applied: every channel on its own E - E_F; {int(inside.sum())} "
+                f"of this data's {axis.size} channels lie inside the reference's "
+                f"fitted ones and are kept -- the rest (blank borders "
+                f"included) are cut off.")
+        else:
+            ef = float(edge["ef"])
+            self.view.show_overlay_path([float(axis.min()), float(axis.max())],
+                                        [ef, ef], dashed=True)
+            lines.append(f"Applied: the energy axis shifted by {ef:.6g} eV.")
+        self.reference_note.setText("\n".join(lines))
+        self._update_buttons()
 
     def coefficients(self):
         order = self.order_box.value()
@@ -5867,6 +5929,8 @@ class FSCorrectionDialog(_PickerDialog):
         return fit_feature(pts, order=order)
 
     def _refresh_overlay(self, *_):
+        if self.step() == self.STEP_REFERENCE:
+            return
         pts = self.points()
         self.view.show_picked_points([p[0] for p in pts], [p[1] for p in pts])
         coeffs = self.coefficients()
@@ -5888,6 +5952,14 @@ class FSCorrectionDialog(_PickerDialog):
             f"{_unit_of(self.energy_label) or 'eV'} and will be flattened.")
 
     def _on_accept(self):
+        if self.method() == "reference":
+            if self.reference_choice() is None:
+                QMessageBox.warning(self, "Fermi-surface correction",
+                                    "Choose a reference, and how its fit is "
+                                    "applied.")
+                return
+            self.accept()
+            return
         if self.coefficients() is None:
             QMessageBox.warning(self, "Fermi-surface correction",
                                 f"An order-{self.order_box.value()} fit needs at least "
@@ -6700,6 +6772,7 @@ class FermiFitDialog(_PickerDialog):
         super().__init__(window, window.view, "Fermi level fitting")
         self.window_ = window
         self.fit_result = None
+        self.channel_fit = None     # (angles, ef, ok) of the last channel fit
         #: On a map's slit-cut window the fit is of the cut on screen, which
         #: the window's slider moves along the map's first axis; the energy
         #: axis can then be offset by one E_F or by one fitted per cut.
@@ -6709,23 +6782,29 @@ class FermiFitDialog(_PickerDialog):
         self.cut_fits = []          # [{"position", "indices", "ef", "error"}]
         self._load_frame()
 
+        # Left: everything that is set; right: what the fit gives.
         outer = QHBoxLayout(self)
         left = QWidget()
         layout = QVBoxLayout(left)
         layout.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(left, stretch=1)
+        left.setMaximumWidth(500)
+        outer.addWidget(left)
+        right = QWidget()
+        result_column = QVBoxLayout(right)
+        result_column.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(right, stretch=1)
         if self.slices:
             intro = QLabel(
                 "The EDC is the slit cut on screen summed over an angle range; "
-                "the fit runs over an energy range. Drag the selection box on "
-                "the image or type the numbers here -- they follow each other. "
+                "the fit runs over an energy range. Draw the box on the data, "
+                "drag it, or type the numbers -- they follow each other. "
                 f"Move the cut with its slider ({window.contour.defl_label}) "
                 f"to fit another one.")
         else:
             intro = QLabel(
                 "The EDC is this cut summed over an angle range; the fit runs over "
-                "an energy range. Drag the selection box on the image or type the "
-                "numbers here -- they follow each other.")
+                "an energy range. Draw the box on the data, drag it, or type the "
+                "numbers -- they follow each other.")
         intro.setWordWrap(True)
         layout.addWidget(intro)
 
@@ -6737,14 +6816,25 @@ class FermiFitDialog(_PickerDialog):
                                                                    self.angle_to))
         region.addRow(f"Fit window {self._energy_label}",
                       self._pair(self.energy_from, self.energy_to))
+        self.draw_button = QPushButton("Draw on the data")
+        self.draw_button.setCheckable(True)
+        self.draw_button.setToolTip(
+            "Then drag on the picture: the box drawn there sets the angle "
+            "range summed (its width) and the energy window fitted (its "
+            "height).")
+        self.draw_button.toggled.connect(self._toggle_drawing)
         self.box_button = QPushButton("Show the selection box")
         self.box_button.setCheckable(True)
         self.box_button.setToolTip(
             "Put the box on the image; its horizontal extent is the angle range "
             "and its vertical extent the energy window.")
         self.box_button.toggled.connect(self._toggle_box)
-        region.addRow("", self.box_button)
         layout.addLayout(region)
+        boxes_row = QHBoxLayout()
+        boxes_row.addWidget(self.draw_button)
+        boxes_row.addWidget(self.box_button)
+        boxes_row.addStretch(1)
+        layout.addLayout(boxes_row)
 
         # -- parameters -----------------------------------------------------
         self.table = QTableWidget(len(PARAMETERS), 3)
@@ -6786,6 +6876,7 @@ class FermiFitDialog(_PickerDialog):
             "independently -- the summary will print their correlation.")
         layout.addWidget(self.table)
 
+        # -- one E_F: fit it, and offset by it -------------------------------
         row = QHBoxLayout()
         self.estimate_button = QPushButton("Estimate")
         self.estimate_button.setToolTip("Read starting values off the data.")
@@ -6808,32 +6899,72 @@ class FermiFitDialog(_PickerDialog):
         row.addStretch(1)
         layout.addLayout(row)
 
-        # -- the picture ----------------------------------------------------
+        # -- E_F channel by channel: fit it, and offset by it -----------------
+        row = QHBoxLayout()
+        self.channels_button = QPushButton("Fit channel by channel")
+        self.channels_button.setToolTip(
+            "Fit the edge in each detector channel of this cut, over the fit "
+            "window, and draw E_F against angle on the cut -- the curvature "
+            "of the Fermi edge, measured. Blank channels at the two ends of "
+            "the cut are cut off, not fitted.")
+        self.channels_button.clicked.connect(self.fit_by_channel)
+        self.offset_channels_button = QPushButton("Offset channel by channel")
+        self.offset_channels_button.setToolTip(
+            "List a copy with every channel on its own E - E_F, from the "
+            "channel-by-channel fit (a map: the whole map, along the slit). "
+            "The blank borders are cut off.")
+        self.offset_channels_button.clicked.connect(lambda: self.offset_channels())
+        self.offset_channels_button.setEnabled(False)
+        row.addWidget(self.channels_button)
+        row.addWidget(self.offset_channels_button)
+        row.addStretch(1)
+        layout.addLayout(row)
+        channel_form = QHBoxLayout()
+        self.channel_width = QSpinBox()
+        self.channel_width.setRange(0, 200)
+        self.channel_width.setValue(2)
+        self.channel_width.setToolTip(
+            "Add this many neighbouring channels on each side before fitting, "
+            "for a reference too thin to fit channel by channel.")
+        self.channel_step = QSpinBox()
+        self.channel_step.setRange(1, 100)
+        self.channel_step.setValue(1)
+        self.channel_step.setToolTip(
+            "Fit every Nth channel. The curvature is smooth, so there is "
+            "rarely anything to gain from fitting all of them.")
+        channel_form.addWidget(QLabel("Neighbours ±"))
+        channel_form.addWidget(self.channel_width)
+        channel_form.addSpacing(12)
+        channel_form.addWidget(QLabel("every Nth channel"))
+        channel_form.addWidget(self.channel_step)
+        channel_form.addStretch(1)
+        layout.addLayout(channel_form)
+
+        # -- the fit's picture and summary, on the right ----------------------
         self.plot = pg.PlotWidget()
-        self.plot.setMinimumHeight(220)
+        self.plot.setMinimumSize(360, 260)
         self.plot.setLabel("bottom", self._energy_label)
         self.plot.setLabel("left", "counts")
         strip_stock_menu(self.plot.getPlotItem())
+        # Always the whole fit: no wheel zoom, no drag, no "A" button.
+        self.plot.setMouseEnabled(x=False, y=False)
+        self.plot.hideButtons()
+        self.plot.getPlotItem().setMenuEnabled(False)
+        self.plot.getPlotItem().getViewBox().enableAutoRange()
         self.data_curve = self.plot.plot(pen=pg.mkPen("#1f6f8b", width=2), name="EDC")
         self.model_curve = self.plot.plot(pen=pg.mkPen("#bd4921", width=2))
         self.ef_line = pg.InfiniteLine(angle=90, pen=pg.mkPen("#2f7a3f", width=2,
                                                               style=Qt.DashLine))
         self.ef_line.setVisible(False)
         self.plot.addItem(self.ef_line, ignoreBounds=True)
-        layout.addWidget(self.plot, stretch=1)
+        result_column.addWidget(self.plot, stretch=1)
 
         self.summary = QLabel("")
         self.summary.setWordWrap(True)
         self.summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        layout.addWidget(self.summary)
+        result_column.addWidget(self.summary)
 
-        # -- what to do with the answer -------------------------------------
-        actions = QHBoxLayout()
-        actions.addStretch(1)
-        close = QPushButton("Close")
-        close.clicked.connect(self.reject)
-        actions.addWidget(close)
-
+        # -- rarely needed --------------------------------------------------
         advanced = QGroupBox("Advanced -- superconducting gaps and reference samples")
         advanced.setCheckable(True)
         advanced.setChecked(False)
@@ -6853,42 +6984,63 @@ class FermiFitDialog(_PickerDialog):
         self.divide_button.clicked.connect(self.divide_out)
         adv.addRow("Cut off above (kT)", self.cutoff_box)
         adv.addRow("", self.divide_button)
-
-        self.channel_width = QSpinBox()
-        self.channel_width.setRange(0, 200)
-        self.channel_width.setValue(2)
-        self.channel_width.setToolTip(
-            "Add this many neighbouring channels on each side before fitting, "
-            "for a reference too thin to fit channel by channel.")
-        self.channel_step = QSpinBox()
-        self.channel_step.setRange(1, 100)
-        self.channel_step.setValue(1)
-        self.channel_step.setToolTip(
-            "Fit every Nth channel. The curvature is smooth, so there is "
-            "rarely anything to gain from fitting all of them.")
-        self.channels_button = QPushButton("Fit E_F channel by channel")
-        self.channels_button.setToolTip(
-            "Fit the edge in each detector channel of this cut and plot E_F "
-            "against angle -- the curvature of the Fermi surface, measured "
-            "rather than clicked.")
-        self.channels_button.clicked.connect(self.fit_by_channel)
-        adv.addRow("Neighbours (+/- channels)", self.channel_width)
-        adv.addRow("Fit every Nth channel", self.channel_step)
-        adv.addRow("", self.channels_button)
         layout.addWidget(advanced)
+        layout.addStretch(1)
+
+        actions = QHBoxLayout()
+        actions.addStretch(1)
+        close = QPushButton("Close")
+        close.clicked.connect(self.reject)
+        actions.addWidget(close)
         layout.addLayout(actions)
 
         self.cuts_panel = self._cuts_panel()
         self.cuts_panel.setVisible(False)
         outer.addWidget(self.cuts_panel)
+        self.resize(1000, 600)
 
         for box in (self.angle_from, self.angle_to, self.energy_from, self.energy_to):
             box.valueChanged.connect(self._on_range_typed)
         window.view.selectionChanged.connect(self._on_box_moved)
+        self.finished.connect(lambda *_: self._stop_drawing())
         if self.slices:
             window.control.changed.connect(self._cut_moved)
         self.value_boxes["temperature"].setValue(metadata_temperature(window.data))
         self.estimate()
+
+    # -- drawing the region on the data -----------------------------------
+    def _toggle_drawing(self, on: bool):
+        view = self.window_.view
+        if on:
+            view.start_box_drawing(self._box_drawn)
+            self.summary.setText("Drag on the picture: the box drawn sets the "
+                                 "angle range and the energy window.")
+            bar = getattr(self.window_, "statusBar", None)
+            if callable(bar):
+                bar().showMessage("Drag a box on the picture: its width is the "
+                                  "angle range summed, its height the fit window.")
+            self.window_.raise_()
+            self.raise_()
+        else:
+            view.stop_box_drawing()
+
+    def _box_drawn(self, corners):
+        """A box was drawn on the data: it is the region now."""
+        self.draw_button.blockSignals(True)
+        self.draw_button.setChecked(False)
+        self.draw_button.blockSignals(False)
+        self.box_button.blockSignals(True)
+        self.box_button.setChecked(True)
+        self.box_button.setText("Hide the selection box")
+        self.box_button.blockSignals(False)
+        self._on_box_moved()
+        self.summary.setText("Region set from the box drawn. Estimate, then Fit.")
+
+    def _stop_drawing(self):
+        try:
+            self.window_.view.stop_box_drawing()
+        except RuntimeError:
+            pass
 
     def _load_frame(self):
         self._angle_axis, self._energy_axis, self._frame, \
@@ -7122,12 +7274,15 @@ class FermiFitDialog(_PickerDialog):
     def refresh_edc(self):
         energy, intensity = self.windowed_edc()
         self.data_curve.setData(energy, intensity)
-        if energy.size:
-            self.plot.setXRange(float(energy.min()), float(energy.max()), padding=0.02)
         if self.fit_result is not None:
             self.model_curve.setData(energy, self.fit_result.model(energy))
         else:
             self.model_curve.setData([], [])
+        self._view_all()
+
+    def _view_all(self):
+        """The fit's plot always shows all of it (it has no zoom)."""
+        self.plot.getPlotItem().getViewBox().autoRange(padding=0.02)
 
     # -- fitting ----------------------------------------------------------
     def parameters(self) -> dict:
@@ -7162,6 +7317,7 @@ class FermiFitDialog(_PickerDialog):
         self.refresh_edc()
         shown = self.windowed_edc()[0]
         self.model_curve.setData(shown, fermi_edge_model(shown, **guess))
+        self._view_all()
         self.summary.setText("Starting values estimated from the data. Press Fit.")
         return guess
 
@@ -7194,6 +7350,14 @@ class FermiFitDialog(_PickerDialog):
         self.ef_line.setVisible(True)
         self.summary.setText(result.summary())
         self.offset_button.setEnabled(True)
+        # kept with the dataset: it is now a reference for the
+        # Fermi-surface correction
+        self.window_.record_fermi_fit(edge={
+            "ef": float(result.values["ef"]),
+            "ef_err": float(result.errors.get("ef", float("nan"))),
+            "resolution": float(result.values["resolution"]),
+            "temperature": float(result.values["temperature"]),
+            "window": [float(result.window[0]), float(result.window[1])]})
         if self.per_cut:
             self._record_fit()
         self.window_.statusBar().showMessage(
@@ -7257,6 +7421,10 @@ class FermiFitDialog(_PickerDialog):
                                                  self.fit_info())
 
     def fit_by_channel(self):
+        """E_F in every channel of the cut on screen, over the fit window;
+        the blank channels at the cut's two ends are cut off first. The
+        result is drawn on the cut, kept with the dataset, and can offset
+        it channel by channel."""
         curve = self.window_.fit_channels_here(
             temperature=self.value_boxes["temperature"].value(),
             fixed=self.held(), window=self.window_range(),
@@ -7266,15 +7434,33 @@ class FermiFitDialog(_PickerDialog):
             return None
         angles, ef, ok = curve
         if not ok.any():
+            self.channel_fit = None
+            self.offset_channels_button.setEnabled(False)
             self.summary.setText("No channel could be fitted.")
             return None
+        self.channel_fit = curve
+        self.offset_channels_button.setEnabled(True)
         spread = float(np.nanmax(ef[ok]) - np.nanmin(ef[ok]))
         self.summary.setText(
-            f"{int(ok.sum())} of {angles.size} channels fitted; E_F varies by "
-            f"{spread * 1000:.3g} meV across the detector. The curve is drawn "
-            f"over the cut -- the tool panel's “Fermi surface correction” "
-            f"flattens it, and reuses this fit if this is its reference.")
+            f"{int(ok.sum())} of {angles.size} channels fitted "
+            f"({angles.min():.4g} to {angles.max():.4g}; blank borders left "
+            f"out); E_F varies by {spread * 1000:.3g} meV across the detector. "
+            f"The curve is drawn over the cut. “Offset channel by channel” "
+            f"puts every channel on its own E - E_F; the Fermi surface "
+            f"correction can use this fit as its reference.")
         return curve
+
+    def offset_channels(self):
+        """List a copy with every channel on its own E - E_F, from the
+        channel-by-channel fit (a map's slit cut: the whole map)."""
+        if self.channel_fit is None:
+            QMessageBox.information(self, "Offset channel by channel",
+                                     "Fit channel by channel first.")
+            return None
+        angles, ef, ok = self.channel_fit
+        info = {"from": "this dataset's channel-by-channel fit",
+                "fit_window_eV": "{:.6g}..{:.6g}".format(*self.window_range())}
+        return self.window_.offset_energy_per_channel(angles[ok], ef[ok], info)
 
 
 def run_channel_fit(parent, angles, energy, frame, *, temperature, fixed=("temperature",),
@@ -7309,6 +7495,16 @@ def run_channel_fit(parent, angles, energy, frame, *, temperature, fixed=("tempe
         QApplication.processEvents()
         return not progress.wasCanceled()
 
+    # The blank borders some detectors leave on either side of a cut are
+    # not channels: they are cut off before fitting, never fitted.
+    measured = measured_channels(frame)
+    angles = np.asarray(angles, dtype=float)[measured]
+    frame = np.asarray(frame, dtype=float)[measured]
+    if angles.size == 0:
+        progress.close()
+        QMessageBox.warning(parent, "Fermi level fitting",
+                             "No channel of this picture holds a measurement.")
+        return None
     try:
         ef, err, ok = fit_channels(angles, energy, frame, half_width=half_width,
                                    step=step, temperature=temperature, fixed=fixed,
