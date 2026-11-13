@@ -371,8 +371,14 @@ class Shots:
         # Fermi surface correction's reference)
         dialog.energy_from.setValue(demo_EF() - 0.08)
         dialog.energy_to.setValue(demo_EF() + 0.08)
-        dialog.channel_step.setValue(4)
-        dialog.fit_by_channel()
+        # the proposal measured on the data, as the button shows it
+        from arpes_viewer.ui.viewers.windows import ChannelFitPlanDialog
+        planned = dialog.plan_channels()
+        if planned is not None and planned[1]["suitable"]:
+            proposal = ChannelFitPlanDialog(dialog, planned[0], planned[1])
+            shot(proposal, "fermi_channel_plan")
+            proposal.reject()
+        dialog.fit_by_channel(confirm=False)
         pump()
         shot(cut, "fermi_channels_cut", (1000, 760))
         dialog.offset_energy_axis()

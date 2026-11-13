@@ -1007,10 +1007,10 @@ et le résumé dessous.
 
 ![Fenêtre du niveau de Fermi](images/fermi_dialog.png)
 
-1. Fixez la région : appuyez sur **Draw on the data** et tracez un cadre
-   sur la coupe — sa largeur est l'intervalle d'angle sommé, sa hauteur la
-   fenêtre d'énergie ajustée — ou **Show the selection box** et faites-le
-   glisser, ou saisissez les intervalles. Les trois se suivent.
+1. Fixez la région : appuyez sur **Show the selection box** et faites
+   glisser le cadre sur la coupe — sa largeur est l'intervalle d'angle
+   sommé, sa hauteur la fenêtre d'énergie ajustée — ou saisissez les
+   intervalles. Les deux se suivent.
 
    ![Le cadre d'ajustement sur la coupe](images/fermi_cut_box.png)
 
@@ -1021,13 +1021,35 @@ et le résumé dessous.
    **E − E_F**.
 
 **Canal par canal.** Sur la ligne sous Fit, **Fit channel by channel**
-ajuste le front dans chaque canal du détecteur, dans la fenêtre
-d'ajustement (**Neighbours ±** ajoute d'abord des canaux de part et
-d'autre, **every Nth channel** échantillonne le détecteur), et trace E_F en
-fonction de l'angle sur la coupe — la courbure du front de Fermi, mesurée.
-Les canaux vides aux deux bouts de la coupe (sans coups, ou NaN, comme en
-laissent certains détecteurs) sont coupés, pas ajustés. **Offset channel by
-channel**, à côté, ajoute une copie où chaque canal est sur son propre
+ajuste le front le long du détecteur, dans la fenêtre d'ajustement, et
+trace E_F en fonction de l'angle sur la coupe — la courbure du front de
+Fermi, mesurée. Ses réglages ne sont pas des valeurs par défaut fixes ; ils
+sont mesurés sur les données :
+
+1. L'EDC sommée dans le cadre est ajustée d'abord (comme le fait **Fit**) :
+   c'est la **graine**, dont la forme de raie sert de départ à chaque
+   ajustement de canal. Si le cadre contient trop peu de coups pour
+   déterminer la résolution, il vous est demandé de l'agrandir.
+2. Quelques ajustements d'essai à plusieurs largeurs mesurent la précision
+   avec laquelle un canal donne E_F, et de là **combien de canaux chaque
+   ajustement doit sommer** pour une précision utile (10 meV, deux pas en
+   énergie ou un dixième de la résolution, le plus grand des trois).
+3. Ce nombre est comparé aux canaux mesurés. Si moins de dix ajustements
+   indépendants tiennent sur le détecteur, le programme dit que **ces
+   données ne se prêtent pas à un ajustement canal par canal**, chiffres à
+   l'appui, et propose un seul E_F (Fit, puis Offset energy axis) ou la
+   correction de la surface de Fermi. Sinon il propose les réglages —
+   canaux par ajustement, un ajustement tous les N canaux, garder la forme
+   de raie de la graine (seuls E_F, la hauteur et le fond ajustés par
+   canal) — avec la précision attendue, à accepter ou modifier.
+
+![La proposition, mesurée sur les données](images/fermi_channel_plan.png)
+
+Les ajustements tournent en arrière-plan : la fenêtre répond toujours, et
+**Cancel** les arrête aussitôt, en gardant les canaux déjà ajustés. Les
+canaux vides aux deux bouts de la coupe (sans coups, ou NaN, comme en
+laissent certains détecteurs) sont coupés, jamais ajustés. **Offset channel
+by channel**, à côté, ajoute une copie où chaque canal est sur son propre
 **E − E_F** (sur la coupe selon la fente d'une carte : toute la carte, le
 long de la fente), les bords vides coupés.
 

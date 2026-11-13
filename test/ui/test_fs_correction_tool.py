@@ -80,9 +80,7 @@ def _fitted_reference(app, blank=BLANK):
     dialog.energy_from.setValue(55.3)
     dialog.energy_to.setValue(55.9)
     assert dialog.run_fit() is not None
-    dialog.channel_step.setValue(3)
-    dialog.channel_width.setValue(0)
-    assert dialog.fit_by_channel() is not None
+    assert dialog.fit_by_channel(confirm=False) is not None
     return gold, window, dialog
 
 
@@ -100,24 +98,12 @@ def test_the_fit_panel_is_two_columns_with_a_fixed_plot(app):
     assert left.geometry().x() < right.geometry().x() or not dialog.isVisible()
     box = dialog.plot.getPlotItem().getViewBox()
     assert box.state["mouseEnabled"] == [False, False]
-    # channel by channel sits on the Fit row's neighbour, its offset beside it
+    # channel by channel sits under Fit, its offset beside it; no fixed
+    # defaults for it on the panel, and no drawing button
     assert dialog.channels_button.parentWidget() is left
     assert not dialog.offset_channels_button.isEnabled()
-    dialog.close()
-    window.close()
-
-
-def test_a_box_drawn_on_the_data_sets_the_region(app):
-    window = W.CutWindow(_cut(), "c", "gray", False)
-    dialog = window.open_fermi_fit()
-    dialog.draw_button.setChecked(True)
-    assert window.view.box_drawing()
-    window.view.finish_box(-4.0, 55.3, 6.0, 55.85)
-    assert not window.view.box_drawing() and not dialog.draw_button.isChecked()
-    assert dialog.box_button.isChecked()
-    assert dialog.angle_from.value() == pytest.approx(-4.0, abs=1e-3)
-    assert dialog.angle_to.value() == pytest.approx(6.0, abs=1e-3)
-    assert dialog.window_range() == pytest.approx((55.3, 55.85), abs=1e-3)
+    assert not hasattr(dialog, "channel_width") and not hasattr(dialog, "draw_button")
+    assert left.minimumWidth() >= 540
     dialog.close()
     window.close()
 
@@ -147,6 +133,93 @@ def test_channels_fitted_and_offset_without_the_blank_borders(app):
         assert abs(energy[np.argmin(np.abs(column - half))]) < 6e-3
     dialog.close()
     window.close()
+
+
+WIDE = np.linspace(-15, 15, 400)
+
+
+def _many_noisy_channels(noise=80.0):
+    """400 channels, each too noisy for its own edge, the sum fine -- like
+    a soft X-ray detector's single channels."""
+    from arpes_viewer.tools.spectra.fermi import fermi_edge_model
+    clean = np.array([fermi_edge_model(EKIN, float(_edge(a)), 20.0, 0.1, 100.0,
+                                       0.0, 5.0, 0.0) for a in WIDE])
+    return clean + np.random.default_rng(5).normal(0, noise, clean.shape)
+
+
+def test_the_channel_fit_is_planned_from_the_data(app):
+    from arpes_viewer.tools.spectra.fermi import fit_fermi_edge, plan_channel_fit
+    frame = _frame(seed=4)
+    seed = fit_fermi_edge(EKIN, frame.sum(0), window=(55.3, 55.9)).values
+    plan = plan_channel_fit(SLIT, EKIN, frame, seed, window=(55.3, 55.9))
+    assert plan["suitable"] and plan["needed"] <= 3 and plan["fits"] >= 10
+    # far too many channels needed per fit, against those measured
+    noisy = _many_noisy_channels()
+    seed = fit_fermi_edge(EKIN, noisy.sum(0), window=(55.2, 56.0)).values
+    plan = plan_channel_fit(WIDE, EKIN, noisy, seed, window=(55.2, 56.0))
+    assert not plan["suitable"]
+    assert plan["needed"] > plan["total"] // plan["min_fits"]
+
+
+def test_noisy_data_are_declared_unsuited_to_a_channel_fit(app):
+    noisy = MemoryData("cut", (WIDE, EKIN), _many_noisy_channels(),
+                       {"x": "Angle (deg)", "y": "Kinetic energy (eV)"},
+                       source_label="noisy")
+    window = W.CutWindow(noisy, "noisy", "gray", False)
+    dialog = window.open_fermi_fit()
+    dialog.energy_from.setValue(55.2)
+    dialog.energy_to.setValue(56.0)
+    assert dialog.fit_by_channel(confirm=False) is None
+    assert "not suited to a channel-by-channel fit" in dialog.summary.text()
+    assert "channels" in dialog.summary.text()
+    assert dialog.channel_fit is None and not dialog.offset_channels_button.isEnabled()
+    dialog.close()
+    window.close()
+
+
+def test_a_box_too_small_for_a_line_shape_is_refused(app, monkeypatch):
+    window = W.CutWindow(_cut(), "c", "gray", False)
+    dialog = window.open_fermi_fit()
+    shown = []
+    monkeypatch.setattr(QMessageBox, "information",
+                        staticmethod(lambda *a, **k: shown.append(a[2])))
+    real = dialog.run_fit
+
+    def sharp():
+        fit = real()
+        fit.errors["resolution"] = 3 * fit.values["resolution"]   # undetermined
+        return fit
+    dialog.run_fit = sharp
+    assert dialog.fit_by_channel() is None
+    assert shown and "Enlarge the box" in shown[0]
+    dialog.close()
+    window.close()
+
+
+def test_the_proposal_window_shows_and_changes_the_plan(app):
+    from arpes_viewer.tools.spectra.fermi import fit_fermi_edge
+    window = W.CutWindow(_cut(), "c", "gray", False)
+    dialog = window.open_fermi_fit()
+    dialog.energy_from.setValue(55.3)
+    dialog.energy_to.setValue(55.9)
+    seed, plan, _ = dialog.plan_channels()
+    proposal = W.ChannelFitPlanDialog(dialog, seed, plan)
+    assert proposal.width_box.value() == 2 * plan["half_width"] + 1
+    proposal.width_box.setValue(4)                 # made odd
+    assert proposal.width_box.value() == 5 and proposal.step_box.value() >= 5
+    assert proposal.settings()["half_width"] == 2
+    assert "fits; E_F to about" in proposal.estimate.text()
+    proposal.reject()
+    dialog.close()
+    window.close()
+
+
+def test_a_cancelled_channel_fit_keeps_what_was_fitted():
+    from arpes_viewer.tools.spectra.fermi import fit_channels
+    calls = []
+    ef, _err, ok = fit_channels(SLIT, EKIN, _frame(), window=(55.3, 55.9),
+                                progress=lambda done, total: calls.append(done) or done < 5)
+    assert len(calls) == 5 and np.isfinite(ef).sum() == 5
 
 
 def test_measured_channels_trims_only_the_ends():

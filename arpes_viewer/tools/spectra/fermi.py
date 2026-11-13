@@ -46,7 +46,7 @@ import numpy as np
 
 try:
     from scipy.optimize import least_squares
-    from scipy.special import expit
+    from scipy.special import expit, ndtr
 except ImportError as exc:      # pragma: no cover - scipy is a hard dependency
     raise ImportError("arpes_viewer.tools.spectra.fermi needs scipy") from exc
 
@@ -107,15 +107,46 @@ def fermi_edge_model(energy, ef: float, temperature: float, resolution: float,
                      dos0: float, dos1: float = 0.0, bkg0: float = 0.0,
                      bkg1: float = 0.0) -> np.ndarray:
     """The full model above, evaluated at ``energy`` (any order, any
-    spacing). ``resolution`` is the Gaussian **FWHM**."""
+    spacing). ``resolution`` is the Gaussian **FWHM**.
+
+    The convolution is done by parts, so that only the *narrow* function is
+    ever sampled: the Gaussian against the linear DOS has a closed form
+    (``K`` below, with the error function), and what is left is an average
+    of it over the derivative of the Fermi function, a bell of width kT,
+    sampled on a few dozen points. Sampling the Gaussian instead, finely
+    enough for a cold edge, took a thousand points whenever the resolution
+    was much wider than kT (soft X-rays: hundreds of meV against 2.6 meV at
+    30 K) -- a thousand times the work on every evaluation, and a
+    channel-by-channel fit that ran for minutes.
+    """
     energy = np.asarray(energy, dtype=float)
     sigma = float(resolution) / SIGMA_TO_FWHM
     if not np.isfinite(sigma) or sigma <= 0:
         return _unbroadened(energy, ef, temperature, dos0, dos1, bkg0, bkg1)
-    offsets, weights = _convolution_offsets(sigma, K_B * max(temperature, 1e-6))
-    grid = energy[:, None] - offsets[None, :]
-    values = _unbroadened(grid, ef, temperature, dos0, dos1, bkg0, bkg1)
-    return values @ weights
+    kt = K_B * max(float(temperature), 1e-6)
+    offsets, weights = _thermal_offsets(kt, sigma)
+    # z = (E' - E) / sigma, E' = ef + t: the Gaussian's argument at each
+    # point of the thermal bell, for each energy
+    shifted = energy - float(ef)
+    z = (offsets[None, :] - shifted[:, None]) / sigma
+    cdf = ndtr(z)
+    pdf = np.exp(-0.5 * z * z) / np.sqrt(2.0 * np.pi)
+    # K(E') = int_{-inf}^{E'} G(E - u) (dos0 + dos1 (u - ef)) du
+    k = (dos0 + dos1 * shifted[:, None]) * cdf - dos1 * sigma * pdf
+    return k @ weights + bkg0 + bkg1 * shifted
+
+
+def _thermal_offsets(kt: float, sigma: float, n_kt: float = 14.0,
+                     max_points: int = 801):
+    """Points and weights for averaging over the Fermi function's
+    derivative (``-dF/dE``, a bell of width ``kt``): spaced at a quarter of
+    the narrower of kT and the resolution, over +/- ``n_kt`` kT."""
+    step = max(min(kt, sigma) / 4.0, 2.0 * n_kt * kt / (max_points - 1))
+    half = max(int(np.ceil(n_kt * kt / step)), 10)
+    offsets = np.arange(-half, half + 1) * step
+    x = offsets / kt
+    weights = expit(x) * expit(-x)
+    return offsets, weights / weights.sum()
 
 
 def broadened_fermi(energy, ef: float, temperature: float,
@@ -131,11 +162,16 @@ def broadened_fermi(energy, ef: float, temperature: float,
 # Starting values
 # --------------------------------------------------------------------------
 def _smooth(values: np.ndarray, width: int) -> np.ndarray:
+    """Moving average, the ends padded with the end values -- padding with
+    zeros (``np.convolve(..., "same")``) makes every spectrum fall at its
+    high-energy end, which the steepest-fall guess then took for the
+    Fermi edge."""
     width = max(3, int(width) | 1)
     if values.size < width:
         return values
     kernel = np.ones(width) / width
-    return np.convolve(values, kernel, mode="same")
+    padded = np.pad(values, width // 2, mode="edge")
+    return np.convolve(padded, kernel, mode="valid")
 
 
 def initial_guess(energy, intensity, temperature: float = 30.0) -> dict:
@@ -156,9 +192,20 @@ def initial_guess(energy, intensity, temperature: float = 30.0) -> dict:
         raise ValueError("not enough finite points to guess from")
     e, i = e[finite], i[finite]
 
-    smoothed = _smooth(i, max(3, e.size // 50))
+    width = max(3, e.size // 50)
+    smoothed = _smooth(i, width)
+    # A noisy spectrum (the counts of one channel, or a weak edge) needs
+    # more smoothing before its steepest fall means anything.
+    noise = float(np.std(i - smoothed))
+    if noise > 0 and float(np.ptp(smoothed)) / noise < 10:
+        width = max(5, e.size // 10)
+        smoothed = _smooth(i, width)
     slope = np.gradient(smoothed, e)
-    ef = float(e[int(np.argmin(slope))])
+    # Only where the average is over the data alone: near the ends it leans
+    # on the padding, and one noisy end point there looks like a cliff.
+    margin = min(width // 2 + 1, max(0, (e.size - 3) // 2))
+    inner = slope[margin:e.size - margin] if e.size - 2 * margin >= 3 else slope
+    ef = float(e[int(np.argmin(inner)) + (margin if inner is not slope else 0)])
 
     kt = K_B * max(float(temperature), 1e-6)
     above = e > ef + 10 * kt
@@ -528,24 +575,39 @@ def measured_channels(frame, fraction: float = 0.05):
     return slice(first, last)
 
 
+#: What a channel fit holding the seed's line shape keeps fixed: only E_F,
+#: the height of the edge and the background level are fitted per channel.
+SHAPE_HELD = ("temperature", "resolution", "dos1", "bkg1")
+
+
 def fit_channels(angles, energy, frame, *, half_width: int = 0, step: int = 1,
                  temperature: float = 30.0, fixed=("temperature",),
                  window=(None, None), weighting: str = "poisson",
-                 start: dict = None, progress=None):
-    """Fit the edge in every detector channel of ``frame`` (angle, energy).
+                 start: dict = None, progress=None, hold_shape: bool = False,
+                 max_nfev: int = 300):
+    """Fit the edge in every (Nth) detector channel of ``frame`` (angle,
+    energy).
 
     ``half_width`` adds that many neighbouring channels on each side to the
-    EDC before fitting -- the usual answer to a reference spectrum that is
-    too thin to fit channel by channel. The channel's own position is
-    unchanged; only its statistics improve.
+    EDC before fitting -- the usual answer to a spectrum too thin to fit
+    channel by channel. The channel's own position is unchanged; only its
+    statistics improve. ``step`` fits only every Nth channel (with ``step``
+    = 2 ``half_width`` + 1 the fits share no channel). See
+    :func:`plan_channel_fit` for both, chosen from the data.
 
-    ``step`` fits only every Nth channel. The curvature is smooth and a
-    thousand fits take minutes, so sampling it and letting the polynomial
-    through the points do the interpolation costs nothing real.
+    ``start`` is where every fit starts -- the fit of the summed EDC (the
+    seed). With ``hold_shape`` the seed's line shape is kept
+    (:data:`SHAPE_HELD`: temperature, resolution, the slopes, scaled to the
+    channel's counts) and only E_F, the edge's height and the background
+    are fitted: on a noisy channel, the six-parameter fit wanders; three
+    parameters it can still pin down.
+
+    ``progress(done, total)`` is called after each fit; returning False
+    stops, keeping what has been fitted.
 
     Returns ``(ef, ef_error, ok)``, all the length of ``angles``: the edge
     position per channel, its uncertainty, and whether that channel's fit is
-    worth using (converged, E_F inside the window, and an uncertainty
+    worth using (converged, E_F inside the fit window, and an uncertainty
     smaller than the resolution). Channels that were skipped or failed are
     NaN with ``ok`` false.
     """
@@ -561,36 +623,158 @@ def fit_channels(angles, energy, frame, *, half_width: int = 0, step: int = 1,
     err = np.full(angles.size, np.nan)
     ok = np.zeros(angles.size, dtype=bool)
     guess = dict(start) if start else None
+    lo_e = float(np.min(energy)) if window[0] is None else float(window[0])
+    hi_e = float(np.max(energy)) if window[1] is None else float(window[1])
+    inside_window = (energy >= lo_e) & (energy <= hi_e)
+    held = tuple(fixed)
+    seed_model = None
+    if hold_shape and start:
+        held = tuple(dict.fromkeys(tuple(fixed) + SHAPE_HELD))
+        seed_model = fermi_edge_model(energy[inside_window],
+                                      **{k: start[k] for k in PARAMETERS})
 
-    wanted = list(range(0, angles.size, max(1, int(step))))
-    if wanted and wanted[-1] != angles.size - 1:
-        wanted.append(angles.size - 1)      # always anchor both ends
+    wanted = list(range(min(half_width, angles.size - 1), angles.size,
+                        max(1, int(step))))
+    if wanted and wanted[-1] < angles.size - 1 - half_width:
+        wanted.append(angles.size - 1 - half_width)   # reach the far end
     for count, index in enumerate(wanted):
         lo = max(0, index - half_width)
         hi = min(angles.size, index + half_width + 1)
         edc = np.nansum(frame[lo:hi], axis=0)
+        begin = guess
+        if seed_model is not None:
+            # the seed's shape, scaled to this channel's counts
+            total = float(np.nansum(seed_model))
+            scale = float(np.nansum(edc[inside_window])) / total if total else 1.0
+            begin = dict(start)
+            for name in ("dos0", "dos1", "bkg0", "bkg1"):
+                begin[name] = start[name] * scale
         try:
-            fit = fit_fermi_edge(energy, edc, start=guess, fixed=fixed,
+            fit = fit_fermi_edge(energy, edc, start=begin, fixed=held,
                                  temperature=temperature, window=window,
-                                 weighting=weighting)
+                                 weighting=weighting, max_nfev=max_nfev)
         except Exception:
-            if progress is not None and not progress(count + 1, len(wanted)):
+            if progress is not None and progress(count + 1, len(wanted)) is False:
                 break
             continue
         ef[index] = fit.values["ef"]
         err[index] = fit.errors.get("ef", np.nan)
-        inside = float(np.min(energy)) < ef[index] < float(np.max(energy))
+        inside = lo_e < ef[index] < hi_e
         ok[index] = bool(fit.success and inside
                          and (not np.isfinite(err[index])
                               or err[index] < max(fit.values["resolution"], 1e-9)))
-        if ok[index]:
+        if ok[index] and seed_model is None:
             # Walk along the detector: the next channel starts from this
             # one's answer, which is both faster and steadier than starting
             # every channel from scratch.
             guess = dict(fit.values)
-        if progress is not None and not progress(count + 1, len(wanted)):
+        if progress is not None and progress(count + 1, len(wanted)) is False:
             break                           # the caller asked us to stop
     return ef, err, ok
+
+
+def plan_channel_fit(angles, energy, frame, seed: dict, *, window=(None, None),
+                     temperature: float = 30.0, target: float = None,
+                     min_fits: int = 10, max_fits: int = 200,
+                     trial_fits: int = 15, progress=None) -> dict:
+    """Settings for a channel-by-channel fit, measured on the data -- and
+    whether the data allow one at all.
+
+    How many channels each fit has to sum is a question about the data's
+    noise, which no default answers: one detector's single channel gives
+    E_F to a few meV, another's to a few hundred. So it is measured. For a
+    series of widths (1, 3, 7, 15 ... channels, up to a ``min_fits``-th of
+    the detector), ``trial_fits`` fits spread across the detector, each
+    starting from the ``seed`` (the fit of the summed EDC) and keeping its
+    line shape; the scatter of their E_F about a parabola (median absolute
+    deviation, so a stray fit does not decide it), or the fits' own error
+    if that is larger, is what that width achieves. Counting statistics
+    make it fall as 1/sqrt(width), so each trial says the same thing --
+    ``c = scatter * sqrt(width)``, the E_F error of one channel -- and their
+    median is the measurement.
+
+    The **channels needed** per fit to reach ``target`` -- by default the
+    larger of 10 meV, two energy steps and a tenth of the seed's resolution,
+    finer than which the energy axis or the resolution cannot follow -- is
+    then ``(c / target)**2``. Compared with the **channels measured**: if
+    fewer than ``min_fits`` fits of that many channels fit across the
+    detector, a channel-by-channel fit cannot follow the edge across it and
+    the data are not suited to one (``suitable`` False). Otherwise the fits
+    are spaced one width apart (no channel shared, so their errors are
+    independent), at most ``max_fits`` of them.
+
+    Returns ``{"suitable", "needed", "total", "possible", "half_width",
+    "step", "fits", "error", "per_channel", "target", "hold_shape",
+    "trials": [(width, scatter), ...]}``: a proposal, which the person may
+    change.
+    """
+    angles = np.asarray(angles, dtype=float)
+    energy = np.asarray(energy, dtype=float)
+    frame = np.asarray(frame, dtype=float)
+    n = angles.size
+    step_e = float(np.median(np.abs(np.diff(energy)))) if energy.size > 1 else 0.01
+    if target is None:
+        target = max(0.010, 2.0 * step_e, 0.1 * abs(float(seed.get("resolution", 0.0))))
+    widths, width = [], 1
+    while width <= max(1, n // max(1, min_fits)):
+        widths.append(width)
+        width = 2 * width + 1
+    trials = []
+    for count, width in enumerate(widths):
+        half = (width - 1) // 2
+        centres = np.unique(np.linspace(half, n - 1 - half, trial_fits).round().astype(int))
+        ef = np.full(centres.size, np.nan)
+        reported = np.full(centres.size, np.nan)
+        for k, centre in enumerate(centres):
+            sub = slice(centre - half, centre + half + 1)
+            values, errors, ok = fit_channels(
+                angles[sub], energy, frame[sub], half_width=half, step=width,
+                temperature=temperature, window=window, start=seed,
+                hold_shape=True)
+            index = min(half, values.size - 1)
+            if ok[index]:
+                ef[k] = values[index]
+                reported[k] = errors[index]
+        good = np.isfinite(ef)
+        scatter = float("inf")              # the fits failed at this width
+        if good.sum() >= max(4, centres.size // 2):
+            x = angles[centres][good]
+            fitted = np.polyval(np.polyfit(x, ef[good], 2), x)
+            # 1.4826 MAD: the standard deviation, for Gaussian scatter
+            scatter = float(1.4826 * np.median(np.abs(ef[good] - fitted))
+                            * np.sqrt(good.sum() / max(good.sum() - 3, 1)))
+            # Fits that hardly move from the seed scatter little and mean
+            # little: their own error says so.
+            known = np.isfinite(reported) & good
+            if known.any():
+                scatter = max(scatter, float(np.median(reported[known])))
+        trials.append((int(width), scatter))
+        if progress is not None and progress(count + 1, len(widths)) is False:
+            break
+
+    per_channel = [s * np.sqrt(w) for w, s in trials if np.isfinite(s)]
+    c = float(np.median(per_channel)) if per_channel else float("inf")
+    needed = (int(np.ceil((c / float(target)) ** 2)) if np.isfinite(c)
+              else n + 1)
+    needed = max(1, needed)
+    width = needed if needed % 2 else needed + 1        # odd: centred
+    possible = n // width if width <= n else 0
+    suitable = possible >= min_fits
+    width = min(width, n)
+    step = max(width, int(np.ceil(n / max_fits)))
+    fits = max(1, int(np.ceil((n - width) / step)) + 1)
+    return {"suitable": bool(suitable), "needed": int(needed), "total": int(n),
+            "possible": int(possible), "half_width": (width - 1) // 2,
+            "step": int(step), "fits": int(fits),
+            "error": c / np.sqrt(width) if np.isfinite(c) else float("inf"),
+            "per_channel": c, "target": float(target), "hold_shape": True,
+            "trials": trials, "min_fits": int(min_fits)}
+
+
+def channel_fit_error(per_channel: float, width: int) -> float:
+    """The E_F error expected of a fit summing ``width`` channels, from one
+    channel's (``per_channel``; counting statistics)."""
+    return float(per_channel) / np.sqrt(max(1, int(width)))
 
 
 # --------------------------------------------------------------------------

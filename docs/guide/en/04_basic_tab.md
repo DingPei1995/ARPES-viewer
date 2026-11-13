@@ -34,10 +34,9 @@ whole (the plot does not zoom or pan), and the summary under it.
 
 ![Fermi level dialog](../../images/fermi_dialog.png)
 
-1. Set the region: press **Draw on the data** and drag a box on the cut —
-   its width is the angle range summed, its height the energy window
-   fitted — or **Show the selection box** and drag it, or type the ranges.
-   The three follow each other.
+1. Set the region: press **Show the selection box** and drag the box on
+   the cut — its width is the angle range summed, its height the energy
+   window fitted — or type the ranges. The two follow each other.
 
    ![The fit box on the cut](../../images/fermi_cut_box.png)
 
@@ -47,14 +46,35 @@ whole (the plot does not zoom or pan), and the summary under it.
 3. **Offset energy axis** lists a copy of the cut on **E − E_F**.
 
 **Channel by channel.** On the row under Fit, **Fit channel by channel**
-fits the edge in every detector channel over the fit window
-(**Neighbours ±** adds channels on each side first, **every Nth channel**
-samples the detector) and draws E_F against angle on the cut — the
-curvature of the Fermi edge, measured. Blank channels at the two ends of
-the cut (no counts, or NaN, as some detectors leave) are cut off, not
-fitted. **Offset channel by channel**, beside it, lists a copy with every
-channel on its own **E − E_F** (on a map's slit cut: the whole map, along
-the slit), the blank borders cut off.
+fits the edge across the detector, over the fit window, and draws E_F
+against angle on the cut — the curvature of the Fermi edge, measured. Its
+settings are not fixed defaults; they are measured on the data:
+
+1. The EDC summed over the selection box is fitted first (as **Fit** does):
+   the **seed**, whose line shape every channel fit starts from. If the box
+   holds too few counts to determine the resolution, you are asked to
+   enlarge it.
+2. A few quick trial fits at several widths measure how precisely one
+   channel gives E_F, and from that **how many channels each fit has to
+   sum** to reach a useful precision (10 meV, two energy steps or a tenth
+   of the resolution, whichever is larger).
+3. That number is compared with the channels measured. If fewer than ten
+   independent fits would fit across the detector, the program says that
+   **these data are not suited to a channel-by-channel fit**, with the
+   numbers, and suggests one E_F (Fit, then Offset energy axis) or the
+   Fermi surface correction instead. Otherwise it proposes the settings —
+   channels per fit, a fit every N channels, keeping the seed's line shape
+   (only E_F, the height and the background fitted per channel) — with the
+   precision to expect, to accept or change.
+
+![The proposal, measured on the data](../../images/fermi_channel_plan.png)
+
+The fits run in the background: the window keeps responding, and
+**Cancel** stops them at once, keeping the channels already fitted. Blank
+channels at the two ends of the cut (no counts, or NaN, as some detectors
+leave) are cut off, never fitted. **Offset channel by channel**, beside the
+button, lists a copy with every channel on its own **E − E_F** (on a map's
+slit cut: the whole map, along the slit), the blank borders cut off.
 
 ![E_F fitted channel by channel, drawn on the cut](../../images/fermi_channels_cut.png)
 

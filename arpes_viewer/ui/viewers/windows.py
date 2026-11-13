@@ -51,7 +51,8 @@ from arpes_viewer.tools.processing.analysis import (arbitrary_cut, fit_feature, 
 from arpes_viewer.tools.spectra.fermi import (PARAMETERS, PARAMETER_LABELS, K_B, levels_along,
                                  initial_guess, fermi_edge_model,
                                  fit_fermi_edge, fit_channels, divide_fermi,
-                                 measured_channels)
+                                 measured_channels, plan_channel_fit,
+                                 channel_fit_error)
 from arpes_viewer.tools.processing.dataops import (truncate, self_normalize, compress,
                                       ARRAY_AXES, CONSTRUCTOR_AXES,
                                       normalise_presets)
@@ -670,7 +671,7 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
         return result
 
     def fit_channels_here(self, *, temperature, fixed, window, half_width,
-                          step=1, start=None):
+                          step=1, start=None, hold_shape=False):
         """Fit the edge channel by channel on this window's own data and draw
         the result over the image. The blank borders of the cut are left
         out (:func:`run_channel_fit`); the channels fitted are kept with the
@@ -684,7 +685,8 @@ class ViewerWindow(FunctionsMenuMixin, QMainWindow):
         result = run_channel_fit(self, angles, energy, frame,
                                  temperature=temperature, fixed=fixed,
                                  window=window, half_width=half_width,
-                                 step=step, start=start, draw_on=self.view)
+                                 step=step, start=start, hold_shape=hold_shape,
+                                 draw_on=self.view)
         if result is not None and result[2].any():
             fitted, ef, ok = result
             self.record_fermi_fit(channels={
@@ -6787,24 +6789,25 @@ class FermiFitDialog(_PickerDialog):
         left = QWidget()
         layout = QVBoxLayout(left)
         layout.setContentsMargins(0, 0, 0, 0)
-        left.setMaximumWidth(500)
-        outer.addWidget(left)
+        # wide enough for every number of the table in full
+        left.setMinimumWidth(560)
+        outer.addWidget(left, stretch=3)
         right = QWidget()
         result_column = QVBoxLayout(right)
         result_column.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(right, stretch=1)
+        outer.addWidget(right, stretch=2)
         if self.slices:
             intro = QLabel(
                 "The EDC is the slit cut on screen summed over an angle range; "
-                "the fit runs over an energy range. Draw the box on the data, "
-                "drag it, or type the numbers -- they follow each other. "
+                "the fit runs over an energy range. Drag the selection box on "
+                "the image or type the numbers here -- they follow each other. "
                 f"Move the cut with its slider ({window.contour.defl_label}) "
                 f"to fit another one.")
         else:
             intro = QLabel(
                 "The EDC is this cut summed over an angle range; the fit runs over "
-                "an energy range. Draw the box on the data, drag it, or type the "
-                "numbers -- they follow each other.")
+                "an energy range. Drag the selection box on the image or type the "
+                "numbers here -- they follow each other.")
         intro.setWordWrap(True)
         layout.addWidget(intro)
 
@@ -6816,31 +6819,24 @@ class FermiFitDialog(_PickerDialog):
                                                                    self.angle_to))
         region.addRow(f"Fit window {self._energy_label}",
                       self._pair(self.energy_from, self.energy_to))
-        self.draw_button = QPushButton("Draw on the data")
-        self.draw_button.setCheckable(True)
-        self.draw_button.setToolTip(
-            "Then drag on the picture: the box drawn there sets the angle "
-            "range summed (its width) and the energy window fitted (its "
-            "height).")
-        self.draw_button.toggled.connect(self._toggle_drawing)
         self.box_button = QPushButton("Show the selection box")
         self.box_button.setCheckable(True)
         self.box_button.setToolTip(
             "Put the box on the image; its horizontal extent is the angle range "
             "and its vertical extent the energy window.")
         self.box_button.toggled.connect(self._toggle_box)
+        region.addRow("", self.box_button)
         layout.addLayout(region)
-        boxes_row = QHBoxLayout()
-        boxes_row.addWidget(self.draw_button)
-        boxes_row.addWidget(self.box_button)
-        boxes_row.addStretch(1)
-        layout.addLayout(boxes_row)
 
         # -- parameters -----------------------------------------------------
         self.table = QTableWidget(len(PARAMETERS), 3)
         self.table.setHorizontalHeaderLabels(["Value", "Hold", "Uncertainty"])
         self.table.setVerticalHeaderLabels([PARAMETER_LABELS[p] for p in PARAMETERS])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        self.table.setColumnWidth(1, 46)
         self.table.verticalHeader().setDefaultSectionSize(26)
         # Tall enough for all seven rows: a table showing two of them and a
         # scrollbar hides half the model from the person judging the fit.
@@ -6903,10 +6899,12 @@ class FermiFitDialog(_PickerDialog):
         row = QHBoxLayout()
         self.channels_button = QPushButton("Fit channel by channel")
         self.channels_button.setToolTip(
-            "Fit the edge in each detector channel of this cut, over the fit "
-            "window, and draw E_F against angle on the cut -- the curvature "
-            "of the Fermi edge, measured. Blank channels at the two ends of "
-            "the cut are cut off, not fitted.")
+            "Fit the edge across the detector, channel by channel, over the "
+            "fit window, and draw E_F against angle on the cut. First the "
+            "EDC summed over the selection box is fitted (the seed), and "
+            "how many channels each fit has to sum is measured on the data "
+            "and proposed, to accept or change. Blank channels at the two "
+            "ends of the cut are cut off, not fitted.")
         self.channels_button.clicked.connect(self.fit_by_channel)
         self.offset_channels_button = QPushButton("Offset channel by channel")
         self.offset_channels_button.setToolTip(
@@ -6919,30 +6917,10 @@ class FermiFitDialog(_PickerDialog):
         row.addWidget(self.offset_channels_button)
         row.addStretch(1)
         layout.addLayout(row)
-        channel_form = QHBoxLayout()
-        self.channel_width = QSpinBox()
-        self.channel_width.setRange(0, 200)
-        self.channel_width.setValue(2)
-        self.channel_width.setToolTip(
-            "Add this many neighbouring channels on each side before fitting, "
-            "for a reference too thin to fit channel by channel.")
-        self.channel_step = QSpinBox()
-        self.channel_step.setRange(1, 100)
-        self.channel_step.setValue(1)
-        self.channel_step.setToolTip(
-            "Fit every Nth channel. The curvature is smooth, so there is "
-            "rarely anything to gain from fitting all of them.")
-        channel_form.addWidget(QLabel("Neighbours ±"))
-        channel_form.addWidget(self.channel_width)
-        channel_form.addSpacing(12)
-        channel_form.addWidget(QLabel("every Nth channel"))
-        channel_form.addWidget(self.channel_step)
-        channel_form.addStretch(1)
-        layout.addLayout(channel_form)
 
         # -- the fit's picture and summary, on the right ----------------------
         self.plot = pg.PlotWidget()
-        self.plot.setMinimumSize(360, 260)
+        self.plot.setMinimumSize(300, 260)
         self.plot.setLabel("bottom", self._energy_label)
         self.plot.setLabel("left", "counts")
         strip_stock_menu(self.plot.getPlotItem())
@@ -6997,50 +6975,15 @@ class FermiFitDialog(_PickerDialog):
         self.cuts_panel = self._cuts_panel()
         self.cuts_panel.setVisible(False)
         outer.addWidget(self.cuts_panel)
-        self.resize(1000, 600)
+        self.resize(1040, 620)
 
         for box in (self.angle_from, self.angle_to, self.energy_from, self.energy_to):
             box.valueChanged.connect(self._on_range_typed)
         window.view.selectionChanged.connect(self._on_box_moved)
-        self.finished.connect(lambda *_: self._stop_drawing())
         if self.slices:
             window.control.changed.connect(self._cut_moved)
         self.value_boxes["temperature"].setValue(metadata_temperature(window.data))
         self.estimate()
-
-    # -- drawing the region on the data -----------------------------------
-    def _toggle_drawing(self, on: bool):
-        view = self.window_.view
-        if on:
-            view.start_box_drawing(self._box_drawn)
-            self.summary.setText("Drag on the picture: the box drawn sets the "
-                                 "angle range and the energy window.")
-            bar = getattr(self.window_, "statusBar", None)
-            if callable(bar):
-                bar().showMessage("Drag a box on the picture: its width is the "
-                                  "angle range summed, its height the fit window.")
-            self.window_.raise_()
-            self.raise_()
-        else:
-            view.stop_box_drawing()
-
-    def _box_drawn(self, corners):
-        """A box was drawn on the data: it is the region now."""
-        self.draw_button.blockSignals(True)
-        self.draw_button.setChecked(False)
-        self.draw_button.blockSignals(False)
-        self.box_button.blockSignals(True)
-        self.box_button.setChecked(True)
-        self.box_button.setText("Hide the selection box")
-        self.box_button.blockSignals(False)
-        self._on_box_moved()
-        self.summary.setText("Region set from the box drawn. Estimate, then Fit.")
-
-    def _stop_drawing(self):
-        try:
-            self.window_.view.stop_box_drawing()
-        except RuntimeError:
-            pass
 
     def _load_frame(self):
         self._angle_axis, self._energy_axis, self._frame, \
@@ -7420,16 +7363,108 @@ class FermiFitDialog(_PickerDialog):
                                                  self.cutoff_box.value(),
                                                  self.fit_info())
 
-    def fit_by_channel(self):
-        """E_F in every channel of the cut on screen, over the fit window;
-        the blank channels at the cut's two ends are cut off first. The
-        result is drawn on the cut, kept with the dataset, and can offset
-        it channel by channel."""
+    def plan_channels(self):
+        """The first half of a channel-by-channel fit: the seed -- the fit
+        of the EDC summed over the selection box, exactly as Fit does it --
+        then the settings measured on the data
+        (:func:`tools.spectra.fermi.plan_channel_fit`, on the worker
+        thread). Returns ``(seed fit, plan, measured channels)`` or None."""
+        seed = self.run_fit()
+        if seed is None:
+            return None
+        try:
+            angles, energy, frame, _, _ = self.window_.fermi_frame()
+        except ValueError as exc:
+            QMessageBox.warning(self, "Fermi level fitting", str(exc))
+            return None
+        measured = measured_channels(frame)
+        angles = np.asarray(angles, dtype=float)[measured]
+        frame = np.asarray(frame, dtype=float)[measured]
+        if angles.size < 3:
+            QMessageBox.warning(self, "Fit channel by channel",
+                                "Too few channels hold a measurement.")
+            return None
+        # Every channel fit keeps the seed's line shape: a seed whose
+        # resolution is not determined (its error over half its value) is
+        # noise, not a line shape, and nothing measured from it would mean
+        # anything.
+        resolution = float(seed.values["resolution"])
+        spread = float(seed.errors.get("resolution", float("nan")))
+        if "resolution" not in seed.fixed and not (np.isfinite(spread)
+                                                   and spread <= 0.5 * resolution):
+            text = (f"The selection box's summed EDC does not determine the "
+                    f"resolution ({resolution * 1000:.3g} ± "
+                    f"{spread * 1000:.3g} meV): the box holds too few counts "
+                    f"for a reliable line shape, which every channel fit "
+                    f"starts from. Enlarge the box (more channels), or the "
+                    f"fit window, and press Fit channel by channel again.")
+            self.summary.setText(text)
+            QMessageBox.information(self, "Fit channel by channel", text)
+            return None
+        temperature = self.value_boxes["temperature"].value()
+
+        def work(report):
+            def progress(done, total):
+                try:
+                    report(done / max(total, 1),
+                           f"Measuring the noise: width {done} of {total}")
+                except jobs.JobCancelled:
+                    return False
+                return True
+            return plan_channel_fit(angles, energy, frame, dict(seed.values),
+                                    window=self.window_range(),
+                                    temperature=temperature, progress=progress)
+
+        try:
+            plan = jobs.run_blocking(self, "Measuring how noisy the channels are", work)
+        except jobs.JobCancelled:
+            return None
+        except Exception as exc:                            # noqa: BLE001
+            QMessageBox.warning(self, "Fit channel by channel", str(exc))
+            return None
+        plan["channels"] = int(angles.size)
+        plan["blank"] = int(np.asarray(self.window_.fermi_frame()[0]).size - angles.size)
+        return seed, plan, (angles, energy, frame)
+
+    def fit_by_channel(self, confirm: bool = True, settings: dict = None):
+        """E_F across the detector, channel by channel, over the fit window.
+
+        Not with fixed defaults: the seed (the box's summed EDC, fitted)
+        comes first, then how many channels each fit has to sum is measured
+        on the data (:meth:`plan_channels`). If no width gets E_F precise
+        enough, the data are not suited to a channel-by-channel fit and that
+        is said, with what to do instead -- decided by comparing the
+        channels each fit needs with the channels measured. Otherwise the proposal is shown
+        (:class:`ChannelFitPlanDialog`) to accept or change (``confirm``
+        False takes it as it is, ``settings`` overrides it). The fits run on
+        a worker thread whose Cancel stops them. The blank borders are cut
+        off; the result is drawn on the cut, kept with the dataset, and can
+        offset it channel by channel."""
+        planned = self.plan_channels()
+        if planned is None:
+            return None
+        seed, plan, _data = planned
+        if not plan["suitable"]:
+            self.channel_fit = None
+            self.offset_channels_button.setEnabled(False)
+            text = unsuitable_for_channels(plan, seed)
+            self.summary.setText(text)
+            if confirm:
+                QMessageBox.information(self, "Fit channel by channel", text)
+            return None
+        chosen = dict(plan)
+        if confirm and settings is None:
+            dialog = ChannelFitPlanDialog(self, seed, plan)
+            if dialog.exec_() != QDialog.Accepted:
+                return None
+            chosen.update(dialog.settings())
+        if settings:
+            chosen.update(settings)
         curve = self.window_.fit_channels_here(
             temperature=self.value_boxes["temperature"].value(),
             fixed=self.held(), window=self.window_range(),
-            half_width=self.channel_width.value(), step=self.channel_step.value(),
-            start=self.parameters())
+            half_width=int(chosen["half_width"]), step=int(chosen["step"]),
+            start=dict(seed.values), hold_shape=bool(chosen["hold_shape"]))
         if curve is None:
             return None
         angles, ef, ok = curve
@@ -7442,12 +7477,15 @@ class FermiFitDialog(_PickerDialog):
         self.offset_channels_button.setEnabled(True)
         spread = float(np.nanmax(ef[ok]) - np.nanmin(ef[ok]))
         self.summary.setText(
-            f"{int(ok.sum())} of {angles.size} channels fitted "
-            f"({angles.min():.4g} to {angles.max():.4g}; blank borders left "
-            f"out); E_F varies by {spread * 1000:.3g} meV across the detector. "
-            f"The curve is drawn over the cut. “Offset channel by channel” "
-            f"puts every channel on its own E - E_F; the Fermi surface "
-            f"correction can use this fit as its reference.")
+            f"{int(ok.sum())} fits of {2 * int(chosen['half_width']) + 1} "
+            f"channels each, {angles.min():.4g} to {angles.max():.4g} (blank "
+            f"borders left out); E_F varies by {spread * 1000:.3g} meV across "
+            f"the detector, each to about "
+            f"{channel_fit_error(plan['per_channel'], 2 * int(chosen['half_width']) + 1) * 1000:.2g}"
+            f" meV. The "
+            f"curve is drawn over the cut. “Offset channel by channel” puts "
+            f"every channel on its own E - E_F; the Fermi surface correction "
+            f"can use this fit as its reference.")
         return curve
 
     def offset_channels(self):
@@ -7463,65 +7501,172 @@ class FermiFitDialog(_PickerDialog):
         return self.window_.offset_energy_per_channel(angles[ok], ef[ok], info)
 
 
+def unsuitable_for_channels(plan: dict, seed=None) -> str:
+    """Why these data are not suited to a channel-by-channel fit, and what
+    to do instead -- from :func:`tools.spectra.fermi.plan_channel_fit`."""
+    needed, total = plan["needed"], plan["total"]
+    target = plan["target"] * 1000
+    per = plan["per_channel"] * 1000
+    possible = plan["possible"]
+    if np.isfinite(per):
+        why = (f"One channel gives E_F only to about {per:.0f} meV. To reach "
+               f"{target:.0f} meV, each fit would have to sum about {needed} "
+               f"channels -- and the detector has {total} measured channels, "
+               f"so only {possible} independent fits would fit across it, too "
+               f"few (fewer than {plan['min_fits']}) to follow the Fermi "
+               f"edge's curvature.")
+    else:
+        why = (f"Even summing {total // plan['min_fits']} of its {total} "
+               f"measured channels, the fits do not find the edge: too few "
+               f"counts per channel.")
+    text = (f"These data are not suited to a channel-by-channel fit.\n\n"
+            f"{why}\n\n"
+            f"Instead: one E_F for the whole cut (Fit, then Offset energy "
+            f"axis); or the Fermi surface correction by hand, or from a "
+            f"reference with more counts (a gold spectrum).")
+    if seed is not None:
+        text += (f"\n\nThe box's summed EDC: E_F = {seed.values['ef']:.5g} eV, "
+                 f"resolution {seed.values['resolution'] * 1000:.3g} meV.")
+    return text
+
+
+class ChannelFitPlanDialog(QDialog):
+    """What a channel-by-channel fit will do, measured on the data, to
+    accept or change before it runs: the seed (the box's summed EDC,
+    fitted), how noisy one channel is, and from that how many channels each
+    fit sums and how many fits there are, with the E_F error to expect."""
+
+    def __init__(self, parent, seed, plan: dict):
+        super().__init__(parent)
+        self.setWindowTitle("Fit channel by channel: proposed settings")
+        self.plan = plan
+        layout = QVBoxLayout(self)
+        values = seed.values
+        facts = QLabel(
+            f"<b>Seed</b> (the selection box's summed EDC): E_F = "
+            f"{values['ef']:.6g} eV ± {seed.errors.get('ef', float('nan')) * 1000:.2g} meV, "
+            f"resolution {values['resolution'] * 1000:.3g} meV, T = "
+            f"{values['temperature']:.4g} K.<br>"
+            f"<b>Data</b>: {plan['total']} channels measured"
+            + (f" ({plan.get('blank', 0)} blank at the borders, cut off)"
+               if plan.get("blank") else "")
+            + f"; one channel gives E_F to about {plan['per_channel'] * 1000:.0f} meV "
+              f"(measured on trial fits).<br>"
+              f"<b>Proposal</b>: sum {plan['needed']} "
+              f"channel{'s' if plan['needed'] != 1 else ''} per fit to reach "
+              f"{plan['target'] * 1000:.0f} meV.")
+        facts.setWordWrap(True)
+        layout.addWidget(facts)
+
+        form = QFormLayout()
+        self.width_box = QSpinBox()
+        self.width_box.setRange(1, max(1, plan["total"]))
+        self.width_box.setSingleStep(2)
+        self.width_box.setValue(2 * plan["half_width"] + 1)
+        self.width_box.setToolTip("Channels summed into each fit (odd: centred "
+                                  "on its channel).")
+        form.addRow("Channels per fit", self.width_box)
+        self.step_box = QSpinBox()
+        self.step_box.setRange(1, max(1, plan["total"]))
+        self.step_box.setValue(plan["step"])
+        self.step_box.setToolTip("A fit every this many channels. As many as "
+                                 "the channels per fit: no channel is shared, "
+                                 "so the fits' errors are independent.")
+        form.addRow("A fit every N channels", self.step_box)
+        self.hold_box = QCheckBox("Keep the seed's line shape (fit E_F, height and "
+                                  "background per channel)")
+        self.hold_box.setChecked(True)
+        self.hold_box.setToolTip(
+            "Temperature, resolution and slopes as in the seed, scaled to "
+            "each channel's counts: a noisy channel cannot pin down six "
+            "parameters, three it can.")
+        form.addRow("", self.hold_box)
+        layout.addLayout(form)
+        self.estimate = QLabel("")
+        self.estimate.setWordWrap(True)
+        layout.addWidget(self.estimate)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.Ok).setText("Fit with these settings")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.width_box.valueChanged.connect(self._width_changed)
+        self.step_box.valueChanged.connect(lambda *_: self._describe())
+        self._describe()
+
+    def _width_changed(self, width):
+        if width % 2 == 0:
+            self.width_box.setValue(width + 1)
+            return
+        if self.step_box.value() < width:
+            self.step_box.setValue(width)
+        self._describe()
+
+    def settings(self) -> dict:
+        width = self.width_box.value() | 1
+        return {"half_width": (width - 1) // 2, "step": self.step_box.value(),
+                "hold_shape": self.hold_box.isChecked()}
+
+    def fits(self) -> int:
+        width, step, total = (self.width_box.value() | 1, self.step_box.value(),
+                              self.plan["total"])
+        return max(1, int(np.ceil((total - width) / step)) + 1)
+
+    def _describe(self):
+        width = self.width_box.value() | 1
+        error = channel_fit_error(self.plan["per_channel"], width)
+        self.estimate.setText(
+            f"{self.fits()} fits; E_F to about {error * 1000:.2g} meV each.")
+
+
 def run_channel_fit(parent, angles, energy, frame, *, temperature, fixed=("temperature",),
                     window=(None, None), half_width=0, step=1, start=None,
-                    draw_on=None, title="Fitting the edge channel by channel"):
-    """Fit every (Nth) channel of an angle-vs-energy frame, with a progress
-    dialog that can be cancelled, and optionally draw the result.
+                    hold_shape=False, draw_on=None,
+                    title="Fitting the edge channel by channel"):
+    """Fit every (Nth) channel of an angle-vs-energy frame, and optionally
+    draw the result. Returns ``(angles, ef, ok)`` -- for the channels that
+    hold a measurement: the blank borders some detectors leave on either
+    side of a cut are cut off first, never fitted.
 
-    Hundreds of fits take tens of seconds, so this is the one operation in
-    the program that has to say how far along it is; cancelling keeps
-    whatever has been fitted so far, which is usually enough to see whether
-    the settings were right.
-
-    This one still runs on the GUI thread, unlike the processing panels and
-    the k conversion (see ``ui.common.jobs``), because it hands its answer back as
-    a return value and both callers use it on the next line -- turning that
-    into a callback would restructure the Fermi-level workflow for a fit
-    that is already interruptible. What it does not do any more is leave the
-    door open while it pumps events: the dialog is **application** modal, so
-    ``processEvents`` below cannot dispatch a click on some other window
-    into a second copy of this same code. That was the real hazard in the
-    pattern, rather than the pumping itself.
+    The fits run on a worker thread (:func:`ui.common.jobs.run_blocking`):
+    the program keeps painting, the progress bar moves, and **Cancel** stops
+    the work after the fit in hand -- each takes milliseconds -- keeping
+    the channels already fitted.
     """
-    progress = QProgressDialog(title, "Cancel", 0, 100, parent)
-    progress.setWindowModality(Qt.ApplicationModal)
-    progress.setMinimumDuration(400)
-    progress.setValue(0)
-
-    def report(done, total):
-        progress.setMaximum(int(total))
-        progress.setValue(int(done))
-        QApplication.processEvents()
-        return not progress.wasCanceled()
-
-    # The blank borders some detectors leave on either side of a cut are
-    # not channels: they are cut off before fitting, never fitted.
     measured = measured_channels(frame)
     angles = np.asarray(angles, dtype=float)[measured]
     frame = np.asarray(frame, dtype=float)[measured]
     if angles.size == 0:
-        progress.close()
         QMessageBox.warning(parent, "Fermi level fitting",
                              "No channel of this picture holds a measurement.")
         return None
+
+    def work(report):
+        def progress(done, total):
+            try:
+                report(done / max(total, 1), f"{title}: {done} of {total} fits")
+            except jobs.JobCancelled:
+                return False            # stop, keeping what is fitted
+            return True
+        return fit_channels(angles, energy, frame, half_width=half_width,
+                            step=step, temperature=temperature, fixed=fixed,
+                            window=window, start=start, progress=progress,
+                            hold_shape=hold_shape)
+
     try:
-        ef, err, ok = fit_channels(angles, energy, frame, half_width=half_width,
-                                   step=step, temperature=temperature, fixed=fixed,
-                                   window=window, start=start, progress=report)
-    except Exception as exc:
-        progress.close()
+        ef, err, ok = jobs.run_blocking(parent, title, work)
+    except jobs.JobCancelled:
+        return None
+    except Exception as exc:                                # noqa: BLE001
         QMessageBox.warning(parent, "Fermi level fitting",
                              f"Channel fitting failed:\n{exc}")
         return None
-    progress.close()
 
     if draw_on is not None and ok.any():
         draw_on.show_picked_points(angles[ok], ef[ok])
         order = np.argsort(angles[ok])
         draw_on.show_overlay_path(angles[ok][order], ef[ok][order])
     return angles, ef, ok
-
 
 # --------------------------------------------------------------------------
 # Bulk operations on the datasets picked in the launcher

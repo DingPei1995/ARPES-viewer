@@ -14,213 +14,63 @@ file is the record of how it got that way.
 
 ## 1.3.3 — 2026-11-10
 
-A Fermi-pocket analysis for quasi-two-dimensional samples (under test), a
-minimum-gradient window, a self-energy that states its bare band, and the
-agent's steps saved as one script.
+A Fermi-pocket analysis (under test), a minimum-gradient window, a
+corrected self-energy, the agent's steps saved as a script, the SPEM viewer
+as two windows, and the Fermi edge fit and Fermi surface correction
+reworked on measured soft X-ray data.
 
-- **Fermi edge fit: two columns, a box drawn on the data, and channel by
-  channel beside Fit.** The window is laid out left to right: the region,
-  the parameters and the buttons on the left, the fit on the right -- its
-  plot always shows the whole fit and no longer zooms with the mouse wheel
-  or pans. **Draw on the data** lets the box that sets the angle range and
-  the energy window be dragged out on the cut itself
-  (`FrameImageView.start_box_drawing`). **Fit channel by channel** moved out
-  of Advanced onto its own row under Fit, with a new **Offset channel by
-  channel** beside it: every channel put on its own E - E_F (a map's slit
-  cut: the whole map, along the slit; `offset_energy_per_channel`,
-  `tools.processing.analysis.offset_per_channel`). The blank borders some
-  detectors leave on either side of a cut are cut off before a channel fit
-  and in the offset (`tools.spectra.fermi.measured_channels`). Both fits
-  are kept with the dataset's row (`FERMI_FIT_KEY`, `record_fermi_fit`);
-  `L.fermi_edge` keeps its fit there too.
-- **Fermi surface correction, from a reference: the reference's own fit,
-  one offset or channel by channel.** The reference list holds only the
-  other rows whose Fermi edge has been fitted -- never the data itself --
-  and their fit is read from them instead of being fitted again here, so
-  "Fit it again" and the fitting settings are gone. Applied as **one
-  offset** (the reference's E_F) or **channel by channel** (its E_F per
-  channel, the blank borders and the channels it did not fit cut off); the
-  reference's edge is drawn on the data, and the reference path is two
-  steps (`FSCorrectionDialog`, `apply_reference_fit`, `app.fermi_references`).
-  `L.fs_correction(..., reference=..., mode="offset" | "channels")`.
-- **Fixed: going back from picking the Fermi edge by hand left the points
-  on the picture.** Back to step 1 now erases them.
-- **User guides (en, zh, fr):** §4.2 and §4.3 rewritten for the above, with
-  new screenshots.
-
-- **Fermi surface correction moved to the tool panel (Basic), step by
-  step.** "Straighten bands (FS correction)..." left the cut viewer's (and
-  a map's slit cut's) Functions menu; **Fermi surface correction...** is now
-  a button of the tool panel's Basic tab, beside the Fermi edge fit, for a
-  cut, or a map or kz map before its k conversion (a map opens on its slit
-  cut and is corrected whole). The window and the dialog close together.
-  The dialog walks through three steps (`FSCorrectionDialog`):
-  1. *how the Fermi edge is found* -- by hand, or from a reference;
-  2. *by hand:* click on the data viewer where the Fermi edge is, at
-     several angles; clicks count only on this step and the next.
-     *From a reference:* a cut or map of the main list (gold) whose Fermi
-     edge has been fitted; its fit is applied (see the entry above);
-  3. *check the fit and correct*: the polynomial drawn dashed over the
-     data, its order, the result's name, and **Correct**.
-  A map's slit cut now has the main list's hooks too, so a map can be
-  corrected from a reference (it could not before). For agents, the
-  operation `L.fs_correction(name, points=... | reference=..., order=2)`;
-  the reference (`arpes_viewer/agent/API.md`) is regenerated.
-  - *User guides (en, zh, fr).* A new §4.3 *Fermi surface correction*
-    describes the three steps, with new screenshots; the Basic tab's
-    later sections move down one (§4.4 to §4.12), and §3.3 is *Arbitrary
-    cuts* only, pointing to §4.3.
-
-- **The SPEM viewer is two windows: the spatial map, and its spectrum in
-  the cut viewer.** Each can be sized and placed on its own, and the
-  spectrum window has every tool a cut window has (k conversion, band
-  straightening, saving or freezing the slice), acting on the spectrum on
-  screen. Closing either closes both, and neither keeps the other in
-  memory afterwards (`SpatialScanWindow`, `SpemCutWindow`).
-  - *Selection boxes above the pictures, applied on Refresh.* "Selection
-    box" and "Integrate selection into the other panel" left the
-    right-click menu. A row above each picture now holds the box, its
-    corners and **Refresh**: dragging the box or typing corners computes
-    nothing, and the integration -- the spectrum summed over the map's box,
-    or the map summed over the spectrum's k and E -- runs only when Refresh
-    is pressed, since on a large scan it reads much of the file. While the
-    map's box is on, the spectrum is its sum and no longer follows the
-    cursor; unticking the spectrum's box brings back the full map
-    (`widgets.SelectionBar`).
-  - *Energy or k against position.* Two boxes above the map, "E vs
-    position" and "k vs position" (one at a time), draw beside and under
-    the map the spectrum through the cursor against each spatial axis,
-    sharing the map's axes. Two dashed lines on the spectrum set the band
-    of k (or of energy) it is integrated over; only that band of one line
-    of pixels is read, and only once the cursor rests
-    (`widgets.spatial_profile`).
-- **Removed: "Line profile..." and "Stack plot of the selection..." from
-  the pictures' right-click menu.** Little used, and the second depended on
-  the selection box that has left the menu. The Stack plot button of the
-  tool panel is unchanged.
-- **SPEM viewer, third round.**
-  - *Unticking a selection box keeps the integration*, not only the box:
-    the summed spectrum (or the map integrated over a (k, E) window) stays
-    on screen until **Reset**, a new button beside Refresh. While the
-    summed spectrum is shown the cursor does not replace it.
-  - *Fixed: the map squeezed to a strip when a line cursor was switched
-    on.* The pictures beside and under the map took a share of the panel,
-    and on a map with a locked ratio a share of the height taken by a new
-    row had the aspect solver narrow the map to keep its shape (802 px to
-    151 px in one case, and not back afterwards). They now have fixed
-    sizes, the window grows by them and shrinks back when they go; on a
-    window the screen does not let grow, they shrink first
-    (`ImagePanel.set_side_views`).
-  - *Fixed: a selection box that could not be dragged where it met the E
-    vs position band.* The shaded band between the two dashed lines took a
-    drag anywhere inside it and sits above the box, so a box corner inside
-    the band could not be grabbed. Only the two lines take the mouse now;
-    the band moves by its lines or its typed from/to, and a drag between
-    them reaches the box.
-- **SPEM viewer, second round.**
-  - *Unticking a selection box keeps it.* The box is hidden, not
-    forgotten: ticking it again puts it back at the same corners (and
-    swapping the map's X and Y now carries the box over instead of
-    removing it). What unticking does to the result is unchanged -- the
-    spectrum follows the cursor again, the map is the full map again.
-  - *One cursor on the map.* The red target is gone; the readout cursor,
-    on from the start, picks the pixel (with its typed **Cursor** row), so
-    the map no longer carries two cursors. Switched off and on again it
-    comes back where it was (`SpatialImageView`).
-  - *E vs position / k vs position on a row of their own*, under the
-    selection box.
-  - *Line cursors on the spectra against position.* Right-click the
-    picture beside or under the map -> *Line cursor*: a line at one energy
-    (or k) on that picture, and the intensity along it against position
-    plotted further right or further down, on the map's axes
-    (`SpatialScanWindow.set_line_cursor`).
-- **User guide: §3.7 (spatially resolved scans) rewritten** for the two
-  windows, the selection boxes with Refresh and the spectra against
-  position, with new screenshots; the PDFs re-printed. The version number
-  is unchanged.
-- **Fixed: settings put back from last time that left a picture and its
-  controls out of step.** Two cases of one mistake -- a control is filled
-  in from what was remembered, and the thing on the picture it is tied to
-  is not told.
-  - *Map k conversion: the Γ boxes stopped following the cursor.* When the
-    dialog opened with the Γ remembered from the last conversion of a map
-    of the same size, it counted that Γ as typed by the user and never read
-    the contour's readout cursor again: dragging the cursor changed nothing
-    in "Γ deflector angle" and "Γ slit angle". (It showed after any earlier
-    conversion of a same-size map, in this session or a previous one;
-    nothing another viewer did with its own cursor is involved.) The boxes
-    and the cursor are now one setting shown twice, as the cut conversion's
-    Γ line and box already were: dragging the cursor always fills the
-    boxes, and typing a value moves the cursor to it. A typed Γ outside the
-    map stays in its box -- it is a legitimate origin -- and the note says
-    the cursor cannot sit on it (`KConversionDialog.place_cursor`).
-  - *Detector corrections: the trapezoid did not match "Stretch along".*
-    The choice of axis came back from last time, the yellow trapezoid's
-    corners (which are not kept) stayed laid out for the other axis, and
-    with "Correct a trapezoidal image" also ticked the preview showed a
-    correction that meant nothing. The trapezoid is now laid out again for
-    the restored axis, and by "Defaults" (`DetectorDialog._settings_applied`).
-  - Checked and found sound: the cut k conversion (Γ line and box), the kz
-    conversion, the Brillouin-zone dialog, the tight-binding, crystal,
-    calculated-bands and repeats windows, and the linked cursors of a map's
-    contour and cut windows after one of them is closed with its cursor on.
-- **Fermi pocket (quasi-2D)...** (tool panel → Advanced, k-maps;
-  `tools/spectra/pocket.py`, `ui/panels/pocket.py`, `L.fermi_pocket`).
-  **Under test, and only for quasi-two-dimensional samples**: the window,
-  the button's tip, every result and the agent's operation say so. The
-  area of a contour in one map is a property of the Fermi surface only
-  when the bands do not disperse along k_z; for a three-dimensional Fermi
-  surface the map is one curved, k_z-smeared sheet through it and the
-  numbers mean nothing. The program cannot tell the two apart.
-  - *The contour.* From a point inside the pocket, rays go out at equal
-    angles; a Lorentzian on a straight background fitted along each, inside
-    a ring the user sets, gives k_F there with an error. A ray that
-    disagrees with its neighbours is fitted again near them and dropped if
-    it still disagrees; a peak needs data on both sides, five times the
-    ray's noise, and 2 % of the plane's range. The radius against angle is
-    a Fourier series (optionally with only the harmonics an n-fold axis
-    allows), and the area follows from its coefficients exactly, with an
-    error from their covariance. The area does not depend on the centre.
-  - *What the area gives.* Carrier density `g N A/(2π)²`, the fraction of
-    the zone and carriers per in-plane cell (Luttinger's count), the
-    quantum-oscillation frequency `(ħ/2πe) A`; from the area at several
-    energies the cyclotron mass `(ħ²/2π) dA/dE` (its sign says electron or
-    hole pocket), the area at E_F off the line, the mean Fermi velocity.
-    Several pockets are counted together, electrons minus holes.
-  - *What it warns of.* Fewer than a third of the rays finding a band is
-    refused; rays lying more than a quarter of a peak width off the
-    contour (two bands in the ring, too few harmonics) are pointed out.
-    The errors are statistical only, and the window says so.
-  - Checked on a synthetic warped pocket of known area and mass (area
-    within 1 %, mass within 2-3 %, electron and hole), not yet on
-    measured data.
-- **Minimum gradient...** (tool panel → Advanced, cuts and maps;
-  `process.minimum_gradient`, `L.minimum_gradient`). Along a band's crest
-  the intensity's gradient is smallest (He, Wang and Shen, Rev. Sci.
-  Instrum. 88, 073903 (2017)): `I/|∇I|` (the default), `1/|∇I|` or `|∇I|`,
-  on axes and intensity mapped to [0, 1], with a floor and an anisotropy
-  ratio. First derivatives only; neither axis favoured. It replaces the
-  `I/|∇I|` mode that was hidden in the Curvature window, for cuts only.
-- **Self-energy.** The Kramers-Kronig check was wrong (it integrated over
-  the fitted range only, with the wrong sign, and moved the curve to the
-  mean of Re Σ): `dispersion.kramers_kronig` now takes |Im Σ| as the same
-  on both sides of E_F and constant beyond the range, integrates exactly,
-  and fits no constant. The bare band is chosen in the window and written
-  into the result -- a line through the band at two energies, a line of a
-  typed velocity through the measured k_F, or the Dispersion window's fit
-  -- and **Suggest (Kramers-Kronig)** finds the velocity that makes the two
-  curves a pair. Reported: k_F, v_F, `v_bare/v_F − 1`, λ, the kink energy,
-  |Im Σ| at E_F with lifetime and mean free path. To the list, or CSV.
-- **Save the steps as a script...** (AI assistant; `ui/common/agentsteps.py`,
-  `L.session_script`). Every step the agent ran -- command files and MCP
-  requests, which were kept in memory as one line each -- as one Python
-  file with times, failures (as comments) and output; it runs again from
-  `viewer_cmd/`. A prompt option, on by default, has the agent write it at
-  the end. Steps done by hand are in each dataset's history, not here.
-- **Documents.** The user guides (en, zh, fr): §5.1 minimum gradient, §5.4
-  the self-energy window, the new §5.8 Fermi pocket with its notice, §7.3
-  and §7.4 the saved script. `devtools/guide_screenshots.py` follows the
-  1.3.2 row names again and takes the two new windows.
+- **Fermi edge fit.** Two columns: settings left (wide enough for the whole
+  table), the fit right, its plot always showing all of it (no wheel zoom).
+  The fit model's resolution convolution is now done analytically by parts
+  (`fermi_edge_model`), so a broad resolution against a cold edge no longer
+  costs a thousand-point kernel on every evaluation: same values, about ten
+  times faster. The starting guess no longer mistakes a noisy window end
+  for the edge (`initial_guess`).
+- **Fit channel by channel**, moved under Fit, with **Offset channel by
+  channel** beside it (every channel on its own E - E_F; a map's slit cut:
+  the whole map). No fixed defaults: the box's summed EDC is fitted first as
+  the seed (a seed that does not determine the resolution is refused), trial
+  fits measure how precisely one channel gives E_F, and the channels each
+  fit must sum are compared with the channels measured -- too many, and the
+  data are declared unsuited to a channel-by-channel fit, with the numbers;
+  otherwise the settings are proposed to accept or change
+  (`plan_channel_fit`, `ChannelFitPlanDialog`). Channel fits keep the seed's
+  line shape and fit E_F, height and background; they run on a worker
+  thread, and Cancel stops them at once, keeping what is fitted (it could
+  hang before). Blank detector borders are cut off before fitting and in
+  the offset (`measured_channels`, `offset_per_channel`). Fits are kept with
+  the dataset's row (`FERMI_FIT_KEY`), `L.fermi_edge`'s too.
+- **Fermi surface correction**, moved from the cut viewer's Functions menu
+  to the tool panel's Basic tab, step by step: by hand (click the Fermi edge
+  on the data viewer, check the polynomial, Correct; Back erases the points)
+  or from a reference -- another row whose Fermi edge has been fitted, never
+  the data itself -- applied as one offset or channel by channel, its fit
+  read from it. A map is corrected whole from its slit cut.
+  `L.fs_correction(name, points=... | reference=..., mode=...)`.
+- **SPEM viewer: two windows**, the spatial map and its spectrum in the cut
+  viewer, with selection boxes above the pictures applied on **Refresh**
+  and kept until **Reset**, E or k against position beside the map with
+  line cursors, one readout cursor, and fixes to a map squeezed by the side
+  pictures and a box that could not be dragged inside the integration band.
+  "Line profile" and "Stack plot of the selection" left the right-click
+  menu.
+- **Fermi pocket (quasi-2D)...** (Advanced, k-maps; under test, and only for
+  quasi-two-dimensional samples): a pocket's contour fitted ray by ray, its
+  area, and from it the carrier density, Luttinger count, oscillation
+  frequency and cyclotron mass. `L.fermi_pocket`.
+- **Minimum gradient...** (Advanced): `I/|∇I|` and variants (He, Wang and
+  Shen 2017), replacing the mode hidden in the Curvature window.
+- **Self-energy:** the Kramers-Kronig check corrected; the bare band chosen
+  and stated in the result, with a suggested velocity; k_F, v_F, λ, kink
+  energy, lifetime reported.
+- **Save the steps as a script...** (AI assistant): the agent's steps as one
+  re-runnable Python file.
+- **Fixed:** remembered settings that left a picture and its controls out
+  of step (map k conversion's Γ boxes and cursor; the detector-correction
+  trapezoid); the information window after its main window was gone.
+- **User guides (en, zh, fr)** and PDFs: §3.7 the SPEM viewer, §4.2 the
+  Fermi edge fit, the new §4.3 Fermi surface correction (Basic sections
+  renumbered to §4.12), §5.1, §5.4, §5.8, §7.3-7.4; new screenshots.
 
 ## 1.3.2 — 2026-11-04
 
