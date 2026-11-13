@@ -431,7 +431,10 @@ def edge_problems(fit, lo: float = None, hi: float = None,
                            f"{span:.3g} eV window)")
     step = float(fit.values.get("dos0", 0.0))
     step_error = float(fit.errors.get("dos0", float("nan")))
-    if step <= 0.0:
+    level_scale = abs(float(fit.values.get("bkg0", 0.0))) + abs(step)
+    if step <= 0.0 or step <= 1e-6 * level_scale:
+        # none, or a millionth of the intensity: flat data fitted exactly,
+        # with an error bar of zero that no ratio test would catch
         reasons.append("there is no step down at E_F in the data")
     elif np.isfinite(step_error) and step_error > 0.0 and step <= 2.0 * step_error:
         reasons.append(f"the step at E_F ({step:.3g}) is not larger than "

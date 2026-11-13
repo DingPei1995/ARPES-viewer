@@ -6905,7 +6905,7 @@ class FermiFitDialog(_PickerDialog):
             "how many channels each fit has to sum is measured on the data "
             "and proposed, to accept or change. Blank channels at the two "
             "ends of the cut are cut off, not fitted.")
-        self.channels_button.clicked.connect(self.fit_by_channel)
+        self.channels_button.clicked.connect(lambda: self.fit_by_channel())
         self.offset_channels_button = QPushButton("Offset channel by channel")
         self.offset_channels_button.setToolTip(
             "List a copy with every channel on its own E - E_F, from the "
