@@ -2,7 +2,7 @@
 
 *[English version](USER_GUIDE_en.md) · [中文版](USER_GUIDE_zh.md)*
 
-*Dernière mise à jour : 10 novembre 2026 — pour ARPES viewer v1.3.3*
+*Dernière mise à jour : 13 novembre 2026 — pour ARPES viewer v1.3.4*
 
 La version et sa date figurent dans la barre de titre de la fenêtre principale
 et sur sa dernière ligne. Rapports de bogues, questions et dernière version :
@@ -2808,7 +2808,7 @@ Si le programme ne démarre pas du tout, le journal du lanceur
 ## 8.4 Versions et mises à jour
 
 La barre de titre et la dernière ligne du panneau principal montrent la
-version et sa date (`ARPES viewer v1.3.3 (updated 2026-11-10)`). Ce qui a
+version et sa date (`ARPES viewer v1.3.4 (updated 2026-11-13)`). Ce qui a
 changé à chaque version, et pourquoi, est dans le
 [CHANGELOG](../CHANGELOG.md).
 

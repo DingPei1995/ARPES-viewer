@@ -80,7 +80,7 @@ Si le programme ne démarre pas du tout, le journal du lanceur
 ## 8.4 Versions et mises à jour
 
 La barre de titre et la dernière ligne du panneau principal montrent la
-version et sa date (`ARPES viewer v1.3.3 (updated 2026-11-10)`). Ce qui a
+version et sa date (`ARPES viewer v1.3.4 (updated 2026-11-13)`). Ce qui a
 changé à chaque version, et pourquoi, est dans le
 [CHANGELOG](../../../CHANGELOG.md).
 

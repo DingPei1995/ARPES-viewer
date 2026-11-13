@@ -2,7 +2,7 @@
 
 *[English version](../../USER_GUIDE_en.md) · [Version française](../../USER_GUIDE_fr.md)*
 
-*最后更新：2026 年 11 月 10 日 —— 适用于 ARPES viewer v1.3.3*
+*最后更新：2026 年 11 月 13 日 —— 适用于 ARPES viewer v1.3.4*
 
 版本号及日期显示在主窗口的标题栏和最下一行。bug 报告、问题和最新版本：
 <https://github.com/DingPei1995/ARPES-viewer>（报告 bug 时请注明版本号）。

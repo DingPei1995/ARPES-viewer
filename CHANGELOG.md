@@ -12,12 +12,10 @@ file is the record of how it got that way.
 
 ---
 
-## 1.3.3 — 2026-11-10
+## 1.3.4 — 2026-11-13
 
-A Fermi-pocket analysis (under test), a minimum-gradient window, a
-corrected self-energy, the agent's steps saved as a script, the SPEM viewer
-as two windows, and the Fermi edge fit and Fermi surface correction
-reworked on measured soft X-ray data.
+The Fermi edge fit and the Fermi surface correction, reworked on measured
+soft X-ray data.
 
 - **Fermi edge fit.** Two columns: settings left (wide enough for the whole
   table), the fit right, its plot always showing all of it (no wheel zoom).
@@ -47,6 +45,18 @@ reworked on measured soft X-ray data.
   the data itself -- applied as one offset or channel by channel, its fit
   read from it. A map is corrected whole from its slit cut.
   `L.fs_correction(name, points=... | reference=..., mode=...)`.
+- **Fixed:** the information window after the main window it belonged to
+  was gone; a flat spectrum is never taken for a Fermi edge.
+- **User guides (en, zh, fr)** and PDFs: §4.2 the Fermi edge fit, the new
+  §4.3 Fermi surface correction (Basic sections renumbered to §4.12); new
+  screenshots.
+
+## 1.3.3 — 2026-11-10
+
+A Fermi-pocket analysis (under test), a minimum-gradient window, a
+corrected self-energy, the agent's steps saved as a script, and the SPEM
+viewer as two windows.
+
 - **SPEM viewer: two windows**, the spatial map and its spectrum in the cut
   viewer, with selection boxes above the pictures applied on **Refresh**
   and kept until **Reset**, E or k against position beside the map with
@@ -67,10 +77,9 @@ reworked on measured soft X-ray data.
   re-runnable Python file.
 - **Fixed:** remembered settings that left a picture and its controls out
   of step (map k conversion's Γ boxes and cursor; the detector-correction
-  trapezoid); the information window after its main window was gone.
-- **User guides (en, zh, fr)** and PDFs: §3.7 the SPEM viewer, §4.2 the
-  Fermi edge fit, the new §4.3 Fermi surface correction (Basic sections
-  renumbered to §4.12), §5.1, §5.4, §5.8, §7.3-7.4; new screenshots.
+  trapezoid).
+- **User guides (en, zh, fr)** and PDFs: §3.7 the SPEM viewer, §5.1, §5.4,
+  §5.8, §7.3-7.4; new screenshots.
 
 ## 1.3.2 — 2026-11-04
 

@@ -5,7 +5,7 @@
 [![User Guide](https://img.shields.io/badge/📖_User_Guide-English-blue?style=flat-square)](https://github.com/DingPei1995/ARPES-viewer/blob/main/docs/USER_GUIDE_en.md)
 [![Local Agent Settings](https://img.shields.io/badge/🤖_Local_Agent_Settings-blue?style=flat-square)](https://github.com/DingPei1995/ARPES-viewer/blob/main/docs/AGENTIC_WORKFLOW_en.md)
 
-**Version 1.3.3** (last modified 10 November 2026) -- what changed is in
+**Version 1.3.4** (last modified 13 November 2026) -- what changed is in
 [CHANGELOG.md](CHANGELOG.md). For non-commercial use only; see the
 [terms of use](#terms-of-use-citation-and-licence).
 

@@ -2,7 +2,7 @@
 
 *[中文版 / Chinese version](USER_GUIDE_zh.md) · [Version française](USER_GUIDE_fr.md)*
 
-*Last updated: 10 November 2026 — for ARPES viewer v1.3.3*
+*Last updated: 13 November 2026 — for ARPES viewer v1.3.4*
 
 The version and its date are in the main window's title bar and on its last
 line. Bug reports, questions and the latest version:
@@ -2699,7 +2699,7 @@ If the program does not start at all, the launcher's log
 ## 8.4 Versions and updates
 
 The title bar and the main panel's last line show the version and its date
-(`ARPES viewer v1.3.3 (updated 2026-11-10)`). What changed in each version,
+(`ARPES viewer v1.3.4 (updated 2026-11-13)`). What changed in each version,
 and why, is in the [CHANGELOG](../CHANGELOG.md).
 
 To update a pip installation:
