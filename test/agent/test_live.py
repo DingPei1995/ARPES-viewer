@@ -348,6 +348,103 @@ def test_degrid_ridges_and_a_line_fit_are_operations(program, tmp_path):
     assert cleaned["grid_power_after"] < cleaned["grid_power_before"]
 
 
+def test_the_remaining_tools_are_operations(program, tmp_path):
+    """Detector corrections, the core-level check, the stack plot, the 3-D
+    views, the crystal, a tight-binding fit and calculated bands: each an
+    operation, so an agent needs no window for them."""
+    from arpes_viewer.ui.common.live import Live
+    from arpes_viewer.ui.viewers.widgets import MemoryData
+    L = Live(program)
+    rng = np.random.default_rng(4)
+
+    # detector: a dead patch found and filled
+    angle, energy = np.linspace(-10, 10, 60), np.linspace(80, 81, 50)
+    frame = 100 + rng.normal(0, 1, (60, 50))
+    frame[20:23, 30:33] = 0.0
+    program.add_memory_dataset(MemoryData(
+        "cut", (angle, energy), frame, {"x": "Angle (deg)", "y": "Kinetic energy (eV)"},
+        source_label="dead"), "dead")
+    fixed = L.detector_correction("dead", find_bad=True)
+    assert fixed["regions"]
+    assert np.nanmin(L.data(fixed["row"]).values[20:23, 30:33]) > 90
+    with pytest.raises(ValueError, match="nothing to correct"):
+        L.detector_correction("dead")
+
+    # core levels: Au 4f on a kinetic axis (hv 150, W 4.5)
+    kinetic = np.linspace(50, 70, 400)
+    edc = 10 + sum(h * np.exp(-((kinetic - (145.5 - b)) / 0.4) ** 2)
+                   for b, h in ((84.0, 400), (87.7, 300)))
+    program.add_memory_dataset(MemoryData(
+        "cut", (np.linspace(-5, 5, 8), kinetic), np.tile(edc, (8, 1)),
+        {"x": "Angle (deg)", "y": "Kinetic energy (eV)"}, source_label="au"), "au")
+    levels = L.core_levels("au", "Au", fermi_level=145.5, photon_energy=150.0,
+                           work_function=4.5)
+    bindings = sorted(round(p["binding_eV"], 1) for p in levels["peaks"])
+    assert bindings[:2] == pytest.approx([84.0, 87.7], abs=0.15)
+    assert "Au" in levels["report"]
+
+    # stack plot: twelve EDCs as one curve row
+    stack = L.stack_curves("au", direction="edc", count=4)
+    assert len(stack["positions"]) == 4
+    assert L.data(stack["row"]).values.shape == (kinetic.size, 4)
+
+    # 3-D views of a small cube
+    cube = rng.random((12, 10, 14))
+    program.add_memory_dataset(MemoryData(
+        "map", (np.linspace(-5, 5, 12), np.linspace(-8, 8, 10), np.linspace(-1, 0, 14)),
+        cube, {"x": "Angle, deflector (deg)", "k": "Angle, slit (deg)",
+               "z": "E - E_F (eV)"}, source_label="cube"), "cube")
+    for mode in ("slices", "notch", "projection", "stack"):
+        out = L.view3d("cube", str(tmp_path / f"{mode}.png"), mode=mode,
+                       stack_positions=[-0.8, -0.4, 0.0] if mode == "stack" else None,
+                       azimuth=30)
+        assert os.path.getsize(out["path"]) > 1000
+    with pytest.raises(FileExistsError):
+        L.view3d("cube", str(tmp_path / "slices.png"))
+
+    # the crystal: typed in, and from a CIF
+    from test.tools.test_new_analysis import NACL_CIF
+    cif = tmp_path / "nacl.cif"
+    cif.write_text(NACL_CIF, encoding="utf-8")
+    nacl = L.crystal_picture(str(tmp_path / "nacl.png"), cif=str(cif),
+                             plane_hkl=(1, 1, 1), plane_height=0.5)
+    assert nacl["atoms"] == 8 and os.path.getsize(nacl["path"]) > 1000
+    iron = L.crystal_picture(str(tmp_path / "fe.png"), space_group=229,
+                             cell=(2.87, None, None, None, None, None),
+                             atoms=[("Fe", 0, 0, 0)])
+    assert iron["atoms"] == 2 and iron["space_group"] == 229
+
+    # tight binding on a square lattice: e0 = 0.1, t1 = -0.3
+    a = 3.0
+    k = rng.uniform(-np.pi / a, np.pi / a, (60, 2))
+    e = 0.1 - 0.3 * 2 * (np.cos(k[:, 0] * a) + np.cos(k[:, 1] * a))
+    tb = L.tight_binding_fit(points=np.column_stack([k, e]).tolist(), a=a, shells=1)
+    values = {row["name"].split()[0]: row["value"] for row in tb["parameters"]}
+    assert values["e0"] == pytest.approx(0.1, abs=1e-6)
+    assert values["t1"] == pytest.approx(-0.3, abs=1e-6)
+
+    # calculated bands over a cut: Z and the shift
+    from arpes_viewer.tools.crystal import bandfiles
+    from arpes_viewer.tools.crystal import bands as B
+    lattice = np.array([[a, 0, 0], [-a / 2, a * np.sqrt(3) / 2, 0], [0, 0, 6.0]])
+    hop = {(0, 0, 0): np.array([[-0.75 + 0.72]]) / 0.8 + 0.05 / 0.8}
+    for R in ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (1, 1, 0), (-1, -1, 0)):
+        hop[R] = np.array([[-0.12 / 0.8]])
+    calc = str(tmp_path / "c_hr.dat")
+    bandfiles.write_hr(calc, lattice, hop, 1, fermi=0.0)
+    kk = np.linspace(-1.0, 1.0, 161)
+    ee = np.linspace(-1.0, 0.1, 111)
+    band = 0.8 * B.bands_along_cut(bandfiles.read(calc), kk, 90.0, kz=0.0)[0] - 0.05
+    program.add_memory_dataset(MemoryData(
+        "cut", (kk, ee), 1 / ((ee[None] - band[:, None]) ** 2 + 0.02 ** 2),
+        {"x": "k (Å⁻¹)", "y": "E - E_F (eV)"}, source_label="kcut"), "kcut")
+    bands = L.calculated_bands(calc, "kcut", direction_deg=90.0, kz=0.0,
+                               spectrum=True)
+    assert bands["z"] == pytest.approx(0.8, abs=0.02)
+    assert bands["shift"] == pytest.approx(-0.05, abs=0.01)
+    assert L.data(bands["row"]).values.shape == (kk.size, ee.size)
+
+
 def test_the_assistant_starts_the_agent_from_two_folders(program, tmp_path, monkeypatch):
     """Two folders, a few options, one prompt: the command folder started in
     the results folder with API.md in it, the prompt on the clipboard with
