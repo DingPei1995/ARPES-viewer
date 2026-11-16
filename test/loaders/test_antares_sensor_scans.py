@@ -131,3 +131,31 @@ def test_the_focus_scan_opens_in_the_program(tmp_path, qapp):
         assert data.kind == "spem_4d"
     finally:
         data.close()
+
+
+def test_a_focus_scan_stopped_half_way_opens_with_its_whole_grid(tmp_path, qapp):
+    """The rows never measured read NaN (or 0): the positions are filled
+    from the even steps of the measured ones, and the scan opens."""
+    from arpes_viewer.ui.viewers.widgets import NxsData
+    from arpes_viewer.ui.viewers import windows
+    path = str(tmp_path / "Focus_stopped.nxs")
+    pix, piy, cube = _mesh_file(path)
+    with h5py.File(path, "r+") as f:
+        sd = f["Focus_0001/scan_data"]
+        for key, fill in (("actuator_1_1", np.nan), ("actuator_2_1", 0.0)):
+            values = sd[key][()]
+            values[4:] = fill                        # rows 4, 5 never measured
+            sd[key][...] = values
+        data = sd["data_11"][()]
+        data[4:] = np.nan
+        sd["data_11"][...] = data
+    with registry.load(path, "Focus_0001") as scan:
+        np.testing.assert_allclose(scan.x, pix)
+        np.testing.assert_allclose(scan.y, piy)
+    data = NxsData.acquire(path, "Focus_0001")
+    window = windows.open_viewer(data, "stopped", "gray", False)
+    assert window is not None
+    window.close()
+    for row in registry.list_entries(path)[1:]:
+        with registry.load(path, row["entry"]) as image:
+            assert np.isfinite(image.x).all() and np.isfinite(image.y).all()

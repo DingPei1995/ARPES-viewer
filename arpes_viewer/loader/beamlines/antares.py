@@ -841,6 +841,37 @@ def _sensor_layout(f: h5py.File, g: str, skip=()):
     return shape, by_dim, sensors
 
 
+def _even_positions(values) -> np.ndarray:
+    """An actuator's positions with the steps never measured filled in.
+
+    A scan stopped before its end leaves its unmeasured points' readbacks
+    NaN, or 0 at ANTARES. The measured ones lie on the even scan asked for;
+    a line through them (robust: readbacks off it by more than half a step
+    are dropped and the line fitted again) gives the rest. With fewer than
+    two good readbacks the points are numbered."""
+    values = np.asarray(values, dtype=float).reshape(-1)
+    index = np.arange(values.size, dtype=float)
+    good = np.isfinite(values)
+    # zeros at the end: the steps never reached (ANTARES writes 0 there)
+    tail = values.size
+    while tail > 0 and good[tail - 1] and values[tail - 1] == 0.0:
+        tail -= 1
+    if tail < values.size and tail >= 2:
+        good[tail:] = False
+    if good.all() or values.size < 2:
+        return values if good.all() else index
+    for _round in range(3):
+        if good.sum() < 2:
+            return index
+        slope, intercept = np.polyfit(index[good], values[good], 1)
+        line = slope * index + intercept
+        kept = good & (np.abs(values - line) <= 0.5 * abs(slope) + 1e-12)
+        if kept.sum() < 2 or (kept == good).all():
+            break
+        good = kept
+    return np.where(good, values, line)
+
+
 def _scan_actuators(f: h5py.File, g: str, shape: tuple):
     """``[(name, unit, positions)]``, one per dimension of a scan of
     ``shape`` (outer first), from ``scan_data/actuator_N_1`` -- recorded
@@ -870,13 +901,20 @@ def _scan_actuators(f: h5py.File, g: str, shape: tuple):
         values = np.squeeze(values)
         dim = None
         if values.ndim == 2 and values.shape == shape:
-            spreads = [float(np.mean(np.ptp(values, axis=a))) for a in (0, 1)]
-            dim = int(np.argmax(spreads))
-            values = values.mean(axis=1 - dim)
+            with warnings.catch_warnings():
+                # a scan stopped early: its unmeasured points read NaN
+                warnings.simplefilter("ignore", RuntimeWarning)
+                spreads = [float(np.nanmean(np.nanmax(values, axis=a)
+                                            - np.nanmin(values, axis=a)))
+                           for a in (0, 1)]
+                spreads = [v if np.isfinite(v) else -1.0 for v in spreads]
+                dim = int(np.argmax(spreads))
+                values = np.nanmedian(values, axis=1 - dim)
         elif values.ndim <= 1 and values.size in shape:
             values = values.reshape(-1)
         else:
             return None
+        values = _even_positions(values)
         actuators.append((name or key, unit, values, dim))
     # One actuator per dimension, outer first: one recorded on the grid
     # goes to the dimension it steps along; a vector by its length

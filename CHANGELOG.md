@@ -55,7 +55,10 @@ agent operation an MCP tool of its own.
   calculation as a spectrum).
 - **Fixed:** an ANTARES focus scan recorded with spectra (`data_11` 4-D,
   PIX x PIY on the grid) was taken for a deflector map and could not be
-  opened; it is a spatial scan, and its CPS an image beside it.
+  opened; it is a spatial scan, and its CPS an image beside it. One
+  stopped half-way (the unmeasured points' positions NaN or 0) has them
+  filled from the even steps of the measured ones, and the viewers no
+  longer fail on an axis without a position.
 - **User guides (en, zh, fr)** and PDFs: §1.4 the new readers, §4.10 the
   two new ways to align a kz map, §7.2 and §7.5 the `op_<name>` tools.
 
