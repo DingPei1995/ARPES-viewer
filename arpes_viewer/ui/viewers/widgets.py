@@ -1858,6 +1858,8 @@ class _InteractiveImageBase(pg.ImageView):
         if extent is None:
             return
         x0, x1, y0, y1 = extent
+        if not all(np.isfinite(v) for v in (x0, x1, y0, y1)):
+            return          # an axis with no position (a scan stopped early)
         cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
         dx, dy = x1 - x0, y1 - y0
         vb = self.view_box
