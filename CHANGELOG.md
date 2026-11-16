@@ -12,6 +12,42 @@ file is the record of how it got that way.
 
 ---
 
+## 1.3.5 — 2026-11-16
+
+Two more readers, the kz alignment by hand or from a reference, and every
+agent operation an MCP tool of its own.
+
+- **Diamond I09 reader** (`loader/beamlines/i09.py`), after the beamline's
+  Igor loader: EW4000 regions (cut, polar or deflector map, photon-energy
+  scan as a kz map, smpmx/smpmy spatial scan; a region without an image as
+  EDCs), the I09-2 momentum microscope's DLD stack (detector pixels against
+  kenergy or sample bias) and MCP total, XAS (sdc / I0) and any other
+  scalar scan as curves; GDA before and after 9.38. Untested on a real
+  file. `I09_Extra.ipf` holds analysis, nothing needed for reading.
+- **ANTARES scans of sensors** (case 7): one actuator against its sensors
+  (an alignment curve, the photodiode against MA1) as one MDC table; two
+  (a focus scan, CPS against PIX and PIY) as one image per sensor. Written
+  against the usual `scan_data` layout: the sample files hold no scan data,
+  and an entry like theirs is now listed as **No data**, saying why when
+  opened.
+- **Align Fermi levels (kz)**: two more ways to the levels besides the
+  edge fit in a box. *Pick E_F on the Scan-axis cut* (by hand: a function
+  through clicked points, one by default or one per segment), and **from a
+  reference** kz map aligned before, as the Fermi surface correction takes
+  a fitted reference (spectra outside its photon energies cut off). The
+  levels are kept (`kzfit.json`) on the result and on the row aligned.
+  `L.kz_align_fermi(..., points=..., segments=..., breaks=... |
+  reference=...)`.
+- **MCP server: every operation a tool of its own** (`op_<name>`, generated
+  from `L.<name>`, every argument typed), so a model calls
+  `op_fermi_edge(...)` directly rather than looking it up in
+  `viewer_api_help` and calling `viewer_api`, which smaller local models
+  got wrong. `ARPES_VIEWER_MCP_TOOLS=compact` leaves them out. New
+  operations for tools that had none: `L.degrid`, `L.ridges`,
+  `L.line_fit` (EDC/MDC fit from seeds).
+- **User guides (en, zh, fr)** and PDFs: §1.4 the new readers, §4.10 the
+  two new ways to align a kz map, §7.2 and §7.5 the `op_<name>` tools.
+
 ## 1.3.4 — 2026-11-13
 
 The Fermi edge fit and the Fermi surface correction, reworked on measured

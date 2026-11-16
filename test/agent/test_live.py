@@ -276,6 +276,78 @@ def test_a_kz_scan_is_aligned_then_converted_with_its_own_calibration(program):
     assert L.metadata(result["row"], "hv_calibrated")
 
 
+def test_a_kz_scan_is_aligned_by_hand_and_from_a_reference(program):
+    """E_F clicked on the Scan-axis cut, one function or two segments; then
+    a second scan aligned with the first's levels, the photon energies
+    outside them cut off."""
+    from arpes_viewer.ui.common.live import Live
+    from arpes_viewer.ui.viewers.widgets import MemoryData
+    L = Live(program)
+    hv = np.linspace(40, 120, 9)
+    energy = np.linspace(-0.4, 0.2, 61)
+
+    def scan(name, hv, shifts):
+        cube = np.stack([np.tile(100 * (1 / (np.exp((energy - s) / 0.01) + 1) + 0.02),
+                                 (15, 1)) for s in shifts])
+        program.add_memory_dataset(MemoryData(
+            "kz_map", (hv, np.linspace(-7, 7, 15), energy), cube,
+            {"x": "Photon energy (eV)", "k": "Angle (deg)", "z": "E - E_F (eV)"},
+            source_label=name), name)
+
+    shifts = 0.001 * (hv - 80)
+    scan("hvA", hv, shifts)
+    with pytest.raises(ValueError, match="order-1 fit needs"):
+        L.kz_align_fermi("hvA", points=[(40, -0.04)])
+    one = L.kz_align_fermi("hvA", points=[(40, -0.04), (80, 0.0), (120, 0.04)])
+    assert one["row"]
+    assert np.allclose(one["fermi_levels_eV"], shifts, atol=1e-9)
+    two = L.kz_align_fermi("hvA", points=[(40, -0.04), (60, -0.02), (100, 0.05),
+                                          (120, 0.07)], segments=2, breaks=[80])
+    levels = np.asarray(two["fermi_levels_eV"])
+    assert levels[0] == pytest.approx(-0.04) and levels[-1] == pytest.approx(0.07)
+
+    hv_b = np.linspace(20, 100, 9)
+    scan("hvB", hv_b, 0.001 * (hv_b - 80))
+    aligned = L.kz_align_fermi("hvB", reference=one["row"])
+    assert aligned["spectra_kept"] == 7 and aligned["spectra_cut_off"] == 2
+    assert np.allclose(aligned["fermi_levels_eV"], 0.001 * (hv_b[2:] - 80))
+    with pytest.raises(ValueError, match="cannot be the reference"):
+        L.kz_align_fermi("hvB", reference="hvB")
+
+
+def test_degrid_ridges_and_a_line_fit_are_operations(program, tmp_path):
+    from arpes_viewer.ui.common.live import Live
+    from arpes_viewer.ui.viewers.widgets import MemoryData
+    L = Live(program)
+    k = np.linspace(-1, 1, 81)
+    energy = np.linspace(-0.5, 0.1, 61)
+    band = 0.5 * k ** 2 - 0.3                       # E(k)
+    image = np.exp(-((energy[None, :] - band[:, None]) / 0.03) ** 2) + 0.05
+    program.add_memory_dataset(MemoryData(
+        "cut", (k, energy), image, {"x": "k (1/Å)", "y": "E - E_F (eV)"},
+        source_label="band"), "band")
+    traced = L.ridges("band", save_csv=str(tmp_path / "r.csv"))
+    assert traced["row"] and traced["points"] > 20
+    fit = L.line_fit("band", direction="mdc", background="constant",
+                     bands=[{"name": "right", "seeds": [[-0.1, 0.6, 0.1]]}],
+                     bounds=(-0.2, 0.0))
+    centres = np.asarray(fit["bands"]["right"]["centres"])
+    positions = np.asarray(fit["bands"]["right"]["positions"])
+    assert np.allclose(centres, np.sqrt((positions + 0.3) / 0.5), atol=0.02)
+    with pytest.raises(ValueError, match="no detector grid"):
+        L.degrid("band")
+    rng = np.random.default_rng(1)
+    i, j = np.meshgrid(np.arange(120), np.arange(160), indexing="ij")
+    gridded = 1000 * (1 + 0.3 * np.cos(2 * np.pi * i / 6) * np.cos(2 * np.pi * j / 6))
+    gridded = rng.poisson(gridded).astype(float)
+    program.add_memory_dataset(MemoryData(
+        "cut", (np.linspace(-10, 10, 120), np.linspace(80, 81, 160)), gridded,
+        {"x": "Angle (deg)", "y": "Kinetic energy (eV)"}, source_label="grid"), "grid")
+    cleaned = L.degrid("grid")
+    assert cleaned["row"]
+    assert cleaned["grid_power_after"] < cleaned["grid_power_before"]
+
+
 def test_the_assistant_starts_the_agent_from_two_folders(program, tmp_path, monkeypatch):
     """Two folders, a few options, one prompt: the command folder started in
     the results folder with API.md in it, the prompt on the clipboard with

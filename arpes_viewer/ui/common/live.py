@@ -736,46 +736,100 @@ class Live:
 
     @operation("Energy")
     @_keeps_selection
-    def kz_align_fermi(self, name: str, angle_range, energy_range,
+    def kz_align_fermi(self, name: str, angle_range=None, energy_range=None,
                        temperature: float = 30.0, hold_temperature: bool = True,
-                       normalise: bool = True) -> dict:
-        """Align a photon-energy scan (kz map) on its Fermi level: one
-        Fermi-edge fit per photon energy, over the analyser channels
-        ``angle_range`` (lo, hi, inclusive indices) and the energy channels
-        ``energy_range`` (indices), each spectrum shifted to put its own
-        edge at zero, optionally normalised by its total. Adds the aligned
-        row (its per-hv E_F kept in ``kz.fermi_level_eV``, which the kz
-        conversion's hv calibration uses). Returns the new row and the
-        Fermi levels."""
+                       normalise: bool = True, points=None, order: int = 1,
+                       segments: int = 1, breaks=None,
+                       reference: str = "") -> dict:
+        """Align a photon-energy scan (kz map) on its Fermi level (tool
+        panel, Align Fermi levels (kz)), one of three ways:
+
+        * ``angle_range``/``energy_range`` (lo, hi, inclusive indices of the
+          slit cut): one Fermi-edge fit per photon energy over that box
+          (``temperature``, ``hold_temperature``);
+        * ``points``, [(hv, E_F), ...] read off the Scan-axis cut (photon
+          energy against energy) where the edge is: a polynomial of
+          ``order`` through them gives E_F(hv) -- one function over the
+          scan by default, or ``segments`` > 1 functions, each fitted to its
+          own points, split at ``breaks`` (photon energies; automatic when
+          None);
+        * ``reference``, another kz map aligned before (any way): its
+          E_F(hv) interpolated onto this scan; spectra outside its photon
+          energies are cut off.
+
+        Each spectrum is shifted to put its own E_F at zero, cropped to the
+        common range, optionally normalised by its total. Adds the aligned
+        row (E_F per hv kept in ``kz.fermi_level_eV``, which the kz
+        conversion's hv calibration uses, and as a reference for later
+        scans). Returns the new row and the Fermi levels."""
         from arpes_viewer.tools.momentum import kzmap
+        ways = [angle_range is not None, points is not None, bool(reference)]
+        if sum(ways) != 1:
+            raise ValueError("give one of angle_range+energy_range (edge fits "
+                             "in a box), points=[(hv, E_F), ...] (by hand) or "
+                             "reference=<an aligned kz map>")
         key = self._key(name)
+        ref_key = self._key(reference) if reference else None
         self.select(self._name(key))
         contour = self.A.map_contour(key)
         if contour is None or contour.data.kind != "kz_map":
             raise ValueError(f"{name!r} is not a photon-energy scan (kz map)")
         dialog = contour.open_kz_processing()
-        region = ((int(angle_range[0]), int(angle_range[1])),
-                  (int(energy_range[0]), int(energy_range[1])))
-        dialog.index_region = lambda: region
-        dialog.temperature.setValue(float(temperature))
-        dialog.hold_temperature.setChecked(bool(hold_temperature))
         dialog.normalise.setChecked(bool(normalise))
-        cube = np.asarray(contour.full_cube(), dtype=float)
-        result = kzmap.process_kz_map(
-            cube, dialog.energy, region, temperature=float(temperature),
-            fixed=("temperature",) if hold_temperature else (),
-            normalise=bool(normalise))
         before = set(self.A.loaded_items)
-        dialog._finish(result)
+        try:
+            if points is not None:
+                dialog.manual_radio.setChecked(True)
+                for hv, ef in points:
+                    dialog.add_point(float(hv), float(ef))
+                dialog.order_box.setValue(int(order))
+                dialog.segments_box.setValue(int(segments))
+                if breaks:
+                    dialog.breaks_edit.setText(", ".join(str(float(b)) for b in breaks))
+                dialog.manual_levels()          # raises with the reason
+                if not dialog.run_manual():
+                    raise ValueError(dialog.note.text())
+            elif reference:
+                keys = [k for _label, k, _fit in dialog.references()]
+                if ref_key not in keys:
+                    raise ValueError(
+                        f"{reference!r} cannot be the reference: only another "
+                        f"kz map aligned before (kz_align_fermi) can")
+                dialog.reference_radio.setChecked(True)
+                dialog.reference_combo.setCurrentIndex(keys.index(ref_key))
+                if not dialog.run_reference():
+                    raise ValueError(dialog.note.text())
+            else:
+                if energy_range is None:
+                    raise ValueError("energy_range goes with angle_range")
+                region = ((int(angle_range[0]), int(angle_range[1])),
+                          (int(energy_range[0]), int(energy_range[1])))
+                dialog.index_region = lambda: region
+                dialog.temperature.setValue(float(temperature))
+                dialog.hold_temperature.setChecked(bool(hold_temperature))
+                cube = np.asarray(contour.full_cube(), dtype=float)
+                result = kzmap.process_kz_map(
+                    cube, dialog.energy, region, temperature=float(temperature),
+                    fixed=("temperature",) if hold_temperature else (),
+                    normalise=bool(normalise))
+                dialog._running_method = "box"
+                dialog._finish(result)
+            result = dialog.result
+        finally:
+            cut = getattr(dialog, "cut_window", None)
+            dialog.close()
+            if cut is not None:
+                cut.close()
         added = [self._name(k) for k in self.A.loaded_items if k not in before]
-        cut = getattr(dialog, "cut_window", None)
-        dialog.close()
-        if cut is not None:
-            cut.close()
-        return _plain({"row": added[-1] if added else "",
-                       "fermi_levels_eV": np.asarray(result.ef).tolist(),
-                       "fitted": np.asarray(result.ok).tolist(),
-                       "spread_eV": float(result.spread)})
+        kept = getattr(result, "kept", None)
+        out = {"row": added[-1] if added else "",
+               "fermi_levels_eV": np.asarray(result.ef).tolist(),
+               "fitted": np.asarray(result.ok).tolist(),
+               "spread_eV": float(result.spread)}
+        if kept is not None:
+            out["spectra_kept"] = int(np.sum(kept))
+            out["spectra_cut_off"] = int(np.size(kept) - np.sum(kept))
+        return _plain(out)
 
     @operation("Energy")
     @_keeps_selection
@@ -937,6 +991,123 @@ class Live:
         values = gaussian_smooth(data.values, data.axes, widths)
         return self._derive(name, values, data.axes, "smooth",
                             {"sigmas": widths}, new_name)
+
+    @operation("Processing")
+    @_keeps_selection
+    def degrid(self, name: str, new_name: str = "") -> dict:
+        """Remove the detector's grid pattern (tool panel, Remove detector
+        grid): a map or kz map with the grid fitted on the map itself, a
+        cut by notching its own grid peaks. Before a k conversion or a
+        Fermi-surface correction. Returns the new row and the grid power
+        before and after (1 = no more than noise)."""
+        from arpes_viewer.tools.processing import degrid as degridding
+        data = self.data(name)
+        values = np.asarray(data.values, dtype=float)
+        if values.ndim not in (2, 3):
+            raise ValueError(f"{name!r} is a {data.kind}: a cut or a map is de-gridded")
+        try:
+            result = degridding.degrid_map(values) if values.ndim == 3 \
+                else degridding.degrid_cut_notch(values)
+        except degridding.GridNotFound as exc:
+            raise ValueError(f"no detector grid found in {name!r}: {exc}") from None
+        row = self._derive(name, result.values, data.axes, "degrid",
+                           {"method": result.method}, new_name)
+        return _plain({"row": row, "method": result.method,
+                       "grid_power_before": float(result.contrast_before),
+                       "grid_power_after": float(result.contrast_after),
+                       "notes": list(result.notes)})
+
+    @operation("Processing")
+    @_keeps_selection
+    def ridges(self, name: str, sigma_x: float = None, sigma_y: float = None,
+               threshold: float = 0.05, kind: str = "max",
+               new_name: str = "", save_csv: str = "") -> dict:
+        """Ridge detection (tool panel, Ridge detection): the bands as the
+        ridges of the smoothed intensity (``kind`` "max"; "min" for
+        valleys), ``sigma_x``/``sigma_y`` the smoothing widths in the axes'
+        units (default two steps), ridges flatter than ``threshold`` of the
+        sharpest dropped. A cut, or a map plane by plane at constant
+        energy. Adds the ridge image as a row; the points (x, y, strength;
+        a map's with the energy first) go to ``save_csv`` if given.
+        Returns the row and the number of points."""
+        from arpes_viewer.tools.processing import ridge
+        data = self.data(name)
+        values = np.asarray(data.values, dtype=float)
+        if values.ndim == 2:
+            sx, sy = ridge.default_sigmas(data.axes[0], data.axes[1])
+            result = ridge.ridges(values, data.axes[0], data.axes[1],
+                                  sigma_x if sigma_x else sx,
+                                  sigma_y if sigma_y else sy,
+                                  threshold=float(threshold), kind=kind)
+            image, points = result.strength, result.points
+        elif values.ndim == 3:
+            sx, sy = ridge.default_sigmas(data.axes[0], data.axes[1])
+            image, points = ridge.ridge_cube(
+                values, data.axes, 2, (sigma_x or sx, sigma_y or sy),
+                threshold=float(threshold), kind=kind)
+        else:
+            raise ValueError(f"{name!r} is a {data.kind}: a cut or a map is traced")
+        row = self._derive(name, image, data.axes, "ridge",
+                           {"sigma_x": sigma_x, "sigma_y": sigma_y,
+                            "threshold": threshold, "kind": kind}, new_name)
+        out = {"row": row, "points": int(len(points))}
+        if save_csv:
+            np.savetxt(save_csv, points, delimiter=",")
+            out["csv"] = native(save_csv)
+        return _plain(out)
+
+    @operation("Processing")
+    def line_fit(self, name: str, bands, direction: str = "mdc",
+                 background: str = "linear", resolution: float = 0.0,
+                 fermi: bool = False, ef: float = 0.0, temperature: float = 30.0,
+                 step: int = 1, bounds=None, save_csv: str = "") -> dict:
+        """Fit a cut line by line (tool panel, MDC fit / EDC fit):
+        ``direction`` "mdc" (each line at one energy, the peaks' centres in
+        angle or k) or "edc" (each line at one angle or k, centres in
+        energy). ``bands`` is a list of {"name", "seeds": [[position,
+        centre, width], ...], "shape": "lorentzian"|"gaussian"|"voigt"}:
+        a seed says where the band is at one line (``position`` along the
+        lines, e.g. the energy of an MDC). ``background`` "none",
+        "constant", "linear" or "shirley"; ``resolution`` Gaussian FWHM;
+        ``fermi`` multiplies an EDC model by the Fermi function at ``ef``
+        and ``temperature``. ``bounds`` (lo, hi) limits the lines;
+        ``step`` takes every n-th. Returns per band the positions, centres,
+        their errors and widths (and writes them to ``save_csv``)."""
+        from arpes_viewer.tools.spectra import peaks
+        data = self.data(name)
+        if np.asarray(data.values).ndim != 2:
+            raise ValueError(f"{name!r} is a {data.kind}: a cut is fitted line by line")
+        made = []
+        for index, band in enumerate(bands or []):
+            seeds = [peaks.Seed(float(p), float(c), float(w))
+                     for p, c, w in (band.get("seeds") or [])]
+            made.append(peaks.Band(str(band.get("name") or f"band {index + 1}"),
+                                   seeds, shape=str(band.get("shape") or "lorentzian")))
+        settings = peaks.FitSettings(background=background,
+                                     resolution=float(resolution),
+                                     fermi=bool(fermi), ef=float(ef),
+                                     temperature=float(temperature))
+        series = peaks.fit_series(np.asarray(data.values, dtype=float), data.axes,
+                                  made, settings, direction=direction,
+                                  step=int(step),
+                                  bounds=tuple(bounds) if bounds else None)
+        out = {"direction": direction, "bands": {}}
+        rows = []
+        for b, band_name in enumerate(series.names):
+            good = np.isfinite(series.centres[:, b])
+            out["bands"][band_name] = {
+                "positions": series.positions[good].tolist(),
+                "centres": series.centres[good, b].tolist(),
+                "centre_errors": series.centre_errors[good, b].tolist(),
+                "widths": series.widths[good, b].tolist()}
+            for i in np.flatnonzero(good):
+                rows.append((b, series.positions[i], series.centres[i, b],
+                             series.centre_errors[i, b], series.widths[i, b]))
+        if save_csv:
+            np.savetxt(save_csv, np.asarray(rows, dtype=float).reshape(-1, 5),
+                       delimiter=",", header="band,position,centre,centre_error,width")
+            out["csv"] = native(save_csv)
+        return _plain(out)
 
     @operation("Processing")
     @_keeps_selection

@@ -261,3 +261,29 @@ def test_a_modal_dialog_asked_for_by_an_agent_raises_instead_of_waiting(launcher
         window.close()
     finally:
         bridge.stop()
+
+
+def test_every_operation_is_a_tool_of_its_own(monkeypatch):
+    """op_<name> for every documented operation, each argument typed, and
+    calling one is viewer_api with that operation; compact leaves them
+    out."""
+    from arpes_viewer.agent import server as mcp
+    from arpes_viewer.ui.common.live import operations
+    names = {t.name for t in mcp.build_server().tools.values()}
+    wanted = {f"op_{name}" for _g, name, _m in operations()} - {"op_help", "op_data"}
+    assert wanted <= names and "op_kz_align_fermi" in names
+    for tool in mcp.operation_tools():
+        spec = tool.spec()
+        for key, schema in spec["inputSchema"]["properties"].items():
+            assert "type" in schema or "anyOf" in schema, (tool.name, key)
+    sent = []
+    monkeypatch.setattr(mcp.bridge, "request",
+                        lambda op, **kw: sent.append((op, kw)) or {"row": "x"})
+    server = mcp.build_server()
+    reply = server.call("op_fermi_edge", {"name": "cut1",
+                                          "energy_window": [-0.1, 0.1]})
+    assert not reply["isError"]
+    assert sent[0][0] == "api" and sent[0][1]["operation"] == "fermi_edge"
+    assert sent[0][1]["args"] == {"name": "cut1", "energy_window": [-0.1, 0.1]}
+    monkeypatch.setenv(mcp.TOOLS_ENV, "compact")
+    assert not any(n.startswith("op_") for n in mcp.build_server().tools)

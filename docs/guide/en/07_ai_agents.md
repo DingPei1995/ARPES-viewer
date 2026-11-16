@@ -60,7 +60,13 @@ As with any analysis, check what an agent produced before you use it.
      can read and write files works, and every step is kept as a file.
   2. **MCP**: the AI app calls the program through its MCP server
      (`arpes-viewer-mcp`); with the program started with the agent bridge,
-     `viewer_api` calls the same operations.
+     every operation is also an MCP tool of its own, `op_<name>`
+     (`op_fermi_edge`, `op_kz_align_fermi`, `op_map_to_k` …), its arguments
+     typed and described from the operation itself, so a model calls it in
+     one step; `viewer_api` calls any of them by name. Smaller local models
+     find the right tool far more reliably this way. For an app that limits
+     how many tools a server may have, `ARPES_VIEWER_MCP_TOOLS=compact`
+     leaves the `op_*` tools out.
   3. **Scripts without a screen**: the computations in `arpes_viewer/tools/`
      and the headless workspace, for a script to keep.
 - **Windows.** A window an operation opens only to drive it (a conversion
@@ -207,7 +213,8 @@ tool-panel button for the selection — `fermi`, `kcut`, `kmap`, `bz3d`,
 `figure`, `notch3d`, `combine`…), `viewer_windows`, `viewer_screenshot`
 (a picture of any of its windows, so the agent can check what it did),
 `viewer_api_help` and `viewer_api` (the documented operations above: list
-them, call one), `viewer_figure` and `viewer_render_figure` (a figure window in numbers —
+them, call one), the `op_<name>` tools (each operation as a tool of its
+own), `viewer_figure` and `viewer_render_figure` (a figure window in numbers —
 page, frames, titles, levels, text sizes — and written as the PNG it will
 print as), `viewer_close_window` and `viewer_python` (Python run inside the program,
 with `A` = the program's main module — for setting a dialog's fields and

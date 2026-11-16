@@ -101,6 +101,56 @@ the first entry, which holds only the beamline state, is skipped.
 - A single frame can still be opened on its own, by its entry name, as a
   cut.
 
+### ANTARES scans of sensors (alignment curves, focus scans)
+
+An entry whose `scan_data` holds one number per scan point for every
+dataset -- no analyser image -- is a scan of sensors (case 7):
+
+| scanned | opens as |
+|---|---|
+| one actuator (`actuator_1_1`), e.g. MA1 against the photodiode current | `mdc`: the actuator's positions against every sensor, one channel each |
+| two actuators, e.g. PIX and PIY against CPS | one `cut` per sensor (listed as `<entry>#<sensor>`, the counts first): the inner actuator across, the outer up |
+
+- Sensors are named by their `long_name` (the Tango attribute: `.../photodiode/current`
+  becomes `photodiode current`), else by the dataset's name; actuators by
+  `long_name` or `scan_config/trajectory/actuator_N_1/name`. A PIX/PIY or
+  ST/SZ image carries the beamline's drawing convention (`Spatial.*`).
+- Checked before the spectral cases, whose `data_NN` numbering a scan of
+  many sensors could otherwise imitate.
+- **Written without a measured file.** The sample files supplied
+  (`Align_2026-11-14_15-30-46.nxs`, and `CaplilaryFocusScan.mat`, which is an
+  `h5info` dump of that same file) hold no `scan_data`: only the beamline's
+  state at the start. Such an entry is listed as **No data**, and opening it
+  says so. Check the first real alignment or focus scan against this.
+
+### Diamond I09 (EW4000, I09-2 momentum microscope)
+
+`loader/beamlines/i09.py`, written after the beamline's Igor loader
+(`I09_LoadData.ipf`), without a file from the beamline. GDA writes under
+`/entry1` before 9.38 and `/entry` after (`program_name` says which); the
+scan command is read from `scan_command` or `diamond_scan/scan_command`.
+
+| in the file | opens as |
+|---|---|
+| an EW4000 region (`instrument/ew4000/region_list`; `<entry>/<region>/image_data`, `angles`, `energies`) | `cut`; `map` (one motor: a polar or deflector angle converts to k), `kz_map` (`pgmenergy` in eV, `jenergy`/`dcmenergy` in keV; each spectrum referred by its own hv), `spem_4d` (`smpmx`, `smpmy` ...) |
+| a region without an image (`spectrum_data` only) | `edc`, one channel per scan point |
+| I09-2 DLD stack (`instrument/dld/data`, the detector the scan command names) | `map`: detector X, Y (pixels) against the scanned `kenergy` or `sample_bias` |
+| I09-2 total (`instrument/dld_total/mcp_roi_total`) | `edc` against `sample_bias`/`kenergy` |
+| XAS (`sdc/data`, `jI0/data`, `sdc/energy_demand`) | `edc`: sdc / I0, sdc, I0 against the photon energy (keV) |
+| any other scan (`instrument/<name>/value`: Custom, nixswr) | a curve of every detector against the first scannable |
+
+- The scanned motors are the scan command's (a name followed by start,
+  stop, step), read beside the spectra or from `instrument/<motor>/value`;
+  a nested scan's motors may be stored on the whole grid.
+- Every one-element dataset of the entry is in `info`, by its path (the Igor
+  loader's *Explore* list).
+- The momentum microscope's pixels are not calibrated to momentum. The Igor
+  loader's hot-pixel, flat-field and binning buttons are processing, done
+  here with the detector corrections, arithmetic and binning.
+- `I09_Extra.ipf` (3-D rotation and curvature of a momentum-microscope stack,
+  VAMAS export) is analysis, not reading: nothing from it is needed to read
+  the files.
+
 ### ALS MAESTRO (BL 7.0.2)
 
 MAESTRO's `.h5` files are read by **ALS MAESTRO** (`loader/beamlines/maestro.py`;

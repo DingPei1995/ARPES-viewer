@@ -502,9 +502,13 @@ TOOLS = {
              "reference, A \u2212 B, A / B, (A \u2212 B)/(A + B), A + B. The "
              "first selected is A; the window can swap them."),
     "kzalign": ("Align Fermi levels (kz)...",
-             "Fit the Fermi edge of every spectrum of a photon-energy scan, "
-             "shift each one to put its own edge at zero, and crop to the "
-             "energy range they all still cover. Before the kz conversion."),
+             "Put every spectrum of a photon-energy scan on its own Fermi "
+             "level, one of three ways: its edge fitted over a box on the "
+             "slit cut (the default); E_F clicked on the Scan-axis cut, a "
+             "function through the points (one by default, or one per "
+             "segment); or the E_F against hv of a kz map aligned before, as "
+             "a reference. Then crop to the energy range they all still "
+             "cover. Before the kz conversion."),
     "slices3d": ("3D slices...",
              "The three orthogonal planes through the cube drawn in 3-D, "
              "turned with the mouse, each placed where you choose and with "

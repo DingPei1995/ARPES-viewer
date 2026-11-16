@@ -2,7 +2,7 @@
 
 *[中文版 / Chinese version](USER_GUIDE_zh.md) · [Version française](USER_GUIDE_fr.md)*
 
-*Last updated: 13 November 2026 — for ARPES viewer v1.3.4*
+*Last updated: 16 November 2026 — for ARPES viewer v1.3.5*
 
 The version and its date are in the main window's title bar and on its last
 line. Bug reports, questions and the latest version:
@@ -251,12 +251,13 @@ The reader for a file is detected automatically ([§2.2](#22-loading-data)).
 
 | Facility / beamline | Files | Data |
 |---|---|---|
-| SOLEIL **ANTARES** | NeXus `*.nxs` | cuts, deflector maps, photon-energy (PhD) scans, spatial scans |
+| SOLEIL **ANTARES** | NeXus `*.nxs` | cuts, deflector maps, photon-energy (PhD) scans, spatial scans; alignment curves (a sensor against one motor) and focus scans (against two) |
 | SOLEIL **CASSIOPEE** | Scienta text `*.txt` | single spectra; numbered folders assembled into a map or a photon-energy scan |
 | CASSIOPEE **spin end station** (MBS A-1) | `*.krx`, `*.txt` | cuts, deflector maps, spin-resolved EDCs |
 | ALS **MAESTRO** | `*.h5`, `*.hdf5` | cuts, maps, photon-energy and spatial scans |
 | ALBA **LOREA** | `*.nxs` | cuts, maps |
 | Diamond **I05** (HR-ARPES) and **I05-1** (nano-ARPES) | `*.nxs` | cuts, maps, photon-energy scans, spatial scans |
+| Diamond **I09** (EW4000) and **I09-2** (momentum microscope) — untested on a real file | `*.nxs` | EW4000 regions as cuts, maps, photon-energy and spatial scans; momentum-microscope image stacks; XAS and other scans as curves |
 | MAX IV **Bloch** (and any Scienta SES file no other reader claims) | `*.ibw`, `*.zip`, `*.txt` | cuts, deflector maps, photon-energy and manipulator scans |
 | Elettra **APE**, BESSY **One Cube / One Square**, SOLARIS **URANOS** | `*.ibw`, `*.zip`, `*.txt` | as SES writes them |
 | ASTRID2 **SGM4** | `*.h5`, `*.hdf5` | cuts, maps, knife-edge scans |
@@ -1261,6 +1262,30 @@ together.
 E_F against photon energy is plotted. A smooth curve means the fits are
 sound; points whose fit is not believed are marked and filled in from their
 neighbours.
+
+The window offers two more ways to the Fermi levels, chosen at its top:
+
+- **By hand: click E_F on the Scan-axis cut.** Press **Pick E_F on the
+  Scan-axis cut**: the cut of photon energy against energy opens, and each
+  click on it adds a point (hv, E_F) to the table — at several photon
+  energies spread over the scan, ends included. A polynomial through the
+  points (**Order**, 1 by default: a straight line) gives E_F at every photon
+  energy, drawn dashed on the cut. One function over the whole scan is the
+  default; **Segments** > 1 splits the scan, each segment with a function of
+  its own fitted to its own points — where the calibration jumps, at a
+  grating or harmonic change. The breaks are placed so each segment has
+  about as many points, or typed in **Breaks (eV)**. **Align on the
+  function** then shifts, crops and normalises as above.
+- **From a reference: a kz map aligned before** (by any of the three ways),
+  as the Fermi surface correction ([§4.3](#43-fermi-surface-correction))
+  takes a fitted reference. Its E_F against photon energy is interpolated
+  onto this scan's photon energies; spectra outside its range are cut off.
+  Use a reference measured with the same monochromator and analyser
+  settings, with its energy axis on the same scale as this one (both as
+  loaded).
+
+Whichever way was used, the levels are kept with the result and with the
+row aligned, so either can be the next scan's reference.
 
 ## 4.11 Converting a kz map to momentum
 
@@ -2343,7 +2368,13 @@ As with any analysis, check what an agent produced before you use it.
      can read and write files works, and every step is kept as a file.
   2. **MCP**: the AI app calls the program through its MCP server
      (`arpes-viewer-mcp`); with the program started with the agent bridge,
-     `viewer_api` calls the same operations.
+     every operation is also an MCP tool of its own, `op_<name>`
+     (`op_fermi_edge`, `op_kz_align_fermi`, `op_map_to_k` …), its arguments
+     typed and described from the operation itself, so a model calls it in
+     one step; `viewer_api` calls any of them by name. Smaller local models
+     find the right tool far more reliably this way. For an app that limits
+     how many tools a server may have, `ARPES_VIEWER_MCP_TOOLS=compact`
+     leaves the `op_*` tools out.
   3. **Scripts without a screen**: the computations in `arpes_viewer/tools/`
      and the headless workspace, for a script to keep.
 - **Windows.** A window an operation opens only to drive it (a conversion
@@ -2490,7 +2521,8 @@ tool-panel button for the selection — `fermi`, `kcut`, `kmap`, `bz3d`,
 `figure`, `notch3d`, `combine`…), `viewer_windows`, `viewer_screenshot`
 (a picture of any of its windows, so the agent can check what it did),
 `viewer_api_help` and `viewer_api` (the documented operations above: list
-them, call one), `viewer_figure` and `viewer_render_figure` (a figure window in numbers —
+them, call one), the `op_<name>` tools (each operation as a tool of its
+own), `viewer_figure` and `viewer_render_figure` (a figure window in numbers —
 page, frames, titles, levels, text sizes — and written as the PNG it will
 print as), `viewer_close_window` and `viewer_python` (Python run inside the program,
 with `A` = the program's main module — for setting a dialog's fields and
@@ -2699,7 +2731,7 @@ If the program does not start at all, the launcher's log
 ## 8.4 Versions and updates
 
 The title bar and the main panel's last line show the version and its date
-(`ARPES viewer v1.3.4 (updated 2026-11-13)`). What changed in each version,
+(`ARPES viewer v1.3.5 (updated 2026-11-16)`). What changed in each version,
 and why, is in the [CHANGELOG](../CHANGELOG.md).
 
 To update a pip installation:

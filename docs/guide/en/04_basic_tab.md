@@ -353,6 +353,30 @@ E_F against photon energy is plotted. A smooth curve means the fits are
 sound; points whose fit is not believed are marked and filled in from their
 neighbours.
 
+The window offers two more ways to the Fermi levels, chosen at its top:
+
+- **By hand: click E_F on the Scan-axis cut.** Press **Pick E_F on the
+  Scan-axis cut**: the cut of photon energy against energy opens, and each
+  click on it adds a point (hv, E_F) to the table — at several photon
+  energies spread over the scan, ends included. A polynomial through the
+  points (**Order**, 1 by default: a straight line) gives E_F at every photon
+  energy, drawn dashed on the cut. One function over the whole scan is the
+  default; **Segments** > 1 splits the scan, each segment with a function of
+  its own fitted to its own points — where the calibration jumps, at a
+  grating or harmonic change. The breaks are placed so each segment has
+  about as many points, or typed in **Breaks (eV)**. **Align on the
+  function** then shifts, crops and normalises as above.
+- **From a reference: a kz map aligned before** (by any of the three ways),
+  as the Fermi surface correction ([§4.3](#43-fermi-surface-correction))
+  takes a fitted reference. Its E_F against photon energy is interpolated
+  onto this scan's photon energies; spectra outside its range are cut off.
+  Use a reference measured with the same monochromator and analyser
+  settings, with its energy axis on the same scale as this one (both as
+  loaded).
+
+Whichever way was used, the levels are kept with the result and with the
+row aligned, so either can be the next scan's reference.
+
 ## 4.11 Converting a kz map to momentum
 
 Tool panel → Basic → **kz conversion...** converts the scan to (k_z, k∥). It

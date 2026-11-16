@@ -2,7 +2,7 @@
 
 *[English version](USER_GUIDE_en.md) · [Version française](USER_GUIDE_fr.md)*
 
-*最后更新：2026 年 11 月 13 日 —— 适用于 ARPES viewer v1.3.4*
+*最后更新：2026 年 11 月 16 日 —— 适用于 ARPES viewer v1.3.5*
 
 版本号及日期显示在主窗口的标题栏和最下一行。bug 报告、问题和最新版本：
 <https://github.com/DingPei1995/ARPES-viewer>（报告 bug 时请注明版本号）。
@@ -219,12 +219,13 @@ python devtools/figure_tests.py docs/images [存放 .afig 文件的文件夹]
 
 | 线站 | 文件 | 数据 |
 |---|---|---|
-| SOLEIL **ANTARES** | NeXus `*.nxs` | cut、偏转器 map、光子能量（PhD）扫描、空间扫描 |
+| SOLEIL **ANTARES** | NeXus `*.nxs` | cut、偏转器 map、光子能量（PhD）扫描、空间扫描；准直曲线（传感器对一个电机）与聚焦扫描（对两个电机） |
 | SOLEIL **CASSIOPEE** | Scienta 文本 `*.txt` | 单张谱；按编号组成的文件夹自动拼成 map 或光子能量扫描 |
 | CASSIOPEE **自旋端站**（MBS A-1） | `*.krx`、`*.txt` | cut、偏转器 map、自旋分辨 EDC |
 | ALS **MAESTRO** | `*.h5`、`*.hdf5` | cut、map、光子能量扫描与空间扫描 |
 | ALBA **LOREA** | `*.nxs` | cut、map |
 | Diamond **I05**（HR-ARPES）与 **I05-1**（nano-ARPES） | `*.nxs` | cut、map、光子能量扫描、空间扫描 |
+| Diamond **I09**（EW4000）与 **I09-2**（动量显微镜）——尚未用真实文件测试 | `*.nxs` | EW4000 region 读作 cut、map、光子能量扫描与空间扫描；动量显微镜图像堆栈；XAS 等扫描读作曲线 |
 | MAX IV **Bloch**（以及其他读取器都不认领的 Scienta SES 文件） | `*.ibw`、`*.zip`、`*.txt` | cut、偏转器 map、光子能量与样品架扫描 |
 | Elettra **APE**、BESSY **One Cube / One Square**、SOLARIS **URANOS** | `*.ibw`、`*.zip`、`*.txt` | 按 SES 的写法 |
 | ASTRID2 **SGM4** | `*.h5`、`*.hdf5` | cut、map、刀口扫描 |
@@ -1028,6 +1029,23 @@ Fermi–Dirac 函数，起点为文件记录的 E_F，没有记录时取角度�
 
 图中给出 E_F 随光子能量的变化。曲线平滑说明拟合可靠；拟合不可信的点会被标记，
 并用相邻点插值补上。
+
+窗口顶部还可以选择另外两种得到费米能级的方式：
+
+- **手动：在 Scan-axis cut 上点选 E_F。** 按 **Pick E_F on the Scan-axis cut**，
+  打开光子能量对能量的切面；每点击一次就在表格中加入一个点 (hv, E_F)——在扫描范围
+  内的多个光子能量处点选，包括两端。通过这些点的多项式（**Order**，默认 1：直线）
+  给出每个光子能量的 E_F，并以虚线画在切面上。默认是覆盖整个扫描的单一函数；
+  **Segments** > 1 把扫描分段，每段用自己的点拟合自己的函数——用于定标发生跳变处，
+  如换光栅或换谐波。分段点默认使各段点数大致相同，也可在 **Breaks (eV)** 中输入。
+  然后 **Align on the function** 像上面一样平移、裁剪并归一。
+- **参考：一个已对齐过的 kz map**（三种方式中任一种对齐），与费米面校正
+  （[§4.3](#43-费米面校正)）使用已拟合参考的方式相同。参考的 E_F 随光子能量的
+  曲线被插值到本扫描的光子能量上；超出参考范围的谱被去掉。参考应在相同的单色器和
+  分析器设置下测量，能量轴与本扫描同一标度（都按载入时的样子）。
+
+无论用哪种方式，费米能级都会随结果和被对齐的那一行一起保存，二者都可作为下一个
+扫描的参考。
 
 ## 4.11 把 kz map 转换到动量空间
 
@@ -1868,7 +1886,10 @@ AI 智能体（Claude，或任何能读写文件、能调用 MCP 工具的应用
      程序运行它并把输出写到 `<results>/_agent/out/`。任何能读写文件的 AI 应用都可以，每一步都以文件
      形式保留。
   2. **MCP**：AI 应用通过本程序的 MCP 服务器（`arpes-viewer-mcp`）调用；程序以 agent bridge 启动时，
-     `viewer_api` 调用的就是同一套操作。
+     每个操作也是一个独立的 MCP 工具 `op_<名称>`（`op_fermi_edge`、`op_kz_align_fermi`、
+     `op_map_to_k` …），参数类型和说明直接取自操作本身，模型一步即可调用；`viewer_api` 可按名称
+     调用其中任意一个。这样较小的本地模型也能可靠地找到正确的工具。若某个应用限制一个服务器的工具
+     数量，设置 `ARPES_VIEWER_MCP_TOOLS=compact` 即不提供 `op_*` 工具。
   3. **无界面脚本**：`arpes_viewer/tools/` 中的计算和无界面工作区，适合留存的脚本。
 - **窗口。** 操作中仅为驱动而打开的窗口（转换对话框、临时图）不会出现在屏幕上；一步结束时仍打开的窗口
   （图、查看窗口、等你输入的工具）出现在主面板所在的屏幕上，不会打扰你正在使用的另一块屏幕。
@@ -2150,7 +2171,7 @@ L.cut_arithmetic("cut GM LH k", "cut GM LV k", operation="asymmetry", normalise=
 
 ## 8.4 版本与更新
 
-标题栏和主面板最下一行显示版本及日期（`ARPES viewer v1.3.4 (updated 2026-11-13)`）。每个版本改了
+标题栏和主面板最下一行显示版本及日期（`ARPES viewer v1.3.5 (updated 2026-11-16)`）。每个版本改了
 什么、为什么改，见 [CHANGELOG](../CHANGELOG.md)。
 
 更新 pip 安装的版本：

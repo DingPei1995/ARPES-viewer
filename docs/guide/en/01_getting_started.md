@@ -126,12 +126,13 @@ The reader for a file is detected automatically ([§2.2](#22-loading-data)).
 
 | Facility / beamline | Files | Data |
 |---|---|---|
-| SOLEIL **ANTARES** | NeXus `*.nxs` | cuts, deflector maps, photon-energy (PhD) scans, spatial scans |
+| SOLEIL **ANTARES** | NeXus `*.nxs` | cuts, deflector maps, photon-energy (PhD) scans, spatial scans; alignment curves (a sensor against one motor) and focus scans (against two) |
 | SOLEIL **CASSIOPEE** | Scienta text `*.txt` | single spectra; numbered folders assembled into a map or a photon-energy scan |
 | CASSIOPEE **spin end station** (MBS A-1) | `*.krx`, `*.txt` | cuts, deflector maps, spin-resolved EDCs |
 | ALS **MAESTRO** | `*.h5`, `*.hdf5` | cuts, maps, photon-energy and spatial scans |
 | ALBA **LOREA** | `*.nxs` | cuts, maps |
 | Diamond **I05** (HR-ARPES) and **I05-1** (nano-ARPES) | `*.nxs` | cuts, maps, photon-energy scans, spatial scans |
+| Diamond **I09** (EW4000) and **I09-2** (momentum microscope) — untested on a real file | `*.nxs` | EW4000 regions as cuts, maps, photon-energy and spatial scans; momentum-microscope image stacks; XAS and other scans as curves |
 | MAX IV **Bloch** (and any Scienta SES file no other reader claims) | `*.ibw`, `*.zip`, `*.txt` | cuts, deflector maps, photon-energy and manipulator scans |
 | Elettra **APE**, BESSY **One Cube / One Square**, SOLARIS **URANOS** | `*.ibw`, `*.zip`, `*.txt` | as SES writes them |
 | ASTRID2 **SGM4** | `*.h5`, `*.hdf5` | cuts, maps, knife-edge scans |
