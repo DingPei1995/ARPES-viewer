@@ -400,7 +400,7 @@ en haut :
   function** décale, recadre et normalise comme ci-dessus.
 - **Depuis une référence : une carte kz déjà alignée** (de l'une des trois
   façons), comme la correction de surface de Fermi
-  ([§4.3](#43-correction-de-surface-de-fermi)) prend une référence ajustée.
+  ([§4.3](#43-correction-de-la-surface-de-fermi)) prend une référence ajustée.
   Son E_F en fonction de l'énergie de photon est interpolé sur les énergies
   de ce balayage ; les spectres hors de son domaine sont retirés. Prendre
   une référence mesurée avec les mêmes réglages du monochromateur et de
