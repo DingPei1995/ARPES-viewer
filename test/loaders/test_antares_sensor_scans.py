@@ -77,3 +77,57 @@ def test_an_entry_with_no_scan_data_says_so(tmp_path):
     assert row["kind"] == "No data"
     with pytest.raises(ValueError, match="no scan data"):
         registry.load(path, row["entry"])
+
+
+def _mesh_file(path, ny=6, nx=5, nk=4, ne=7):
+    """A PIX x PIY scan in a deflector map's layout, as in a real focus
+    scan: actuators on the grid, the scales per point, data_11 4-D, and
+    the counts (CPS) recorded at each point."""
+    pix = np.linspace(10, 14, nx)
+    piy = np.linspace(-2, 1, ny)
+    rng = np.random.default_rng(3)
+    cube = rng.random((ny, nx, nk, ne)).astype(np.float32)
+    with h5py.File(path, "w") as f:
+        g = _entry(f, "Focus_0001")
+        sd = g.create_group("scan_data")
+        sd["actuator_1_1"] = np.tile(pix, (ny, 1))
+        sd["actuator_1_1"].attrs["long_name"] = "i12-m-cx1/ex/pi/x"
+        sd["actuator_2_1"] = np.tile(piy[:, None], (1, nx))
+        sd["actuator_2_1"].attrs["long_name"] = "i12-m-cx1/ex/pi/y"
+        full = lambda v: np.full((ny, nx), float(v))
+        for key, value in (("data_04", 16.0), ("data_05", 0.5), ("data_06", 19.0),
+                           ("data_07", -3.0), ("data_08", 2.0), ("data_09", 3.0)):
+            sd[key] = full(value)
+        sd["data_11"] = cube
+        _sensor(sd, "data_01", cube.sum(axis=(2, 3)), "cps")
+    return pix, piy, cube
+
+
+def test_a_focus_scan_with_spectra_is_a_spatial_scan_and_its_counts_an_image(tmp_path):
+    path = str(tmp_path / "CapillaryFocusScan.nxs")
+    pix, piy, cube = _mesh_file(path)
+    rows = registry.list_entries(path)
+    assert [(r["entry"], r["kind"]) for r in rows] == [
+        ("Focus_0001", "SPEM"), ("Focus_0001#data_01", "Cut")]
+    with registry.load(path, "Focus_0001") as scan:
+        assert scan.kind == "spem_4d"
+        np.testing.assert_allclose(scan.x, pix)
+        np.testing.assert_allclose(scan.y, piy)
+        np.testing.assert_allclose(scan.k, [-3, -1, 1, 3])
+        np.testing.assert_allclose(scan.z, np.arange(16.0, 19.01, 0.5))
+        np.testing.assert_array_equal(scan.value4d[2, 3], cube[2, 3])
+        assert scan.labels["x"].startswith("PIX")
+    with registry.load(path, "Focus_0001#data_01") as scan:
+        assert scan.kind == "cut" and scan.info["scan.sensor"] == "cps"
+        np.testing.assert_allclose(scan.value, cube.sum(axis=(2, 3)).T, rtol=1e-6)
+
+
+def test_the_focus_scan_opens_in_the_program(tmp_path, qapp):
+    from arpes_viewer.ui.viewers.widgets import NxsData
+    path = str(tmp_path / "CapillaryFocusScan.nxs")
+    _mesh_file(path)
+    data = NxsData.acquire(path, "Focus_0001")
+    try:
+        assert data.kind == "spem_4d"
+    finally:
+        data.close()

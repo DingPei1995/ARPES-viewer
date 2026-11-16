@@ -199,6 +199,18 @@ with your own code); ``max_points`` thins what is returned.
 Open the row's viewer window on screen (as a double-click does).
 Returns the window's title.
 
+#### `L.stack_curves(name, direction='edc', count=12, combine=1, positions=None, limits=None, normalise='none', figure=False, new_name='')`
+
+Stack plot (tool panel, Stack plot): ``count`` EDCs
+(``direction`` "edc", each at one angle or k) or MDCs ("mdc", each
+at one energy) across a cut, evenly between ``positions`` (lo, hi)
+on the axis across them, each the sum of ``combine`` neighbouring
+lines, trimmed to ``limits`` (lo, hi) along its own axis,
+``normalise`` "none", "area" or "max". Adds them as one curve row
+(a channel per curve, named by its position); ``figure`` also puts
+the waterfall in a new figure composer. Returns the row (and the
+figure's title).
+
 ### Energy
 
 #### `L.fermi_edge(name, energy_window=None, temperature=30.0, ranges=None, fit_temperature=False, picture='')`
@@ -273,6 +285,17 @@ off). A map (or kz map) is corrected whole, along its slit. Before
 the k conversion. Returns the new row (and, by hand, the polynomial,
 highest power first, and the number of points).
 
+#### `L.core_levels(name, elements, fermi_level=None, photon_energy=None, work_function=None, sensitivity=None)`
+
+Core-level check (tool panel, Core-level check): which element
+and orbital each peak of the angle-integrated EDC of a cut (or an
+EDC row) is, against tabulated binding energies. ``elements`` are
+the sample's ("Bi2Se3", "Bi Se", ["Bi", "Se"]); E_F is found on the
+data, or given as ``fermi_level`` on the row's energy axis;
+``photon_energy`` and ``work_function`` default to the metadata's.
+Returns the peaks with their assignments, the sample's lines with no
+peak, a suggested energy shift, and the report as text.
+
 ### Processing
 
 #### `L.crop(name, bounds, new_name='')`
@@ -341,6 +364,20 @@ lines, e.g. the energy of an MDC). ``background`` "none",
 and ``temperature``. ``bounds`` (lo, hi) limits the lines;
 ``step`` takes every n-th. Returns per band the positions, centres,
 their errors and widths (and writes them to ``save_csv``).
+
+#### `L.detector_correction(name, keystone=None, regions=None, find_bad=False, method='smooth (harmonic)', conserve=True, threshold=0.3, new_name='')`
+
+Detector corrections (tool panel, Detector corrections), on the
+detector's own pixels -- a cut, or every (slit, energy) slice of a
+map or kz map: ``keystone``, four (angle, energy) corners of the
+trapezoidal image, made a rectangle (``conserve`` keeps each line's
+counts); ``regions``, rectangles [x0, x1, y0, y1] (angle, energy) of
+dead or bad pixels, patched from their surroundings by ``method``
+("linear along x", "linear along y", "smooth (harmonic)"); or
+``find_bad`` to find them (pixels off their neighbourhood's median
+by more than ``threshold``). Before a de-grid's neighbours, a k
+conversion or a Fermi-surface correction. Returns the new row and
+the regions patched.
 
 #### `L.derivative(name, axis=1, order=2, window=None, new_name='')`
 
@@ -468,6 +505,48 @@ the contour (and the area series) as curve rows.
 
 ### Crystal and Brillouin zone
 
+#### `L.crystal_picture(path, cif='', space_group=None, cell=None, atoms=None, repeats=(1, 1, 1), plane_hkl=None, plane_height=None, view='', size=(1200, 900), figure=False)`
+
+The crystal structure in real space (tool panel, Crystal
+structure) as a picture written to ``path``: from a ``cif`` file,
+or typed in -- ``space_group`` (1-230), ``cell`` (a, b, c, alpha,
+beta, gamma; what the group fixes may be None) and ``atoms``
+[(element, x, y, z), ...] in fractional coordinates, expanded by
+the group's operations. ``repeats`` cells along a, b, c;
+``plane_hkl`` (h, k, l) draws a cleavage plane at ``plane_height``
+(fraction of its range); ``view`` "a", "b", "c" or "" (oblique).
+``figure`` also puts it in a new figure composer. Returns the
+file, the formula's atoms and the cell. Never overwrites ``path``.
+
+#### `L.tight_binding_fit(points=None, points_file='', *, a=None, b=None, gamma=90.0, vectors=None, shells=2, bands=1, shells_b=None, hybrid=0, azimuth_deg=0.0, fit_azimuth=False, t1=None)`
+
+Tight-binding fit (tool panel, Tight-binding fit) of
+E(k) = e0 + sum over shells of t x sum cos(k.R) to band points:
+``points`` [(kx, ky, E), ...] or [(kx, ky, kz, E), ...] in Å⁻¹ and
+eV, or ``points_file`` (CSV with kx, ky[, kz], E columns -- what
+ridges(save_csv=...) and the ridge window write). The lattice: a 2-D
+one by ``a``, ``b`` (default a) and ``gamma`` (degrees), or the
+real-space primitive ``vectors`` (rows, Å). ``shells`` of
+neighbours; ``bands`` 2 fits two hybridised bands (``shells_b``,
+``hybrid`` coupling shells; a file's branch column says which
+point is which). ``azimuth_deg`` turns the lattice against the
+data's axes, ``fit_azimuth`` fits it; ``t1`` holds the first
+hopping (needed for points of one energy). Returns the parameters
+with their errors and the rms misfit.
+
+#### `L.calculated_bands(file, name='', direction_deg=0.0, kz=None, hv=None, inner_potential=12.0, work_function=4.4, k_offset=0.0, fit_z=True, spectrum=False, new_name='')`
+
+Calculated bands (tool panel, Calculated bands) over a measured
+cut in momentum: the calculation ``file`` (.bxsf grid, Wannier90
+_hr.dat, ...) cut along ``direction_deg`` from k_x on the k_z plane
+``kz`` -- or on the surface photon energy ``hv`` measures (with
+``inner_potential``, ``work_function``) -- at the cut ``name``'s
+momenta (+ ``k_offset``). Band points traced on the cut give the
+renormalisation Z (``fit_z``) and the rigid shift, E_meas = Z E_calc
++ shift. ``spectrum`` lists the aligned calculation as a cut on the
+same grid. Without ``name``: the bands along a straight cut from
+-1 to 1 Å⁻¹. Returns Z, the shift, their errors and the bands.
+
 #### `L.brillouin_zone(space_group, a, b=None, c=None, alpha=90.0, beta=90.0, gamma=None)`
 
 The zone's high-symmetry points (Cartesian, Å⁻¹) and the
@@ -502,6 +581,21 @@ labels sized for a ``panel_mm`` wide panel at ``text_pt`` if given.
 Never overwrites ``path``.
 
 ### Figures
+
+#### `L.view3d(name, path, mode='slices', positions=None, corner=None, projection=None, stack_axis=2, stack_positions=None, marks=None, azimuth=None, elevation=None, colormap=None, levels=None, size=(900, 700), figure=False, keep_open=False)`
+
+A 3-D picture of a map (tool panel, 3D slices / Notched cube /
+Volume projection / Stacked slices), written to ``path`` (.png,
+.pdf, .svg). ``mode`` "slices", "notch", "projection" or "stack";
+``positions`` one per axis (data units; None leaves it) -- the
+slices, or the notch's corner point; ``corner`` the index of the
+corner removed; ``projection`` "Maximum intensity", "Sum along the
+view", "Alpha composite" or "Isosurface (shaded)"; for "stack",
+``stack_axis`` and ``stack_positions``, and ``marks`` [(x, y, E),
+...] a curve through the layers; ``azimuth``/``elevation`` the
+camera (degrees); ``colormap``, ``levels`` (lo, hi). ``figure`` also
+adds the view to a new figure composer; ``keep_open`` leaves the
+window on screen. Never overwrites ``path``.
 
 #### `L.slice_series(name, values, *, axis=2, half_width=0.0, cols=3, nominal_titles=True, shared=True, colormap=None, flip=None, percentiles=(0.0, 100.0), gamma=1.0, zone=True, zone_style='solid', title='', high_factor=1.0, zone_color=None, zone_width=0.6)`
 
@@ -722,11 +816,13 @@ The tool panel's buttons, for what has no operation of its own above. The window
 - **`op_picture`** -- [Looking at data] Write a picture of ``y`` against ``x`` (axis labels, indices, or "energy") to the PNG ``path``, integrating the other axes over ``ranges`` ({axis: (lo, hi)}); for looking at data without reading the screen. Returns what was drawn. (Needs the program open with --agent-bridge.)
 - **`op_profile`** -- [Looking at data] An EDC or MDC as numbers: the values along one axis, the others integrated over ``ranges`` ({axis: (lo, hi)}). Hundreds of numbers cost many tokens: ``summary=True`` gives only the axis range and step, the maximum (where), the minimum, and the steepest fall and rise; ``path`` writes the whole curve to a CSV file (then read it with your own code); ``max_points`` thins what is returned. (Needs the program open with --agent-bridge.)
 - **`op_open`** -- [Looking at data] Open the row's viewer window on screen (as a double-click does). Returns the window's title. (Needs the program open with --agent-bridge.)
+- **`op_stack_curves`** -- [Looking at data] Stack plot (tool panel, Stack plot): ``count`` EDCs (``direction`` "edc", each at one angle or k) or MDCs ("mdc", each at one energy) across a cut, evenly between ``positions`` (lo, hi) on the axis across them, each the sum of ``combine`` neighbouring lines, trimmed to ``limits`` (lo, hi) along its own axis, ``normalise`` "none", "area" or "max". Adds them as one curve row (a channel per curve, named by its position); ``figure`` also puts the waterfall in a new figure composer. Returns the row (and the figure's title). (Needs the program open with --agent-bridge.)
 - **`op_fermi_edge`** -- [Energy] Fit the Fermi edge of the EDC summed over ``ranges`` of the other axes, within ``energy_window`` (lo, hi) on the row's own energy axis. The temperature is held unless ``fit_temperature``. Returns E_F, the resolution, their errors and the reduced chi2; a fit that finds no edge (normalised data, a window without the edge) is refused with the reason, the row's energy axis, and where the curve falls fastest. Each row has its own energy axis: choose the window per row (``fermi_edge_search`` lists the candidate edges), never reuse another row's. ``picture`` writes a PNG of the EDC, the window and the fitted curve -- for the person to check, also when the fit is refused. (Needs the program open with --agent-bridge.)
 - **`op_fermi_edge_search`** -- [Energy] Find where the Fermi edge may be on a row's own energy axis, for choosing the window of ``fermi_edge``: the drops of the EDC (summed over ``ranges``, raw data) that stand clearly above the noise, highest energy first. The Fermi edge is the *last* drop, after which the intensity stays at the floor -- not the steepest one: a band edge, or the strong drop under a weak tail of pass-energy-20 data, can be steeper. With ``fit`` each candidate is fitted on its ``window`` and judged (E_F inside the window, a real step, a resolution, chi2). Returns the axis, the candidates and advice: when two fit well, the data cannot decide -- ask the person, once, and apply the answer to the rows of the same photon and pass energy. (Needs the program open with --agent-bridge.)
 - **`op_shift_energy`** -- [Energy] A copy on E - E_F: ``ef`` (on the row's own energy axis) is subtracted. Returns the new row's name. (Needs the program open with --agent-bridge.)
 - **`op_kz_align_fermi`** -- [Energy] Align a photon-energy scan (kz map) on its Fermi level (tool panel, Align Fermi levels (kz)), one of three ways: * ``angle_range``/``energy_range`` (lo, hi, inclusive indices of the slit cut): one Fermi-edge fit per photon energy over that box (``temperature``, ``hold_temperature``); * ``points``, [(hv, E_F), ...] read off the Scan-axis cut (photon energy against energy) where the edge is: a polynomial of ``order`` through them gives E_F(hv) -- one function over the scan by default, or ``segments`` > 1 functions, each fitted to its own points, split at ``breaks`` (photon energies; automatic when None); * ``reference``, another kz map aligned before (any way): its E_F(hv) interpolated onto this scan; spectra outside its photon energies are cut off. Each spectrum is shifted to put its own E_F at zero, cropped to the common range, optionally normalised by its total. Adds the aligned row (E_F per hv kept in ``kz.fermi_level_eV``, which the kz conversion's hv calibration uses, and as a reference for later scans). Returns the new row and the Fermi levels. (Needs the program open with --agent-bridge.)
 - **`op_fs_correction`** -- [Energy] Fermi-surface correction (tool panel, Basic). Either by hand: ``points``, [(angle, E), ...] on the Fermi edge in the row's own units (at least ``order`` + 1); a polynomial of ``order`` through them is flattened, every angle column shifted. Or from a ``reference``: another row whose Fermi edge has been fitted (``fermi_edge``, or the Fermi edge fit tool), its fit applied -- ``mode="offset"``, the energy axis shifted by its E_F; ``mode="channels"``, every channel on its own E - E_F from its channel-by-channel fit (blank borders and unfitted channels cut off). A map (or kz map) is corrected whole, along its slit. Before the k conversion. Returns the new row (and, by hand, the polynomial, highest power first, and the number of points). (Needs the program open with --agent-bridge.)
+- **`op_core_levels`** -- [Energy] Core-level check (tool panel, Core-level check): which element and orbital each peak of the angle-integrated EDC of a cut (or an EDC row) is, against tabulated binding energies. ``elements`` are the sample's ("Bi2Se3", "Bi Se", ["Bi", "Se"]); E_F is found on the data, or given as ``fermi_level`` on the row's energy axis; ``photon_energy`` and ``work_function`` default to the metadata's. Returns the peaks with their assignments, the sample's lines with no peak, a suggested energy shift, and the report as text. (Needs the program open with --agent-bridge.)
 - **`op_crop`** -- [Processing] Cut out a box: ``bounds`` is one (lo, hi) per axis in the axes' own units, None for "to the end". Returns the new row. (Needs the program open with --agent-bridge.)
 - **`op_bin`** -- [Processing] Sum blocks of neighbouring points: one factor per axis (1 keeps it). Counts are preserved. Returns the new row. (Needs the program open with --agent-bridge.)
 - **`op_normalise`** -- [Processing] Divide the data by its own intensity: every line along axis ``axes`` (an index; 1 = energy for a cut) by that line's total, or every plane spanned by two axes (``axes=(0, 1)``) by its total; the sums taken inside ``window`` (lo, hi, on the first of them) if given; ``to_peak`` divides by the maximum. Never before a Fermi fit: fit the raw data first. For a map (axes 0 = deflector/polar, 1 = slit, 2 = energy): ``axes=(1, 2)`` divides every cut of the map (one slit x energy plane per deflector angle) by its own total -- what evens out the intensity from cut to cut; ``axes=2`` divides every EDC by its total; ``axes=(0, 1)`` every constant-energy plane. ``map_to_k`` can do the E - E_F shift and this in the same call (``ef``, ``normalise_axes``) so no intermediate rows are listed. (Needs the program open with --agent-bridge.)
@@ -734,6 +830,7 @@ The tool panel's buttons, for what has no operation of its own above. The window
 - **`op_degrid`** -- [Processing] Remove the detector's grid pattern (tool panel, Remove detector grid): a map or kz map with the grid fitted on the map itself, a cut by notching its own grid peaks. Before a k conversion or a Fermi-surface correction. Returns the new row and the grid power before and after (1 = no more than noise). (Needs the program open with --agent-bridge.)
 - **`op_ridges`** -- [Processing] Ridge detection (tool panel, Ridge detection): the bands as the ridges of the smoothed intensity (``kind`` "max"; "min" for valleys), ``sigma_x``/``sigma_y`` the smoothing widths in the axes' units (default two steps), ridges flatter than ``threshold`` of the sharpest dropped. A cut, or a map plane by plane at constant energy. Adds the ridge image as a row; the points (x, y, strength; a map's with the energy first) go to ``save_csv`` if given. Returns the row and the number of points. (Needs the program open with --agent-bridge.)
 - **`op_line_fit`** -- [Processing] Fit a cut line by line (tool panel, MDC fit / EDC fit): ``direction`` "mdc" (each line at one energy, the peaks' centres in angle or k) or "edc" (each line at one angle or k, centres in energy). ``bands`` is a list of {"name", "seeds": [[position, centre, width], ...], "shape": "lorentzian"|"gaussian"|"voigt"}: a seed says where the band is at one line (``position`` along the lines, e.g. the energy of an MDC). ``background`` "none", "constant", "linear" or "shirley"; ``resolution`` Gaussian FWHM; ``fermi`` multiplies an EDC model by the Fermi function at ``ef`` and ``temperature``. ``bounds`` (lo, hi) limits the lines; ``step`` takes every n-th. Returns per band the positions, centres, their errors and widths (and writes them to ``save_csv``). (Needs the program open with --agent-bridge.)
+- **`op_detector_correction`** -- [Processing] Detector corrections (tool panel, Detector corrections), on the detector's own pixels -- a cut, or every (slit, energy) slice of a map or kz map: ``keystone``, four (angle, energy) corners of the trapezoidal image, made a rectangle (``conserve`` keeps each line's counts); ``regions``, rectangles [x0, x1, y0, y1] (angle, energy) of dead or bad pixels, patched from their surroundings by ``method`` ("linear along x", "linear along y", "smooth (harmonic)"); or ``find_bad`` to find them (pixels off their neighbourhood's median by more than ``threshold``). Before a de-grid's neighbours, a k conversion or a Fermi-surface correction. Returns the new row and the regions patched. (Needs the program open with --agent-bridge.)
 - **`op_derivative`** -- [Processing] The (negated) ``order``-th derivative along ``axis`` (index), by local polynomial fit over ``window`` (axis units). Returns the new row. (Needs the program open with --agent-bridge.)
 - **`op_curvature`** -- [Processing] Curvature of a 2-D cut or map plane: ``mode`` "2d" (isotropic), "x" or "y" (one-dimensional along that axis); ``a0`` the dimensionless free parameter. Returns the new row. (Needs the program open with --agent-bridge.)
 - **`op_minimum_gradient`** -- [Processing] The minimum-gradient picture of a cut, or of every constant-energy plane of a map: bands are where the intensity's gradient is smallest. ``form`` "ratio" is I/|grad I| (the usual one: slow intensity changes cancel, empty regions stay dark), "inverse" 1/|grad I|, "modulus" |grad I| itself (bands dark). ``floor`` caps the brightness of flat patches (a fraction of the gradient's RMS; lower it on smoothed data); ``ratio`` above 1 weighs the second axis less. First derivatives only, so less noisy than ``derivative`` or ``curvature`` -- but smooth noisy data first (``smooth``). A picture to find bands on, not a quantity: take numbers from a fit. Returns the new row. (Needs the program open with --agent-bridge.)
@@ -744,10 +841,14 @@ The tool panel's buttons, for what has no operation of its own above. The window
 - **`op_map_to_k`** -- [Momentum] An angle map in momentum, (kx, ky, E) (k conversion, map): Γ at deflector/polar ``gamma_deflector_deg`` and slit ``gamma_slit_deg``, turned by ``azimuth_deg``. Convert a map already on E - E_F, so the result is too -- or give ``ef`` (the fitted E_F on the row's own axis) and, if wanted, ``normalise_axes`` ((1, 2): every cut of the map by its own total), and the shift, the normalisation and the conversion are one call that lists only the k-map. The kx grid defaults to twice the scanned angles, at most 100 points (never fewer than the scan has): one point per scan step gives streaks; ky to the slit's points. Returns the new row (a k-map). (Needs the program open with --agent-bridge.)
 - **`op_kz_to_k`** -- [Momentum] A photon-energy scan (on E - E_F) in (k_z, k//, E), as the kz conversion window does it. Give ``inner_potential`` (V0, eV), or ``gamma_hv``: the photon energy at which normal emission passes through Γ, from which V0 is set. The lattice decides the zone and the period; ``surface_hkl`` the surface normal; k// runs along a* (or the first reciprocal axis not along the normal) turned by ``kpar_rotation_deg``. ``theta_offset_deg`` only to correct a manipulator offset from Γ; ``calibrate_hv`` uses each photon energy's fitted E_F (after kz_align_fermi). Grid: from the measurement unless given. Returns the new row, V0 and the k ranges. (Needs the program open with --agent-bridge.)
 - **`op_fermi_pocket`** -- [Momentum] UNDER TEST, and ONLY FOR QUASI-TWO-DIMENSIONAL SAMPLES (surface states, layered materials with negligible k_z dispersion): for a three-dimensional Fermi surface the area of a contour in one map is not a carrier density -- ask the person which it is, and say so with the numbers. The contour of one Fermi pocket of a k-map (``name``) and its area: rays from ``centre`` (kx, ky; any point inside the pocket) find the band between ``r_min`` and ``r_max`` (a ring holding this band only), on the plane at ``energy`` +- ``half_width`` (default: E_F = ``ef``, the map's own energy step and a half). The contour is a Fourier series up to ``harmonics``, with an n-fold ``symmetry`` about the centre if given; ``recentre`` moves the centre to the contour's middle and traces again. Returns ``area`` (A^-2) and ``area_error`` (statistical only), ``k_f`` and its extremes, ``rays_kept`` of ``rays`` (many dropped: look at the ``picture`` and close the ring), and for a quasi-2D sample ``density`` (cm^-2, ``spin`` states per k, ``pockets`` equivalent pockets in the zone), ``frequency`` (T, of quantum oscillations), and with ``cell`` = (a, b, gamma_deg) of the plane ``zone_fraction`` and ``per_cell (Needs the program open with --agent-bridge.)
+- **`op_crystal_picture`** -- [Crystal and Brillouin zone] The crystal structure in real space (tool panel, Crystal structure) as a picture written to ``path``: from a ``cif`` file, or typed in -- ``space_group`` (1-230), ``cell`` (a, b, c, alpha, beta, gamma; what the group fixes may be None) and ``atoms`` [(element, x, y, z), ...] in fractional coordinates, expanded by the group's operations. ``repeats`` cells along a, b, c; ``plane_hkl`` (h, k, l) draws a cleavage plane at ``plane_height`` (fraction of its range); ``view`` "a", "b", "c" or "" (oblique). ``figure`` also puts it in a new figure composer. Returns the file, the formula's atoms and the cell. Never overwrites ``path``. (Needs the program open with --agent-bridge.)
+- **`op_tight_binding_fit`** -- [Crystal and Brillouin zone] Tight-binding fit (tool panel, Tight-binding fit) of E(k) = e0 + sum over shells of t x sum cos(k.R) to band points: ``points`` [(kx, ky, E), ...] or [(kx, ky, kz, E), ...] in Å⁻¹ and eV, or ``points_file`` (CSV with kx, ky[, kz], E columns -- what ridges(save_csv=...) and the ridge window write). The lattice: a 2-D one by ``a``, ``b`` (default a) and ``gamma`` (degrees), or the real-space primitive ``vectors`` (rows, Å). ``shells`` of neighbours; ``bands`` 2 fits two hybridised bands (``shells_b``, ``hybrid`` coupling shells; a file's branch column says which point is which). ``azimuth_deg`` turns the lattice against the data's axes, ``fit_azimuth`` fits it; ``t1`` holds the first hopping (needed for points of one energy). Returns the parameters with their errors and the rms misfit. (Needs the program open with --agent-bridge.)
+- **`op_calculated_bands`** -- [Crystal and Brillouin zone] Calculated bands (tool panel, Calculated bands) over a measured cut in momentum: the calculation ``file`` (.bxsf grid, Wannier90 _hr.dat, ...) cut along ``direction_deg`` from k_x on the k_z plane ``kz`` -- or on the surface photon energy ``hv`` measures (with ``inner_potential``, ``work_function``) -- at the cut ``name``'s momenta (+ ``k_offset``). Band points traced on the cut give the renormalisation Z (``fit_z``) and the rigid shift, E_meas = Z E_calc + shift. ``spectrum`` lists the aligned calculation as a cut on the same grid. Without ``name``: the bands along a straight cut from -1 to 1 Å⁻¹. Returns Z, the shift, their errors and the bands. (Needs the program open with --agent-bridge.)
 - **`op_brillouin_zone`** -- [Crystal and Brillouin zone] The zone's high-symmetry points (Cartesian, Å⁻¹) and the reciprocal vectors, for a space group and cell; the parameters the space group fixes are set by it. (Needs the program open with --agent-bridge.)
 - **`op_read_cif`** -- [Crystal and Brillouin zone] A CIF file's cell, space group and atom sites. (Needs the program open with --agent-bridge.)
 - **`op_bz_overlay`** -- [Crystal and Brillouin zone] Draw the Brillouin zone on a k-map (or a converted kz map) and keep it with the row, as BZ overlap does: the cut of the 3-D zone by the plane normal to ``hkl`` at ``offset`` (Å⁻¹ along it), turned by ``azimuth_deg``; for a kz map, ``hkl`` is the surface normal and ``kpar_hkl`` the k// direction. ``layer_2d`` uses a plane lattice (a, b, gamma) instead. The zone then goes into slice series and exports. Returns what was drawn. (Needs the program open with --agent-bridge.)
 - **`op_bz3d_picture`** -- [Crystal and Brillouin zone] A picture of the 3-D Brillouin zone (the 3D BZ window), for a schematic panel: ``planes`` as (h, k, l, height) with height in units of the reciprocal vector (0 through Γ, 0.5 the zone top); ``paths`` like "G-M-K-G"; axes in the crystal frame (k_a, k_b, k_c) or, with ``frame="sample"``, the data's (k_x, k_y, k_z: k_z along ``surface_hkl``, k_x turned by ``azimuth_deg``); ``view`` "oblique", an axis name or a vector; ``labels`` True (every high-symmetry point), False (none) or the ones to show ("G, L" or ["Γ", "L"]); labels sized for a ``panel_mm`` wide panel at ``text_pt`` if given. Never overwrites ``path``. (Needs the program open with --agent-bridge.)
+- **`op_view3d`** -- [Figures] A 3-D picture of a map (tool panel, 3D slices / Notched cube / Volume projection / Stacked slices), written to ``path`` (.png, .pdf, .svg). ``mode`` "slices", "notch", "projection" or "stack"; ``positions`` one per axis (data units; None leaves it) -- the slices, or the notch's corner point; ``corner`` the index of the corner removed; ``projection`` "Maximum intensity", "Sum along the view", "Alpha composite" or "Isosurface (shaded)"; for "stack", ``stack_axis`` and ``stack_positions``, and ``marks`` [(x, y, E), ...] a curve through the layers; ``azimuth``/``elevation`` the camera (degrees); ``colormap``, ``levels`` (lo, hi). ``figure`` also adds the view to a new figure composer; ``keep_open`` leaves the window on screen. Never overwrites ``path``. (Needs the program open with --agent-bridge.)
 - **`op_slice_series`** -- [Figures] A page of slices through a map (Slice series figure): one panel per value along ``axis`` (2 = energy), each the planes within ``half_width``, titled with the value asked for; colour map, levels (each panel's ``percentiles``, the span stretched by ``high_factor`` so the strongest intensity is not saturated; ``shared=False`` keeps each panel's own), gamma at creation; the row's Brillouin zone on constant-energy panels, in ``zone_style`` ("solid", "dashed"), ``zone_color`` ("#RRGGBB", or "#AARRGGBB" for a see-through line, e.g. "#B8D62020") and ``zone_width`` (pt). Several maps side by side: ``slice_grid``. Returns the figure in numbers (its title names it for the other figure operations). (Needs the program open with --agent-bridge.)
 - **`op_slice_grid`** -- [Figures] One figure of the same slices through several maps: a column per map (``names``; ``column_titles`` to name them, e.g. "LH", "LV"), a row per value along ``axis`` (2 = energy) -- a polarisation or temperature series. Each panel is titled "<column>, <value> <unit>"; colour, levels, gamma and the Brillouin zone as in ``slice_series``. Returns the figure in numbers. (Needs the program open with --agent-bridge.)
 - **`op_figure_from`** -- [Figures] A figure composer with these rows as panels (as "Plot as figure"). Returns the figure in numbers. (Needs the program open with --agent-bridge.)

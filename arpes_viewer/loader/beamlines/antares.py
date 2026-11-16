@@ -617,11 +617,80 @@ def _measured_part(values):
     return values[:int(np.nonzero(real)[0][-1]) + 1]
 
 
+#: The datasets of a case-3 and a case-4 entry that are the analyser's: its
+#: energy and slit scales and its image. The rest of scan_data, in a mesh,
+#: is the sensors recorded at each point (CPS, a current ...).
+CASE_DATASETS = {
+    3: ("data_01", "data_02", "data_03", "data_04", "data_05", "data_06", "data_09"),
+    4: ("data_04", "data_05", "data_06", "data_07", "data_08", "data_09", "data_11"),
+}
+
+
+def _is_mesh(f: h5py.File, g: str, case: int) -> bool:
+    """A case-3/4 entry whose image is 4-D: a spectrum at every point of a
+    two-motor grid (PIX x PIY), not a deflector map."""
+    if case not in CASE_DATASETS:
+        return False
+    item = f.get(f"{g}/scan_data/{CASE_DATASETS[case][-1]}")
+    return isinstance(item, h5py.Dataset) and item.ndim == 4
+
+
+def _parse_mesh(f: h5py.File, g: str, e_idx: tuple, x_idx: tuple,
+                v_idx: str) -> NxsScan:
+    """A spatial scan recorded in a deflector map's layout: the actuators
+    on the whole ``(outer, inner)`` grid, a spectrum at every point,
+    ``v_idx`` shaped ``(outer, inner, slit, energy)``. Opens as
+    ``spem_4d``, left in the file."""
+    ds = f[f"{g}/scan_data/{v_idx}"]
+
+    def scale(name, what):
+        return scalar0(_measured_part(f[f"{g}/scan_data/{name}"][()]),
+                       f"{name} ({what})")
+
+    escale = inclusive_range(scale(e_idx[0], "escalemin"), scale(e_idx[1], "escalemult"),
+                             scale(e_idx[2], "escalemax"))
+    xscale = inclusive_range(scale(x_idx[0], "xscalemin"), scale(x_idx[1], "xscalemult"),
+                             scale(x_idx[2], "xscalemax"))
+    k_dim = next((d for d in (2, 3, 1, 0) if ds.shape[d] == xscale.size), None)
+    e_dim = next((d for d in (3, 2, 1, 0) if ds.shape[d] == escale.size
+                  and d != k_dim), None)
+    if k_dim is None or e_dim is None:
+        raise ValueError(
+            f"{v_idx}: shape {ds.shape} does not match {xscale.size} slit "
+            f"channels and {escale.size} energies")
+    grid_dims = [d for d in range(4) if d not in (k_dim, e_dim)]
+    shape = tuple(int(ds.shape[d]) for d in grid_dims)
+    actuators = _scan_actuators(f, g, shape)
+    if actuators is None:
+        actuators = [("Scan point", "", np.arange(n, dtype=float)) for n in shape]
+    (y_name, y_unit, y), (x_name, x_unit, x) = actuators
+    scan = NxsScan(kind="spem_4d", filename_prefix="SPEM_")
+    scan.x, scan.y = np.asarray(x, float), np.asarray(y, float)
+    scan.k, scan.z = xscale, escale
+    scan.value4d = LazyCube(ds, tuple(grid_dims) + (k_dim, e_dim))
+    scan.value = None
+    scan.labels = {
+        "x": _axis_title(x_name, x_unit),
+        "y": _axis_title(y_name, y_unit),
+        "k": f"Angle along slit ({ANGLE_UNIT})",
+        "z": f"Energy ({ENERGY_UNIT})",
+    }
+    scan.info.update({"Spatial.X_actuator": x_name, "Spatial.Y_actuator": y_name})
+    scan.info.update(antares_spatial_orientation(x_name, y_name))
+    scan.info["scan.layout"] = (
+        f"a spatial scan in a deflector map's layout ({v_idx} shaped "
+        f"{tuple(ds.shape)}): a spectrum at every point of the "
+        f"{shape[0]} x {shape[1]} grid")
+    return scan
+
+
 def _parse_case34(f: h5py.File, g: str, e_idx: tuple, x_idx: tuple, v_idx: str) -> NxsScan:
     """``e_idx``/``x_idx`` are the ('data_NN','data_NN','data_NN') triplets
     for (escale) and (xscale) that differ between case 3 (01-03 / 04-06) and
     case 4 (04-06 / 07-09); ``v_idx`` is the value dataset name (data_09 /
     data_11)."""
+    if f[f"{g}/scan_data/{v_idx}"].ndim == 4:
+        return _parse_mesh(f, g, e_idx, x_idx, v_idx)
     deflx = squeeze_to_1d(f[f"{g}/scan_data/actuator_1_1"][()], "actuator_1_1 (deflx)")
 
     def scale(name, what):
@@ -736,24 +805,24 @@ def _short_name(name: str) -> str:
     return parts[-1] if parts else str(name or "")
 
 
-def _sensor_layout(f: h5py.File, g: str):
+def _sensor_layout(f: h5py.File, g: str, skip=()):
     """``(shape, actuators, sensors)`` of an entry whose ``scan_data``
     holds one number per scan point for every sensor, else None.
 
     ``actuators`` is ``[(name, unit, positions)]``, outer (slow) first,
     ``positions`` one per step of that dimension; ``sensors`` is
-    ``[(dataset name, label)]``. Reads only shapes and the actuators."""
+    ``[(dataset name, label)]``. ``skip`` names datasets left out (the
+    analyser's scales and image, in a spectral scan whose other sensors
+    are listed as images). Reads only shapes and the actuators."""
     sd = f"{g}/scan_data"
     group = f.get(sd)
     if not isinstance(group, h5py.Group):
         return None
-    actuator_keys = sorted(k for k in group.keys()
-                           if re.match(r"^actuator_\d+_1$", k)
-                           and isinstance(group[k], h5py.Dataset))
     sensor_keys = [k for k in group.keys() if not _NOT_SENSORS.match(k)
+                   and k not in skip
                    and isinstance(group[k], h5py.Dataset)
                    and np.issubdtype(group[k].dtype, np.number)]
-    if not actuator_keys or not sensor_keys:
+    if not sensor_keys:
         return None
     shapes = {tuple(int(n) for n in group[k].shape) for k in sensor_keys}
     shapes = {tuple(n for n in s if n != 1) or (1,) for s in shapes}
@@ -761,6 +830,30 @@ def _sensor_layout(f: h5py.File, g: str):
         return None
     shape = shapes.pop()
     if not 1 <= len(shape) <= 2 or int(np.prod(shape)) < 2:
+        return None
+    by_dim = _scan_actuators(f, g, shape)
+    if by_dim is None:
+        return None
+    sensors = []
+    for key in sorted(sensor_keys):
+        label = _attr_text(group[key], "long_name", "alias", "name") or key
+        sensors.append((key, _short_name(label) if "/" in label else label))
+    return shape, by_dim, sensors
+
+
+def _scan_actuators(f: h5py.File, g: str, shape: tuple):
+    """``[(name, unit, positions)]``, one per dimension of a scan of
+    ``shape`` (outer first), from ``scan_data/actuator_N_1`` -- recorded
+    as a vector or on the whole grid; None if there are none or one fits
+    nowhere."""
+    sd = f"{g}/scan_data"
+    group = f.get(sd)
+    if not isinstance(group, h5py.Group):
+        return None
+    actuator_keys = sorted(k for k in group.keys()
+                           if re.match(r"^actuator_\d+_1$", k)
+                           and isinstance(group[k], h5py.Dataset))
+    if not actuator_keys:
         return None
     traj = f"{g}/scan_config/trajectory"
     actuators = []
@@ -775,6 +868,7 @@ def _sensor_layout(f: h5py.File, g: str):
             name = str(_decode(_scalarize(_read_opt(f, f"{traj}/{key}/name")) or "")).strip()
         unit = _attr_text(item, "units", "unit")
         values = np.squeeze(values)
+        dim = None
         if values.ndim == 2 and values.shape == shape:
             spreads = [float(np.mean(np.ptp(values, axis=a))) for a in (0, 1)]
             dim = int(np.argmax(spreads))
@@ -783,23 +877,27 @@ def _sensor_layout(f: h5py.File, g: str):
             values = values.reshape(-1)
         else:
             return None
-        actuators.append((name or key, unit, values))
-    # One actuator per dimension, outer first: a dimension's positions are
-    # matched to it by length (actuator_1_1 is the fast, inner one).
-    by_dim = []
-    remaining = list(actuators)
-    for n in shape:
+        actuators.append((name or key, unit, values, dim))
+    # One actuator per dimension, outer first: one recorded on the grid
+    # goes to the dimension it steps along; a vector by its length
+    # (actuator_1_1 is the fast, inner one).
+    by_dim = [None] * len(shape)
+    remaining = []
+    for name, unit, values, dim in actuators:
+        if dim is not None and by_dim[dim] is None:
+            by_dim[dim] = (name, unit, values)
+        else:
+            remaining.append((name, unit, values))
+    for d, n in enumerate(shape):
+        if by_dim[d] is not None:
+            continue
         match = next((a for a in reversed(remaining) if a[2].size == n), None)
         if match is None:
-            match = (f"Scan point", "", np.arange(n, dtype=float))
+            match = ("Scan point", "", np.arange(n, dtype=float))
         else:
             remaining.remove(match)
-        by_dim.append(match)
-    sensors = []
-    for key in sorted(sensor_keys):
-        label = _attr_text(group[key], "long_name", "alias", "name") or key
-        sensors.append((key, _short_name(label) if "/" in label else label))
-    return shape, by_dim, sensors
+        by_dim[d] = match
+    return by_dim
 
 
 def _axis_title(name: str, unit: str) -> str:
@@ -810,11 +908,11 @@ def _axis_title(name: str, unit: str) -> str:
     return f"{short} ({unit})" if unit else short
 
 
-def _sensor_rows(f: h5py.File, g: str) -> "list[tuple[str, str, str]]":
+def _sensor_rows(f: h5py.File, g: str, skip=()) -> "list[tuple[str, str, str]]":
     """``(entry, kind label, title)`` per dataset of a case-7 entry: one
     curve with every sensor for a one-dimensional scan, one image per
     sensor for a two-dimensional one."""
-    layout = _sensor_layout(f, g)
+    layout = _sensor_layout(f, g, skip)
     if layout is None:
         return []
     shape, actuators, sensors = layout
@@ -829,12 +927,13 @@ def _sensor_rows(f: h5py.File, g: str) -> "list[tuple[str, str, str]]":
             for key, label in order]
 
 
-def _parse_sensor_scan(f: h5py.File, g: str, sensor: str = None) -> NxsScan:
+def _parse_sensor_scan(f: h5py.File, g: str, sensor: str = None,
+                       skip=()) -> NxsScan:
     """Case 7. One dimension: an ``mdc`` table, the actuator's positions
     against every sensor (a photodiode current against a mirror motor).
     Two: one sensor as an image, the inner actuator across and the outer
     one up (counts against PIX and PIY), as a ``cut`` with those axes."""
-    layout = _sensor_layout(f, g)
+    layout = _sensor_layout(f, g, skip)
     if layout is None:
         raise KeyError(f"{g} is not a scan of sensors")
     shape, actuators, sensors = layout
@@ -857,7 +956,7 @@ def _parse_sensor_scan(f: h5py.File, g: str, sensor: str = None) -> NxsScan:
         return scan
     keys = [key for key, _ in sensors]
     if sensor is None:
-        sensor = _sensor_rows(f, g)[0][0].split("#", 1)[1]
+        sensor = _sensor_rows(f, g, skip)[0][0].split("#", 1)[1]
     if sensor not in keys:
         raise KeyError(f"no sensor {sensor!r} in {g}; have {keys}")
     label = dict(sensors)[sensor]
@@ -1189,6 +1288,8 @@ def _entry_kind(f: h5py.File, g: str) -> Optional[str]:
     if case == 6:
         return "Cut"
     if case in (3, 4):
+        if _is_mesh(f, g, case):
+            return "SPEM"
         # Cut vs Map is decided by how many deflector positions were
         # scanned; the shape alone answers that, no data needed.
         actuator = f.get(f"{g}/scan_data/actuator_1_1")
@@ -1237,7 +1338,19 @@ def list_datasets(path: str) -> "list[dict]":
                     kind = None
                 if kind is None:
                     continue
-                if _classify_entry(f, g) == 7:
+                case = _classify_entry(f, g)
+                if case in (3, 4) and _is_mesh(f, g, case):
+                    out.append({
+                        "entry": name, "kind": kind,
+                        "title": _first_string(f, f"{g}/title"),
+                        "start_time": _first_string(f, f"{g}/start_time")})
+                    # and every sensor recorded at each point (CPS ...),
+                    # as an image against the two motors
+                    for entry, label, title in _sensor_rows(f, g, CASE_DATASETS[case]):
+                        out.append({"entry": entry, "kind": label, "title": title,
+                                    "start_time": _first_string(f, f"{g}/start_time")})
+                    continue
+                if case == 7:
                     for entry, label, title in _sensor_rows(f, g):
                         out.append({
                             "entry": entry, "kind": label,
@@ -1422,6 +1535,9 @@ def load_soleil_nxs(path: str, entry: Optional[str] = None,
             scan = NxsScan(kind="unsupported", filename_prefix="")
         elif case == 2:
             scan = _parse_case2(f, g, is_zpalign=(g == "/ZPAlign_0001"))
+        elif sensor is not None and case in (3, 4):
+            # one sensor of a mesh, as an image against the two motors
+            scan = _parse_sensor_scan(f, g, sensor, CASE_DATASETS[case])
         elif case == 3:
             scan = _parse_case34(f, g, ("data_01", "data_02", "data_03"), ("data_04", "data_05", "data_06"), "data_09")
         elif case == 5:

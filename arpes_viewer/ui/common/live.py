@@ -1111,6 +1111,161 @@ class Live:
 
     @operation("Processing")
     @_keeps_selection
+    def detector_correction(self, name: str, keystone=None, regions=None,
+                            find_bad: bool = False, method: str = "smooth (harmonic)",
+                            conserve: bool = True, threshold: float = 0.3,
+                            new_name: str = "") -> dict:
+        """Detector corrections (tool panel, Detector corrections), on the
+        detector's own pixels -- a cut, or every (slit, energy) slice of a
+        map or kz map: ``keystone``, four (angle, energy) corners of the
+        trapezoidal image, made a rectangle (``conserve`` keeps each line's
+        counts); ``regions``, rectangles [x0, x1, y0, y1] (angle, energy) of
+        dead or bad pixels, patched from their surroundings by ``method``
+        ("linear along x", "linear along y", "smooth (harmonic)"); or
+        ``find_bad`` to find them (pixels off their neighbourhood's median
+        by more than ``threshold``). Before a de-grid's neighbours, a k
+        conversion or a Fermi-surface correction. Returns the new row and
+        the regions patched."""
+        from arpes_viewer.tools.processing import detector
+        data = self.data(name)
+        why = detector.not_on_detector(data.info)
+        if why:
+            raise ValueError(f"{name!r} is no longer on the detector's pixels: {why}")
+        frames = detector.detector_frames(data.kind)
+        x_axis, y_axis = data.axes[frames[0]], data.axes[frames[1]]
+        values = np.asarray(data.values, dtype=float)
+        found = [detector.Region(*r) for r in (regions or [])]
+        if find_bad:
+            mean = values if values.ndim == 2 else np.nanmean(values, axis=0)
+            found += detector.find_bad_regions(mean, x_axis, y_axis,
+                                               threshold=float(threshold))
+        shape = detector.Keystone.from_corners(keystone) if keystone is not None else None
+        if shape is None and not found:
+            raise ValueError("nothing to correct: give keystone corners, "
+                             "regions, or find_bad=True")
+        corrected = detector.apply_to(values, data.axes, data.kind, keystone=shape,
+                                      regions=found, method=method, conserve=conserve)
+        boxes = [[r.x0, r.x1, r.y0, r.y1] for r in found]
+        row = self._derive(name, corrected, data.axes, "detector",
+                           {"keystone": shape.as_dict() if shape else None,
+                            "regions": boxes, "method": method}, new_name)
+        return _plain({"row": row, "regions": boxes,
+                       "keystone": shape.as_dict() if shape else None})
+
+    @operation("Energy")
+    def core_levels(self, name: str, elements, fermi_level: float = None,
+                    photon_energy: float = None, work_function: float = None,
+                    sensitivity: float = None) -> dict:
+        """Core-level check (tool panel, Core-level check): which element
+        and orbital each peak of the angle-integrated EDC of a cut (or an
+        EDC row) is, against tabulated binding energies. ``elements`` are
+        the sample's ("Bi2Se3", "Bi Se", ["Bi", "Se"]); E_F is found on the
+        data, or given as ``fermi_level`` on the row's energy axis;
+        ``photon_energy`` and ``work_function`` default to the metadata's.
+        Returns the peaks with their assignments, the sample's lines with no
+        peak, a suggested energy shift, and the report as text."""
+        from arpes_viewer.tools.spectra import corelevel as CL
+        data = self.data(name)
+        values = np.asarray(data.values, dtype=float)
+        if data.kind == "cut":
+            energy, intensity = CL.integrated_edc(values, data.axes[1], energy_dim=1)
+            label = data.labels[1]
+        elif data.kind in ("edc", "spin_edc"):
+            energy, intensity = data.axes[0], np.nansum(values.reshape(len(data.axes[0]), -1), axis=1)
+            label = data.labels[0]
+        else:
+            raise ValueError(f"{name!r} is a {data.kind}: a cut or an EDC is checked")
+        listed = elements if isinstance(elements, str) else " ".join(elements)
+        symbols, unknown = CL.parse_elements(listed)
+        if not symbols:
+            raise ValueError(f"no element recognised in {elements!r}")
+        if unknown:
+            raise ValueError(f"not element symbols: {', '.join(unknown)}")
+        hv = photon_energy if photon_energy is not None else CL.photon_energy_of(data.info)
+        w = work_function if work_function is not None else CL.work_function_of(data.info)
+        scale = CL.detect_scale(energy, label, hv)
+        if fermi_level is None:
+            estimate = CL.locate_fermi_edge(energy, intensity, scale,
+                                            photon_energy=hv, work_function=w)
+            fermi_level = estimate.level
+            if not np.isfinite(fermi_level):
+                raise ValueError("E_F could not be placed on this axis; give "
+                                 "fermi_level (or the photon energy)")
+        reference = CL.EnergyReference(scale, float(fermi_level), hv, w)
+        options = {} if sensitivity is None else {"sensitivity": float(sensitivity)}
+        report = CL.check(reference.binding(energy), intensity, symbols, reference,
+                          **options)
+        found = []
+        for a in report.assignments:
+            found.append({"binding_eV": a.peak.binding, "fwhm_eV": a.peak.fwhm,
+                          "label": a.label, "status": a.status,
+                          "matches": [str(m) for m in a.matches][:3],
+                          "nearby": [str(m) for m in a.nearby][:3],
+                          "contaminants": [str(m) for m in a.contaminants][:3]})
+        return _plain({"scale": scale, "fermi_level": float(fermi_level),
+                       "elements": list(symbols), "peaks": found,
+                       "missing": [str(line) for line, _why in report.missing],
+                       "shift": report.shift, "report": report.text()})
+
+    @operation("Looking at data")
+    @_keeps_selection
+    def stack_curves(self, name: str, direction: str = "edc", count: int = 12,
+                     combine: int = 1, positions=None, limits=None,
+                     normalise: str = "none", figure: bool = False,
+                     new_name: str = "") -> dict:
+        """Stack plot (tool panel, Stack plot): ``count`` EDCs
+        (``direction`` "edc", each at one angle or k) or MDCs ("mdc", each
+        at one energy) across a cut, evenly between ``positions`` (lo, hi)
+        on the axis across them, each the sum of ``combine`` neighbouring
+        lines, trimmed to ``limits`` (lo, hi) along its own axis,
+        ``normalise`` "none", "area" or "max". Adds them as one curve row
+        (a channel per curve, named by its position); ``figure`` also puts
+        the waterfall in a new figure composer. Returns the row (and the
+        figure's title)."""
+        from arpes_viewer.ui.panels.process import StackWindow
+        data = self.data(name)
+        if data.kind != "cut":
+            raise ValueError(f"{name!r} is a {data.kind}: a stack is made across a cut")
+        window = StackWindow(np.asarray(data.values, dtype=float), tuple(data.axes),
+                             tuple(data.labels), self._name(self._key(name)), None)
+        try:
+            window.direction.setCurrentIndex(0 if direction.lower() == "edc" else 1)
+            window.count.setValue(int(count))
+            window.combine.setValue(int(combine))
+            for edit, value in zip((window.from_edit, window.to_edit), positions or ()):
+                edit.setText("" if value is None else str(float(value)))
+            for edit, value in zip((window.limit_from, window.limit_to), limits or ()):
+                edit.setText("" if value is None else str(float(value)))
+            window.normalise.setCurrentText(normalise)
+            along, curves = window.curves()
+            edc = window.direction.currentIndex() == 0
+            across_label = data.labels[0] if edc else data.labels[1]
+            unit = across_label[across_label.rfind("(") + 1:-1] if across_label.endswith(")") else ""
+            from arpes_viewer.loader.scan import NxsScan
+            scan = NxsScan(kind="edc" if edc else "mdc",
+                           labels={"x": data.labels[1] if edc else data.labels[0],
+                                   "y": "Curve"},
+                           info={"curve.channels": "|".join(
+                               f"{p:.4g} {unit}".strip() for p, _ in curves),
+                                 "curve.value_label": "Intensity"},
+                           value=np.column_stack([c for _, c in curves]))
+            scan.x, scan.y = np.asarray(along, float), np.arange(len(curves), dtype=float)
+            row = self._list_scan(scan, new_name or f"{self._name(self._key(name))} "
+                                  f"[{'EDC' if edc else 'MDC'} stack]")
+            out = {"row": row, "positions": [p for p, _ in curves]}
+            if figure:
+                window.redraw()
+                made = window.to_figure(ask=False)
+                if made is not None:
+                    from arpes_viewer.ui.viewers.windows import keep_alive
+                    keep_alive(made)
+                    out["figure"] = made.windowTitle()
+            return _plain(out)
+        finally:
+            window.close()
+
+    @operation("Processing")
+    @_keeps_selection
     def derivative(self, name: str, axis: int = 1, order: int = 2,
                    window: float = None, new_name: str = "") -> str:
         """The (negated) ``order``-th derivative along ``axis`` (index), by
@@ -1458,6 +1613,192 @@ class Live:
     # Crystal and Brillouin zone
     # ==================================================================
     @operation("Crystal and Brillouin zone")
+    def crystal_picture(self, path: str, cif: str = "", space_group: int = None,
+                        cell=None, atoms=None, repeats=(1, 1, 1), plane_hkl=None,
+                        plane_height: float = None, view: str = "",
+                        size=(1200, 900), figure: bool = False) -> dict:
+        """The crystal structure in real space (tool panel, Crystal
+        structure) as a picture written to ``path``: from a ``cif`` file,
+        or typed in -- ``space_group`` (1-230), ``cell`` (a, b, c, alpha,
+        beta, gamma; what the group fixes may be None) and ``atoms``
+        [(element, x, y, z), ...] in fractional coordinates, expanded by
+        the group's operations. ``repeats`` cells along a, b, c;
+        ``plane_hkl`` (h, k, l) draws a cleavage plane at ``plane_height``
+        (fraction of its range); ``view`` "a", "b", "c" or "" (oblique).
+        ``figure`` also puts it in a new figure composer. Returns the
+        file, the formula's atoms and the cell. Never overwrites ``path``."""
+        from arpes_viewer.ui.panels.crystal import CrystalDialog
+        path = native(path)
+        if os.path.exists(path):
+            raise FileExistsError(f"{path} exists; give a new name")
+        dialog = CrystalDialog()
+        try:
+            if cif:
+                if dialog.read_cif(native(cif)) is None:
+                    raise ValueError(f"{cif!r} could not be read as a CIF")
+            else:
+                if space_group is None:
+                    raise ValueError("give a cif file, or space_group, cell and atoms")
+                values = list(cell or ()) + [None] * 6
+                dialog.cell_input.set_cell(int(space_group), *values[:6])
+                if atoms:
+                    # the atoms given replace the lattice point the window
+                    # starts with
+                    dialog.atom_table.blockSignals(True)
+                    dialog.atom_table.setRowCount(0)
+                    dialog.atom_table.blockSignals(False)
+                for atom in atoms or ():
+                    element, x, y, z = atom[:4]
+                    dialog.add_atom(str(element), float(x), float(y), float(z))
+                dialog.manual_changed()
+            for box, value in zip(dialog.repeat_boxes, repeats):
+                box.setValue(int(value))
+            if plane_hkl is not None:
+                dialog.stepper.go(2)
+                dialog.plane_box.setChecked(True)
+                for box, value in zip(dialog.hkl_boxes, plane_hkl):
+                    box.setValue(int(value))
+                if plane_height is not None:
+                    lo, hi = dialog._plane_range()
+                    dialog.set_plane_height(lo + float(plane_height) * (hi - lo))
+            if view:
+                dialog.look_along(view)
+            dialog.stepper.go(3)
+            for attribute, value in (("width_box", size[0]), ("height_box", size[1])):
+                box = getattr(dialog, attribute, None)
+                if box is not None:
+                    box.setValue(int(value))
+            written = dialog.save_picture(path)
+            structure = dialog.structure
+            out = {"path": native(written), "atoms": len(structure.atoms),
+                   "elements": sorted({a.element for a in structure.atoms}),
+                   "cell": list(dialog.cell_input.cell()),
+                   "space_group": int(dialog.cell_input.space_group())}
+            if figure:
+                made = dialog.to_figure_composer(ask=False)
+                out["figure"] = made.windowTitle() if made is not None else ""
+            return _plain(out)
+        finally:
+            dialog.close()
+
+    @operation("Crystal and Brillouin zone")
+    def tight_binding_fit(self, points=None, points_file: str = "", *,
+                          a: float = None, b: float = None, gamma: float = 90.0,
+                          vectors=None, shells: int = 2, bands: int = 1,
+                          shells_b: int = None, hybrid: int = 0,
+                          azimuth_deg: float = 0.0, fit_azimuth: bool = False,
+                          t1: float = None) -> dict:
+        """Tight-binding fit (tool panel, Tight-binding fit) of
+        E(k) = e0 + sum over shells of t x sum cos(k.R) to band points:
+        ``points`` [(kx, ky, E), ...] or [(kx, ky, kz, E), ...] in Å⁻¹ and
+        eV, or ``points_file`` (CSV with kx, ky[, kz], E columns -- what
+        ridges(save_csv=...) and the ridge window write). The lattice: a 2-D
+        one by ``a``, ``b`` (default a) and ``gamma`` (degrees), or the
+        real-space primitive ``vectors`` (rows, Å). ``shells`` of
+        neighbours; ``bands`` 2 fits two hybridised bands (``shells_b``,
+        ``hybrid`` coupling shells; a file's branch column says which
+        point is which). ``azimuth_deg`` turns the lattice against the
+        data's axes, ``fit_azimuth`` fits it; ``t1`` holds the first
+        hopping (needed for points of one energy). Returns the parameters
+        with their errors and the rms misfit."""
+        from arpes_viewer.tools.crystal import tightbinding as TB
+        branch = None
+        if points_file:
+            if bands == 2:
+                k, energy, branch = TB.read_points(native(points_file), with_branch=True)
+            else:
+                k, energy = TB.read_points(native(points_file))
+        elif points is not None:
+            table = np.asarray(points, dtype=float)
+            k, energy = table[:, :-1], table[:, -1]
+        else:
+            raise ValueError("give points=[(kx, ky, E), ...] or points_file")
+        if vectors is not None:
+            lattice = np.asarray(vectors, dtype=float)
+        elif a is not None:
+            lattice = TB.lattice_2d(float(a), float(b or a), float(gamma))
+        else:
+            raise ValueError("give the lattice: a (and b, gamma), or vectors")
+        lattice = lattice[:, :k.shape[1]] if lattice.shape[1] > k.shape[1] else lattice
+        if azimuth_deg:
+            lattice = TB.rotate(lattice, float(azimuth_deg))
+        if bands == 2:
+            model = TB.fit_two_band(k, energy, lattice, int(shells),
+                                    n_shells_b=shells_b, n_hybrid=int(hybrid),
+                                    branch=branch)
+        elif fit_azimuth:
+            model = TB.fit_azimuth(k, energy, lattice, int(shells), t1=t1)
+        else:
+            model = TB.fit(k, energy, lattice, int(shells), t1=t1)
+        rows = [{"name": n, "value": v, "error": e, "unit": u}
+                for n, v, e, u in model.table()]
+        return _plain({"parameters": rows, "rms_eV": model.rms,
+                       "points": int(len(energy)),
+                       "azimuth_deg": getattr(model, "azimuth_deg", azimuth_deg),
+                       "warning": getattr(model, "warning", "")})
+
+    @operation("Crystal and Brillouin zone")
+    @_keeps_selection
+    def calculated_bands(self, file: str, name: str = "", direction_deg: float = 0.0,
+                         kz: float = None, hv: float = None,
+                         inner_potential: float = 12.0, work_function: float = 4.4,
+                         k_offset: float = 0.0, fit_z: bool = True,
+                         spectrum: bool = False, new_name: str = "") -> dict:
+        """Calculated bands (tool panel, Calculated bands) over a measured
+        cut in momentum: the calculation ``file`` (.bxsf grid, Wannier90
+        _hr.dat, ...) cut along ``direction_deg`` from k_x on the k_z plane
+        ``kz`` -- or on the surface photon energy ``hv`` measures (with
+        ``inner_potential``, ``work_function``) -- at the cut ``name``'s
+        momenta (+ ``k_offset``). Band points traced on the cut give the
+        renormalisation Z (``fit_z``) and the rigid shift, E_meas = Z E_calc
+        + shift. ``spectrum`` lists the aligned calculation as a cut on the
+        same grid. Without ``name``: the bands along a straight cut from
+        -1 to 1 Å⁻¹. Returns Z, the shift, their errors and the bands."""
+        from arpes_viewer.tools.crystal import bandfiles
+        from arpes_viewer.tools.crystal import bands as B
+        from arpes_viewer.tools.crystal import compare as C
+        model = bandfiles.read(native(file))
+        if isinstance(model, B.BandPath):
+            raise ValueError(f"{file!r} holds bands along a path, which cannot be "
+                             f"cut along a measured direction")
+        options = {"kz": kz} if hv is None else {
+            "hv": float(hv), "inner_potential": float(inner_potential),
+            "work_function": float(work_function)}
+
+        def along(k):
+            return B.bands_along_cut(model, np.asarray(k, float) + float(k_offset),
+                                     float(direction_deg), **options)
+
+        if not name:
+            k = np.linspace(-1.0, 1.0, 201)
+            return _plain({"k": k.tolist(), "bands": np.asarray(along(k)).tolist()})
+        data = self.data(name)
+        if data.kind != "cut":
+            raise ValueError(f"{name!r} is a {data.kind}: a cut in momentum is compared")
+        k, energy = data.axes
+        values = np.asarray(data.values, dtype=float)
+        ks, es = C.band_points(values, k, energy, energy_window=(-np.inf, -0.03))
+        if ks.size < 5:
+            raise ValueError("too few band points were traced on the cut")
+        order = np.argsort(ks)
+        result = B.fit_alignment(ks[order], es[order], along, fit_z=bool(fit_z))
+        calc = result.apply(along(k))
+        out = {"z": result.z, "z_err": result.z_err, "shift": result.shift,
+               "shift_err": result.shift_err, "rms": result.rms,
+               "points": result.points, "bands_on_cut": calc.tolist()}
+        if spectrum:
+            image = B.spectral_function(calc, energy)
+            image = np.asarray(image, dtype=float)
+            if image.shape != values.shape:
+                image = image.T
+            out["row"] = self._derive(name, image, data.axes, "calculated_bands",
+                                      {"file": native(file), "z": result.z,
+                                       "shift": result.shift,
+                                       "direction_deg": direction_deg},
+                                      new_name or f"{self._name(self._key(name))} [calc]")
+        return _plain(out)
+
+    @operation("Crystal and Brillouin zone")
     def brillouin_zone(self, space_group: int, a: float, b: float = None,
                        c: float = None, alpha: float = 90.0, beta: float = 90.0,
                        gamma: float = None) -> dict:
@@ -1705,6 +2046,84 @@ class Live:
         if title:
             window.setWindowTitle(title)
         return window.describe()
+
+    @operation("Figures")
+    @_keeps_selection
+    def view3d(self, name: str, path: str, mode: str = "slices",
+               positions=None, corner: int = None, projection: str = None,
+               stack_axis: int = 2, stack_positions=None, marks=None,
+               azimuth: float = None, elevation: float = None,
+               colormap: str = None, levels=None, size=(900, 700),
+               figure: bool = False, keep_open: bool = False) -> dict:
+        """A 3-D picture of a map (tool panel, 3D slices / Notched cube /
+        Volume projection / Stacked slices), written to ``path`` (.png,
+        .pdf, .svg). ``mode`` "slices", "notch", "projection" or "stack";
+        ``positions`` one per axis (data units; None leaves it) -- the
+        slices, or the notch's corner point; ``corner`` the index of the
+        corner removed; ``projection`` "Maximum intensity", "Sum along the
+        view", "Alpha composite" or "Isosurface (shaded)"; for "stack",
+        ``stack_axis`` and ``stack_positions``, and ``marks`` [(x, y, E),
+        ...] a curve through the layers; ``azimuth``/``elevation`` the
+        camera (degrees); ``colormap``, ``levels`` (lo, hi). ``figure`` also
+        adds the view to a new figure composer; ``keep_open`` leaves the
+        window on screen. Never overwrites ``path``."""
+        from arpes_viewer.ui.panels.volume import VolumeWindow
+        path = native(path)
+        if os.path.exists(path):
+            raise FileExistsError(f"{path} exists; give a new name")
+        if mode not in ("slices", "notch", "projection", "stack"):
+            raise ValueError("mode is slices, notch, projection or stack")
+        data = self.data(name)
+        if np.asarray(data.values).ndim != 3:
+            raise ValueError(f"{name!r} is a {data.kind}: the 3-D views need a cube")
+        window = VolumeWindow(np.asarray(data.values, dtype=float), tuple(data.axes),
+                              tuple(data.labels), self._name(self._key(name)),
+                              None, mode=mode)
+        try:
+            window.resize(int(size[0]), int(size[1]))
+            if positions is not None:
+                controls = window.notch_at if mode == "notch" else window.slice_at
+                for control, value in zip(controls, positions):
+                    if value is not None:
+                        control.set_position(float(value))
+            if corner is not None:
+                window.notch_corner.setCurrentIndex(int(corner))
+            if projection:
+                window.projection_mode.setCurrentText(projection)
+            if mode == "stack" and stack_positions is not None:
+                window.set_stack(int(stack_axis), [float(v) for v in stack_positions])
+            if marks:
+                window.set_marks(np.asarray(marks, dtype=float))
+            if azimuth is not None:
+                window.azimuth.setValue(float(azimuth))
+            if elevation is not None:
+                window.elevation.setValue(float(elevation))
+            if colormap:
+                window.colormap.setCurrentText(colormap)
+            if levels is not None:
+                window.level_lo.setValue(float(levels[0]))
+                window.level_hi.setValue(float(levels[1]))
+            window.rebuild()
+            written = window.save_view(path)
+            if not written:
+                raise ValueError(f"the view could not be written to {path}")
+            out = {"path": native(written), "mode": mode}
+            if figure:
+                from arpes_viewer.ui.panels.figure import FigureWindow
+                from arpes_viewer.ui.viewers.windows import keep_alive
+                made = FigureWindow([window.figure_panel()],
+                                    f"Figure — {self._name(self._key(name))} 3D")
+                keep_alive(made)
+                made.show()
+                out["figure"] = made.windowTitle()
+            return _plain(out)
+        finally:
+            if keep_open:
+                from arpes_viewer.ui.viewers.windows import keep_alive
+                keep_alive(window)
+                window.show()
+            else:
+                window.close()
 
     @operation("Figures")
     @_keeps_selection

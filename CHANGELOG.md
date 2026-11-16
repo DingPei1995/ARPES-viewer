@@ -45,6 +45,17 @@ agent operation an MCP tool of its own.
   got wrong. `ARPES_VIEWER_MCP_TOOLS=compact` leaves them out. New
   operations for tools that had none: `L.degrid`, `L.ridges`,
   `L.line_fit` (EDC/MDC fit from seeds).
+- **Every tool-panel button now has an operation** (and so an `op_<name>`
+  MCP tool): `L.detector_correction` (keystone, bad regions found or
+  given), `L.core_levels`, `L.stack_curves` (EDC/MDC stack as a curve row,
+  optionally a figure), `L.view3d` (3D slices, notched cube, projection,
+  stacked slices, written as a picture), `L.crystal_picture` (CIF or typed
+  in, with a cleavage plane), `L.tight_binding_fit` (one or two bands),
+  `L.calculated_bands` (Z and the shift against a measured cut, the
+  calculation as a spectrum).
+- **Fixed:** an ANTARES focus scan recorded with spectra (`data_11` 4-D,
+  PIX x PIY on the grid) was taken for a deflector map and could not be
+  opened; it is a spatial scan, and its CPS an image beside it.
 - **User guides (en, zh, fr)** and PDFs: §1.4 the new readers, §4.10 the
   two new ways to align a kz map, §7.2 and §7.5 the `op_<name>` tools.
 

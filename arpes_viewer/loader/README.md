@@ -117,6 +117,13 @@ dataset -- no analyser image -- is a scan of sensors (case 7):
   ST/SZ image carries the beamline's drawing convention (`Spatial.*`).
 - Checked before the spectral cases, whose `data_NN` numbering a scan of
   many sensors could otherwise imitate.
+- **A focus scan with spectra.** A deflector map's layout (`data_04`-`data_09`
+  the scales, `data_11` the image) whose image is 4-D -- `(PIY, PIX, slit,
+  energy)`, the actuators recorded on the whole grid -- is a spatial scan,
+  not a map: it opens as `spem_4d`, and every other per-point dataset (the
+  CPS, a current) is listed beside it as an image of its own
+  (`<entry>#<data_NN>`). It used to be taken for a map and refused
+  (`data_11: unexpected ndim=4`).
 - **Written without a measured file.** The sample files supplied
   (`Align_2026-11-14_15-30-46.nxs`, and `CaplilaryFocusScan.mat`, which is an
   `h5info` dump of that same file) hold no `scan_data`: only the beamline's
