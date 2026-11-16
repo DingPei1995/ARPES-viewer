@@ -2,7 +2,7 @@
 
 *[English version](USER_GUIDE_en.md) · [中文版](USER_GUIDE_zh.md)*
 
-*Dernière mise à jour : 13 novembre 2026 — pour ARPES viewer v1.3.4*
+*Dernière mise à jour : 16 novembre 2026 — pour ARPES viewer v1.3.5*
 
 La version et sa date figurent dans la barre de titre de la fenêtre principale
 et sur sa dernière ligne. Rapports de bogues, questions et dernière version :
@@ -260,12 +260,13 @@ Le lecteur d'un fichier est détecté automatiquement ([§2.2](#22-charger-des-d
 
 | Installation / ligne | Fichiers | Données |
 |---|---|---|
-| SOLEIL **ANTARES** | NeXus `*.nxs` | coupes, cartes en déflecteur, balayages en énergie de photon (PhD), balayages spatiaux |
+| SOLEIL **ANTARES** | NeXus `*.nxs` | coupes, cartes en déflecteur, balayages en énergie de photon (PhD), balayages spatiaux ; courbes d'alignement (un capteur en fonction d'un moteur) et balayages de focalisation (de deux) |
 | SOLEIL **CASSIOPEE** | texte Scienta `*.txt` | spectres seuls ; dossiers numérotés assemblés en carte ou en balayage en énergie de photon |
 | CASSIOPEE **station spin** (MBS A-1) | `*.krx`, `*.txt` | coupes, cartes en déflecteur, EDC résolues en spin |
 | ALS **MAESTRO** | `*.h5`, `*.hdf5` | coupes, cartes, balayages en énergie de photon et spatiaux |
 | ALBA **LOREA** | `*.nxs` | coupes, cartes |
 | Diamond **I05** (HR-ARPES) et **I05-1** (nano-ARPES) | `*.nxs` | coupes, cartes, balayages en énergie de photon, balayages spatiaux |
+| Diamond **I09** (EW4000) et **I09-2** (microscope en impulsion) — non testé sur un vrai fichier | `*.nxs` | régions de l'EW4000 en coupes, cartes, balayages en énergie de photon et spatiaux ; piles d'images du microscope en impulsion ; XAS et autres balayages en courbes |
 | MAX IV **Bloch** (et tout fichier Scienta SES qu'aucun autre lecteur ne prend) | `*.ibw`, `*.zip`, `*.txt` | coupes, cartes en déflecteur, balayages en énergie de photon et du manipulateur |
 | Elettra **APE**, BESSY **One Cube / One Square**, SOLARIS **URANOS** | `*.ibw`, `*.zip`, `*.txt` | tels que SES les écrit |
 | ASTRID2 **SGM4** | `*.h5`, `*.hdf5` | coupes, cartes, balayages au couteau |
@@ -1353,6 +1354,34 @@ E_F en fonction de l'énergie de photon est tracé. Une courbe régulière
 signifie des ajustements fiables ; les points dont l'ajustement n'est pas
 crédible sont signalés et remplacés par interpolation de leurs voisins.
 
+La fenêtre offre deux autres façons d'obtenir les niveaux de Fermi, au choix
+en haut :
+
+- **À la main : cliquer E_F sur la coupe selon l'axe de balayage.**
+  **Pick E_F on the Scan-axis cut** ouvre la coupe énergie de photon contre
+  énergie ; chaque clic y ajoute un point (hv, E_F) au tableau — à plusieurs
+  énergies de photon réparties sur le balayage, extrémités comprises. Un
+  polynôme passant par les points (**Order**, 1 par défaut : une droite)
+  donne E_F à chaque énergie de photon, tracé en pointillés sur la coupe. Une
+  seule fonction sur tout le balayage par défaut ; **Segments** > 1 le
+  découpe, chaque segment ayant sa propre fonction ajustée sur ses propres
+  points — là où l'étalonnage saute, à un changement de réseau ou
+  d'harmonique. Les limites sont placées pour que chaque segment ait à peu
+  près autant de points, ou tapées dans **Breaks (eV)**. **Align on the
+  function** décale, recadre et normalise comme ci-dessus.
+- **Depuis une référence : une carte kz déjà alignée** (de l'une des trois
+  façons), comme la correction de surface de Fermi
+  ([§4.3](#43-correction-de-surface-de-fermi)) prend une référence ajustée.
+  Son E_F en fonction de l'énergie de photon est interpolé sur les énergies
+  de ce balayage ; les spectres hors de son domaine sont retirés. Prendre
+  une référence mesurée avec les mêmes réglages du monochromateur et de
+  l'analyseur, son axe d'énergie à la même échelle (tous deux tels que
+  chargés).
+
+Quelle que soit la façon, les niveaux sont conservés avec le résultat et
+avec la ligne alignée : l'un ou l'autre peut servir de référence au balayage
+suivant.
+
 ## 4.11 Convertir une carte kz en impulsion
 
 Panneau → Basic → **kz conversion...** convertit le balayage en (k_z, k∥). Il
@@ -2427,7 +2456,13 @@ l'utiliser.
      est conservée comme fichier.
   2. **MCP** : l'application IA appelle le programme par son serveur MCP
      (`arpes-viewer-mcp`) ; quand le programme est lancé avec le pont agent,
-     `viewer_api` appelle les mêmes opérations.
+     chaque opération est aussi un outil MCP à part entière, `op_<nom>`
+     (`op_fermi_edge`, `op_kz_align_fermi`, `op_map_to_k` …), ses arguments
+     typés et décrits d'après l'opération elle-même, qu'un modèle appelle en
+     une étape ; `viewer_api` appelle n'importe laquelle par son nom. Les
+     petits modèles locaux trouvent ainsi le bon outil bien plus sûrement.
+     Pour une application qui limite le nombre d'outils d'un serveur,
+     `ARPES_VIEWER_MCP_TOOLS=compact` retire les outils `op_*`.
   3. **Scripts sans écran** : les calculs de `arpes_viewer/tools/` et
      l'espace de travail sans fenêtre, pour un script à conserver.
 - **Fenêtres.** Une fenêtre qu'une opération n'ouvre que pour la piloter (un
@@ -2808,7 +2843,7 @@ Si le programme ne démarre pas du tout, le journal du lanceur
 ## 8.4 Versions et mises à jour
 
 La barre de titre et la dernière ligne du panneau principal montrent la
-version et sa date (`ARPES viewer v1.3.4 (updated 2026-11-13)`). Ce qui a
+version et sa date (`ARPES viewer v1.3.5 (updated 2026-11-16)`). Ce qui a
 changé à chaque version, et pourquoi, est dans le
 [CHANGELOG](../CHANGELOG.md).
 

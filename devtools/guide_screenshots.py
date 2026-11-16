@@ -651,7 +651,7 @@ class Shots:
         dialog.run()
         wait_for(lambda: len(self._rows()) > before)
         pump()
-        shot(dialog, "kz_processing_dialog", (1000, 820))
+        shot(dialog, "kz_processing_dialog", (1000, 1100))
         cut = contour.cut_windows.get("slit")
         if cut is not None:
             shot(cut, "kz_processing_cut", (820, 700))

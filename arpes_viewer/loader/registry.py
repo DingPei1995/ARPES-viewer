@@ -353,7 +353,7 @@ def _install_default_loaders():
         return
     _INSTALLED = True
     beamlines = ("antares", "cassiopee", "cassiopee_spin", "maestro", "alba",
-                 "diamond", "maxiv", "ape", "bessy", "solaris", "sgm4")
+                 "diamond", "i09", "maxiv", "ape", "bessy", "solaris", "sgm4")
     for module in ("arpes_viewer.loader.native",
                    *(f"arpes_viewer.loader.beamlines.{name}" for name in beamlines)):
         try:

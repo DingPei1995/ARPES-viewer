@@ -339,6 +339,12 @@ def add_memory_dataset(data, label: str):
                          "tags": process_tools.tags_of(data)}
     if backing is not None:
         session.budget.put(backing, data)
+    from arpes_viewer.tools.momentum.kzmap import KZ_FIT_KEY
+    kz_fit = (getattr(getattr(data, "scan", None), "info", None) or {}).get(KZ_FIT_KEY)
+    if kz_fit:
+        # An aligned kz map: a reference for the next one, found without
+        # loading it (kz_references).
+        loaded_items[key]["properties"] = {KZ_FIT_KEY: kz_fit}
     item = QListWidgetItem(_row_label(key))
     item.setData(QtCore.Qt.UserRole, key)
     where = (f"auto-saved to {os.path.basename(backing)}" if backing
@@ -1688,6 +1694,9 @@ def _adopt_viewer(window, key=None):
     # The rows whose Fermi edge has been fitted: the Fermi-surface
     # correction's references.
     window._fermi_references = fermi_references
+    # The kz maps whose Fermi level against photon energy is recorded: the
+    # kz alignment's references.
+    window._kz_references = kz_references
     window._row_key = key
     # The row it came from -- the row, not the object: a cut read from a
     # file is re-read on every load, so the same row hands back a different
@@ -1726,6 +1735,20 @@ def fermi_references():
         fits = fermi_fit_of(record.get("properties") or {})
         if fits.get("edge") or fits.get("channels"):
             out.append((f"{label_for(key)}   [{record['kind']}]", key, fits))
+    return out
+
+
+def kz_references():
+    """``(label, key, fit)`` for every kz map whose Fermi level against
+    photon energy is recorded (an aligned kz map, and the row it was
+    aligned from): what the kz alignment can take as its reference. Read
+    from the rows' records -- nothing is loaded."""
+    from arpes_viewer.tools.momentum.kzmap import fit_of
+    out = []
+    for key, record in loaded_items.items():
+        fit = fit_of(record.get("properties") or {})
+        if fit:
+            out.append((f"{label_for(key)}   [{record['kind']}]", key, fit))
     return out
 
 

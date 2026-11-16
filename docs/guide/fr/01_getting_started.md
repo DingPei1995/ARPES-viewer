@@ -134,12 +134,13 @@ Le lecteur d'un fichier est détecté automatiquement ([§2.2](#22-charger-des-d
 
 | Installation / ligne | Fichiers | Données |
 |---|---|---|
-| SOLEIL **ANTARES** | NeXus `*.nxs` | coupes, cartes en déflecteur, balayages en énergie de photon (PhD), balayages spatiaux |
+| SOLEIL **ANTARES** | NeXus `*.nxs` | coupes, cartes en déflecteur, balayages en énergie de photon (PhD), balayages spatiaux ; courbes d'alignement (un capteur en fonction d'un moteur) et balayages de focalisation (de deux) |
 | SOLEIL **CASSIOPEE** | texte Scienta `*.txt` | spectres seuls ; dossiers numérotés assemblés en carte ou en balayage en énergie de photon |
 | CASSIOPEE **station spin** (MBS A-1) | `*.krx`, `*.txt` | coupes, cartes en déflecteur, EDC résolues en spin |
 | ALS **MAESTRO** | `*.h5`, `*.hdf5` | coupes, cartes, balayages en énergie de photon et spatiaux |
 | ALBA **LOREA** | `*.nxs` | coupes, cartes |
 | Diamond **I05** (HR-ARPES) et **I05-1** (nano-ARPES) | `*.nxs` | coupes, cartes, balayages en énergie de photon, balayages spatiaux |
+| Diamond **I09** (EW4000) et **I09-2** (microscope en impulsion) — non testé sur un vrai fichier | `*.nxs` | régions de l'EW4000 en coupes, cartes, balayages en énergie de photon et spatiaux ; piles d'images du microscope en impulsion ; XAS et autres balayages en courbes |
 | MAX IV **Bloch** (et tout fichier Scienta SES qu'aucun autre lecteur ne prend) | `*.ibw`, `*.zip`, `*.txt` | coupes, cartes en déflecteur, balayages en énergie de photon et du manipulateur |
 | Elettra **APE**, BESSY **One Cube / One Square**, SOLARIS **URANOS** | `*.ibw`, `*.zip`, `*.txt` | tels que SES les écrit |
 | ASTRID2 **SGM4** | `*.h5`, `*.hdf5` | coupes, cartes, balayages au couteau |

@@ -50,6 +50,23 @@ and filled in from their neighbours rather than dropped.
 The fitted levels are stored on the result as `kz.fermi_level_eV`, so the
 calibration can be checked or reused later.
 
+Two other ways to the levels, chosen at the top of the window:
+
+- **By hand on the Scan-axis cut.** *Pick E_F on the Scan-axis cut* opens
+  the cut of photon energy against energy; each click there is a point on
+  the Fermi edge. A polynomial through the points (`levels_from_points`)
+  gives E_F at every photon energy: one function over the whole scan by
+  default, or several (*Segments*), each fitted to its own points and split
+  at photon energies typed or placed automatically -- where the
+  monochromator's calibration jumps.
+- **From a reference kz map**, one aligned before by any of the three ways:
+  its E_F against hv (`levels_from_reference`) interpolated onto this
+  scan's photon energies, the spectra outside its range cut off. Both scans
+  must have their energy axes on the same scale.
+
+Whichever way, the levels are also kept as `kzfit.json` (`KZ_FIT_KEY`) on the
+result and on the row aligned, which is what makes them a reference.
+
 ## kz -> momentum
 
 **Functions → Convert to momentum (kz, k∥)...** on a kz map's viewer converts it to `(k_z, k_par, E)`

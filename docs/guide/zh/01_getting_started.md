@@ -105,12 +105,13 @@ python devtools/figure_tests.py docs/images [存放 .afig 文件的文件夹]
 
 | 线站 | 文件 | 数据 |
 |---|---|---|
-| SOLEIL **ANTARES** | NeXus `*.nxs` | cut、偏转器 map、光子能量（PhD）扫描、空间扫描 |
+| SOLEIL **ANTARES** | NeXus `*.nxs` | cut、偏转器 map、光子能量（PhD）扫描、空间扫描；准直曲线（传感器对一个电机）与聚焦扫描（对两个电机） |
 | SOLEIL **CASSIOPEE** | Scienta 文本 `*.txt` | 单张谱；按编号组成的文件夹自动拼成 map 或光子能量扫描 |
 | CASSIOPEE **自旋端站**（MBS A-1） | `*.krx`、`*.txt` | cut、偏转器 map、自旋分辨 EDC |
 | ALS **MAESTRO** | `*.h5`、`*.hdf5` | cut、map、光子能量扫描与空间扫描 |
 | ALBA **LOREA** | `*.nxs` | cut、map |
 | Diamond **I05**（HR-ARPES）与 **I05-1**（nano-ARPES） | `*.nxs` | cut、map、光子能量扫描、空间扫描 |
+| Diamond **I09**（EW4000）与 **I09-2**（动量显微镜）——尚未用真实文件测试 | `*.nxs` | EW4000 region 读作 cut、map、光子能量扫描与空间扫描；动量显微镜图像堆栈；XAS 等扫描读作曲线 |
 | MAX IV **Bloch**（以及其他读取器都不认领的 Scienta SES 文件） | `*.ibw`、`*.zip`、`*.txt` | cut、偏转器 map、光子能量与样品架扫描 |
 | Elettra **APE**、BESSY **One Cube / One Square**、SOLARIS **URANOS** | `*.ibw`、`*.zip`、`*.txt` | 按 SES 的写法 |
 | ASTRID2 **SGM4** | `*.h5`、`*.hdf5` | cut、map、刀口扫描 |

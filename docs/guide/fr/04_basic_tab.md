@@ -383,6 +383,34 @@ E_F en fonction de l'énergie de photon est tracé. Une courbe régulière
 signifie des ajustements fiables ; les points dont l'ajustement n'est pas
 crédible sont signalés et remplacés par interpolation de leurs voisins.
 
+La fenêtre offre deux autres façons d'obtenir les niveaux de Fermi, au choix
+en haut :
+
+- **À la main : cliquer E_F sur la coupe selon l'axe de balayage.**
+  **Pick E_F on the Scan-axis cut** ouvre la coupe énergie de photon contre
+  énergie ; chaque clic y ajoute un point (hv, E_F) au tableau — à plusieurs
+  énergies de photon réparties sur le balayage, extrémités comprises. Un
+  polynôme passant par les points (**Order**, 1 par défaut : une droite)
+  donne E_F à chaque énergie de photon, tracé en pointillés sur la coupe. Une
+  seule fonction sur tout le balayage par défaut ; **Segments** > 1 le
+  découpe, chaque segment ayant sa propre fonction ajustée sur ses propres
+  points — là où l'étalonnage saute, à un changement de réseau ou
+  d'harmonique. Les limites sont placées pour que chaque segment ait à peu
+  près autant de points, ou tapées dans **Breaks (eV)**. **Align on the
+  function** décale, recadre et normalise comme ci-dessus.
+- **Depuis une référence : une carte kz déjà alignée** (de l'une des trois
+  façons), comme la correction de surface de Fermi
+  ([§4.3](#43-correction-de-surface-de-fermi)) prend une référence ajustée.
+  Son E_F en fonction de l'énergie de photon est interpolé sur les énergies
+  de ce balayage ; les spectres hors de son domaine sont retirés. Prendre
+  une référence mesurée avec les mêmes réglages du monochromateur et de
+  l'analyseur, son axe d'énergie à la même échelle (tous deux tels que
+  chargés).
+
+Quelle que soit la façon, les niveaux sont conservés avec le résultat et
+avec la ligne alignée : l'un ou l'autre peut servir de référence au balayage
+suivant.
+
 ## 4.11 Convertir une carte kz en impulsion
 
 Panneau → Basic → **kz conversion...** convertit le balayage en (k_z, k∥). Il

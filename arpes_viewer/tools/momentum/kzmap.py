@@ -29,6 +29,24 @@ What this module does, in order
    total, which is what makes them comparable when the photon flux varies
    across the scan (it does, strongly).
 
+Two other ways to the Fermi level of each spectrum, where fitting every
+edge is not wanted or not possible (a weak edge, a dispersing band across
+it):
+
+* :func:`levels_from_points` -- E_F clicked by hand at a few photon
+  energies on the scan-axis cut (photon energy against energy), and a
+  polynomial through the points: one function over the whole scan by
+  default, or one per segment (``breaks``) where the monochromator's
+  calibration changes, at a grating change, say.
+* :func:`levels_from_reference` -- the levels of another kz map aligned
+  before (:data:`KZ_FIT_KEY`), interpolated onto this one's photon
+  energies: a scan of gold, or of the same sample, taken with the same
+  monochromator and analyser settings. Spectra outside the reference's
+  photon-energy range are cut off.
+
+:func:`align_to_levels` aligns, crops and normalises with levels from
+either.
+
 Nothing here imports Qt, so the whole calibration can be run from a script
 over a directory of scans.
 """
@@ -41,7 +59,14 @@ import numpy as np
 from arpes_viewer.tools.spectra.fermi import fit_fermi_edge
 
 __all__ = ["region_edc", "fit_levels", "align", "normalise_totals",
-           "process_kz_map", "KzMapResult"]
+           "process_kz_map", "KzMapResult", "KZ_FIT_KEY", "segment_breaks",
+           "levels_from_points", "levels_from_reference", "align_to_levels",
+           "fit_record", "fit_of"]
+
+#: Where a kz map's Fermi level against photon energy is kept, as JSON
+#: (:func:`fit_record`): on the aligned row and on the row it was aligned
+#: from, so either can be another kz map's reference.
+KZ_FIT_KEY = "kzfit.json"
 
 
 class KzMapResult:
@@ -309,3 +334,142 @@ def process_kz_map(cube, energy, index_region, *, temperature: float = 30.0,
     if normalise:
         aligned = normalise_totals(aligned)
     return KzMapResult(aligned, axis, ef, ok, fits, trimmed, bool(normalise))
+
+
+# --------------------------------------------------------------------------
+# E_F by hand: points on the scan-axis cut
+# --------------------------------------------------------------------------
+def segment_breaks(hv_points, segments: int) -> list:
+    """Photon energies that split the points into ``segments`` runs of
+    about equal size: midway between neighbouring points."""
+    xs = np.sort(np.asarray(hv_points, dtype=float).reshape(-1))
+    segments = int(segments)
+    if segments <= 1 or xs.size < 2:
+        return []
+    out = []
+    for k in range(1, segments):
+        i = int(round(k * xs.size / segments))
+        i = min(max(i, 1), xs.size - 1)
+        out.append(0.5 * (xs[i - 1] + xs[i]))
+    return sorted(set(out))
+
+
+def levels_from_points(points, hv, order: int = 1, breaks=()) -> tuple:
+    """E_F at every photon energy of ``hv`` from points clicked on the
+    scan-axis cut, ``[(hv, E_F), ...]``.
+
+    One polynomial of ``order`` through all of them -- the single function
+    that is the default -- or, with ``breaks`` (photon energies), one per
+    segment between them, each fitted to its own points (at least
+    ``order + 1``). Returns ``(ef, pieces)``, ``pieces`` being
+    ``[(lo, hi, coefficients)]``, highest power first.
+    """
+    pts = np.asarray(points, dtype=float).reshape(-1, 2)
+    hv = np.asarray(hv, dtype=float)
+    order = int(order)
+    if order < 0:
+        raise ValueError("the polynomial order is 0 or more")
+    edges = [-np.inf] + sorted(float(b) for b in (breaks or ())) + [np.inf]
+    ef = np.full(hv.shape, np.nan)
+    pieces = []
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        inside = (pts[:, 0] >= lo) & (pts[:, 0] < hi)
+        if inside.sum() < order + 1:
+            where = "the scan" if len(edges) == 2 else (
+                f"the segment {lo:.6g} to {hi:.6g} eV")
+            raise ValueError(
+                f"an order-{order} fit needs at least {order + 1} points in "
+                f"{where}; it has {int(inside.sum())}")
+        x, y = pts[inside, 0], pts[inside, 1]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            coefficients = np.polyfit(x, y, order) if order > 0 \
+                else np.array([float(np.mean(y))])
+        here = (hv >= lo) & (hv < hi)
+        ef[here] = np.polyval(coefficients, hv[here])
+        pieces.append((float(lo), float(hi), [float(c) for c in coefficients]))
+    return ef, pieces
+
+
+# --------------------------------------------------------------------------
+# E_F from a reference kz map
+# --------------------------------------------------------------------------
+def fit_record(hv, ef, ok=None, method: str = "", source: str = "",
+               **extra) -> str:
+    """The JSON kept under :data:`KZ_FIT_KEY`."""
+    import json
+    hv = np.asarray(hv, dtype=float).reshape(-1)
+    ef = np.asarray(ef, dtype=float).reshape(-1)
+    ok = np.ones(hv.size, bool) if ok is None else np.asarray(ok, bool).reshape(-1)
+    state = {"hv": hv.tolist(), "ef": ef.tolist(), "ok": ok.tolist(),
+             "method": str(method), "source": str(source)}
+    state.update(extra)
+    return json.dumps(state)
+
+
+def fit_of(info) -> dict:
+    """The kz Fermi-level fit recorded in ``info`` (a dataset's info or a
+    row's properties), ``{}`` when there is none."""
+    import json
+    text = (info or {}).get(KZ_FIT_KEY)
+    if not text:
+        return {}
+    try:
+        state = json.loads(str(text))
+    except ValueError:
+        return {}
+    if not isinstance(state, dict) or len(state.get("hv", ())) < 2 \
+            or len(state.get("hv", ())) != len(state.get("ef", ())):
+        return {}
+    return state
+
+
+def levels_from_reference(hv, ref_hv, ref_ef) -> tuple:
+    """The reference's E_F interpolated onto ``hv``: ``(ef, inside)``,
+    ``inside`` False for the photon energies outside the reference's
+    range (NaN there; those spectra are cut off).
+
+    The two energy axes must be on the same scale -- both as the loader
+    put them, or both on the same kinetic axis -- since the reference's
+    levels are read on its own axis."""
+    hv = np.asarray(hv, dtype=float)
+    ref_hv = np.asarray(ref_hv, dtype=float).reshape(-1)
+    ref_ef = np.asarray(ref_ef, dtype=float).reshape(-1)
+    good = np.isfinite(ref_hv) & np.isfinite(ref_ef)
+    ref_hv, ref_ef = ref_hv[good], ref_ef[good]
+    if ref_hv.size < 2:
+        raise ValueError("the reference has fewer than two Fermi levels")
+    order = np.argsort(ref_hv)
+    ref_hv, ref_ef = ref_hv[order], ref_ef[order]
+    step = float(np.median(np.diff(ref_hv))) if ref_hv.size > 1 else 0.0
+    slack = 1e-6 * max(1.0, abs(step))
+    inside = (hv >= ref_hv[0] - slack) & (hv <= ref_hv[-1] + slack)
+    ef = np.full(hv.shape, np.nan)
+    ef[inside] = np.interp(hv[inside], ref_hv, ref_ef)
+    if inside.sum() < 1:
+        raise ValueError(
+            f"none of this scan's photon energies ({hv.min():.6g} to "
+            f"{hv.max():.6g} eV) lies in the reference's range "
+            f"({ref_hv[0]:.6g} to {ref_hv[-1]:.6g} eV)")
+    return ef, inside
+
+
+def align_to_levels(cube, energy, ef, *, normalise: bool = True,
+                    keep=None) -> KzMapResult:
+    """Align, crop and (optionally) normalise with Fermi levels found
+    another way than fitting each edge (:func:`levels_from_points`,
+    :func:`levels_from_reference`). ``keep`` drops the spectra marked False
+    (outside a reference's range) first; the result's ``kept`` says which
+    remain."""
+    cube = np.asarray(cube, dtype=float)
+    ef = np.asarray(ef, dtype=float)
+    keep = np.isfinite(ef) if keep is None else (np.asarray(keep, bool) & np.isfinite(ef))
+    if keep.sum() < 1:
+        raise ValueError("no spectrum has a Fermi level to align it on")
+    aligned, axis, trimmed = align(cube[keep], energy, ef[keep])
+    if normalise:
+        aligned = normalise_totals(aligned)
+    result = KzMapResult(aligned, axis, ef[keep], np.ones(int(keep.sum()), bool),
+                         [None] * int(keep.sum()), trimmed, bool(normalise))
+    result.kept = keep
+    return result

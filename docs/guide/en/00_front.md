@@ -2,7 +2,7 @@
 
 *[中文版 / Chinese version](../../USER_GUIDE_zh.md) · [Version française](../../USER_GUIDE_fr.md)*
 
-*Last updated: 13 November 2026 — for ARPES viewer v1.3.4*
+*Last updated: 16 November 2026 — for ARPES viewer v1.3.5*
 
 The version and its date are in the main window's title bar and on its last
 line. Bug reports, questions and the latest version:

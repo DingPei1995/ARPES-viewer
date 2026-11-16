@@ -35,6 +35,12 @@ Kinds produced
 - ``"kz_map"``   : a photon-energy (PhD) scan, (hv, angle, E), assembled
                    from one single-frame entry per photon energy (case 6,
                    :func:`_parse_phd`).
+- ``"mdc"``      : a scan of sensors against one motor (case 7), e.g. an
+                   alignment curve, a photodiode current against MA1: one
+                   channel per sensor.
+- ``"cut"``      : a scan of sensors against two motors (case 7), e.g. a
+                   focus scan, counts against PIX and PIY: one image per
+                   sensor, listed as ``<entry>#<sensor>``.
 - ``"unsupported"``: ``Scan2D_MBS_vs_PIX_PIY`` (case 1), not read.
 
 Nothing here imports Qt.
@@ -83,6 +89,15 @@ def _classify_entry(f: h5py.File, g: str) -> Optional[int]:
             return 5
     except (KeyError, AttributeError):
         pass
+
+    # Case 7 (a scan of sensors, no spectra): every dataset of scan_data is
+    # one number per scan point -- an alignment curve (a photodiode against
+    # a mirror motor) or a focus scan (counts against PIX, PIY). Checked
+    # before the spectral cases, whose data_NN numbering a scan of many
+    # sensors could otherwise imitate; a real spectral scan always has its
+    # image dataset, which is never one number per point.
+    if _sensor_layout(f, g) is not None:
+        return 7
 
     # Case 2 (SPEM real-space scan): two independent spatial actuators
     # under scan_config/trajectory, plus the 4D-candidate cube dataset
@@ -683,6 +698,204 @@ def _parse_case34(f: h5py.File, g: str, e_idx: tuple, x_idx: tuple, v_idx: str) 
 
 
 # --------------------------------------------------------------------------
+# Case 7: scans of sensors (alignment curves, focus scans)
+# --------------------------------------------------------------------------
+#: Datasets of ``scan_data`` that are the scan's own bookkeeping, not a
+#: sensor.
+_NOT_SENSORS = re.compile(r"^(actuator|trajectory|time|timestamp)", re.I)
+
+
+def _attr_text(item, *names) -> str:
+    for name in names:
+        try:
+            if name in item.attrs:
+                value = _decode(item.attrs[name])
+                if isinstance(value, np.ndarray):
+                    value = value.reshape(-1)[0] if value.size else ""
+                value = str(_decode(value)).strip()
+                if value:
+                    return value
+        except (OSError, TypeError):
+            continue
+    return ""
+
+
+def _short_name(name: str) -> str:
+    """``"ma1-mt_tx"`` for ``"i12-m-cx1/op/ma1-mt_tx/position"``: the
+    device part of a Tango attribute path, its trailing ``position``/
+    ``value`` dropped; an ANTARES stage by its own name (``PIX``)."""
+    stage = _antares_stage(name)
+    if stage:
+        return ANTARES_STAGE_TITLES[stage]
+    parts = [p for p in re.split(r"[/\\]+", str(name or "").strip()) if p]
+    while len(parts) > 1 and parts[-1].casefold() in ("position", "value",
+                                                       "pos", "current"):
+        if parts[-1].casefold() == "current" and len(parts) > 1:
+            return f"{parts[-2]} current"
+        parts.pop()
+    return parts[-1] if parts else str(name or "")
+
+
+def _sensor_layout(f: h5py.File, g: str):
+    """``(shape, actuators, sensors)`` of an entry whose ``scan_data``
+    holds one number per scan point for every sensor, else None.
+
+    ``actuators`` is ``[(name, unit, positions)]``, outer (slow) first,
+    ``positions`` one per step of that dimension; ``sensors`` is
+    ``[(dataset name, label)]``. Reads only shapes and the actuators."""
+    sd = f"{g}/scan_data"
+    group = f.get(sd)
+    if not isinstance(group, h5py.Group):
+        return None
+    actuator_keys = sorted(k for k in group.keys()
+                           if re.match(r"^actuator_\d+_1$", k)
+                           and isinstance(group[k], h5py.Dataset))
+    sensor_keys = [k for k in group.keys() if not _NOT_SENSORS.match(k)
+                   and isinstance(group[k], h5py.Dataset)
+                   and np.issubdtype(group[k].dtype, np.number)]
+    if not actuator_keys or not sensor_keys:
+        return None
+    shapes = {tuple(int(n) for n in group[k].shape) for k in sensor_keys}
+    shapes = {tuple(n for n in s if n != 1) or (1,) for s in shapes}
+    if len(shapes) != 1:
+        return None
+    shape = shapes.pop()
+    if not 1 <= len(shape) <= 2 or int(np.prod(shape)) < 2:
+        return None
+    traj = f"{g}/scan_config/trajectory"
+    actuators = []
+    for index, key in enumerate(actuator_keys):
+        item = group[key]
+        try:
+            values = np.asarray(item[()], dtype=float)
+        except (TypeError, ValueError):
+            return None
+        name = _attr_text(item, "long_name", "name", "alias")
+        if not name:
+            name = str(_decode(_scalarize(_read_opt(f, f"{traj}/{key}/name")) or "")).strip()
+        unit = _attr_text(item, "units", "unit")
+        values = np.squeeze(values)
+        if values.ndim == 2 and values.shape == shape:
+            spreads = [float(np.mean(np.ptp(values, axis=a))) for a in (0, 1)]
+            dim = int(np.argmax(spreads))
+            values = values.mean(axis=1 - dim)
+        elif values.ndim <= 1 and values.size in shape:
+            values = values.reshape(-1)
+        else:
+            return None
+        actuators.append((name or key, unit, values))
+    # One actuator per dimension, outer first: a dimension's positions are
+    # matched to it by length (actuator_1_1 is the fast, inner one).
+    by_dim = []
+    remaining = list(actuators)
+    for n in shape:
+        match = next((a for a in reversed(remaining) if a[2].size == n), None)
+        if match is None:
+            match = (f"Scan point", "", np.arange(n, dtype=float))
+        else:
+            remaining.remove(match)
+        by_dim.append(match)
+    sensors = []
+    for key in sorted(sensor_keys):
+        label = _attr_text(group[key], "long_name", "alias", "name") or key
+        sensors.append((key, _short_name(label) if "/" in label else label))
+    return shape, by_dim, sensors
+
+
+def _axis_title(name: str, unit: str) -> str:
+    stage = _antares_stage(name)
+    if stage:
+        return _spatial_title(name, "X")
+    short = _short_name(name)
+    return f"{short} ({unit})" if unit else short
+
+
+def _sensor_rows(f: h5py.File, g: str) -> "list[tuple[str, str, str]]":
+    """``(entry, kind label, title)`` per dataset of a case-7 entry: one
+    curve with every sensor for a one-dimensional scan, one image per
+    sensor for a two-dimensional one."""
+    layout = _sensor_layout(f, g)
+    if layout is None:
+        return []
+    shape, actuators, sensors = layout
+    name = g.lstrip("/")
+    if len(shape) == 1:
+        return [(name, KIND_LABELS["mdc"], f"{len(sensors)} sensor(s) against "
+                 f"{_short_name(actuators[0][0])}")]
+    # The counts first: what a focus scan is read for.
+    order = sorted(sensors, key=lambda s: not re.search(r"cps|count", s[1], re.I))
+    return [(f"{name}#{key}", KIND_LABELS["cut"], f"{label} against "
+             f"{_short_name(actuators[1][0])}, {_short_name(actuators[0][0])}")
+            for key, label in order]
+
+
+def _parse_sensor_scan(f: h5py.File, g: str, sensor: str = None) -> NxsScan:
+    """Case 7. One dimension: an ``mdc`` table, the actuator's positions
+    against every sensor (a photodiode current against a mirror motor).
+    Two: one sensor as an image, the inner actuator across and the outer
+    one up (counts against PIX and PIY), as a ``cut`` with those axes."""
+    layout = _sensor_layout(f, g)
+    if layout is None:
+        raise KeyError(f"{g} is not a scan of sensors")
+    shape, actuators, sensors = layout
+    sd = f"{g}/scan_data"
+    if len(shape) == 1:
+        name, unit, x = actuators[0]
+        table = np.column_stack([np.asarray(f[f"{sd}/{key}"][()], dtype=float).reshape(-1)
+                                 for key, _label in sensors])
+        order = np.argsort(x, kind="stable")
+        scan = NxsScan(kind="mdc", filename_prefix="Scan_")
+        scan.x = np.asarray(x, dtype=float)[order]
+        scan.y = np.arange(table.shape[1], dtype=float)
+        scan.value = table[order]
+        scan.labels = {"x": _axis_title(name, unit), "y": "Sensor"}
+        scan.info["curve.channels"] = "|".join(label.replace("|", "/")
+                                               for _key, label in sensors)
+        scan.info["curve.value_label"] = "Signal"
+        scan.info["scan.actuator"] = name
+        scan.info["scan.sensors"] = ", ".join(key for key, _ in sensors)
+        return scan
+    keys = [key for key, _ in sensors]
+    if sensor is None:
+        sensor = _sensor_rows(f, g)[0][0].split("#", 1)[1]
+    if sensor not in keys:
+        raise KeyError(f"no sensor {sensor!r} in {g}; have {keys}")
+    label = dict(sensors)[sensor]
+    values = np.asarray(f[f"{sd}/{sensor}"][()], dtype=float).reshape(shape)
+    (outer_name, outer_unit, outer), (inner_name, inner_unit, inner) = actuators
+    image = values.T                                      # (inner, outer)
+    if inner.size > 1 and inner[0] > inner[-1]:
+        inner, image = inner[::-1], image[::-1]
+    if outer.size > 1 and outer[0] > outer[-1]:
+        outer, image = outer[::-1], image[:, ::-1]
+    scan = NxsScan(kind="cut", filename_prefix="Scan_")
+    scan.x, scan.y = np.asarray(inner, float), np.asarray(outer, float)
+    scan.value = np.ascontiguousarray(image)
+    scan.labels = {"x": _axis_title(inner_name, inner_unit),
+                   "y": _axis_title(outer_name, outer_unit)}
+    scan.info["scan.sensor"] = label
+    scan.info["scan.sensor_dataset"] = sensor
+    scan.info["scan.actuators"] = f"{inner_name} (across), {outer_name} (up)"
+    scan.info["scan.no_energy_axis"] = (
+        "an image of one sensor against two motors: neither axis is an "
+        "energy or an emission angle")
+    scan.info.update(antares_spatial_orientation(inner_name, outer_name))
+    return scan
+
+
+def _empty_antares_entries(f: h5py.File) -> "list[str]":
+    """The entries that hold the beamline's state (``ANTARES``) and no
+    ``scan_data`` at all: a scan that recorded nothing."""
+    out = []
+    for name in f.keys():
+        g = f.get(name)
+        if isinstance(g, h5py.Group) and "ANTARES" in g and "scan_data" not in g \
+                and _phd_group(f, "/" + name) is None and NATIVE_ATTR not in g.attrs:
+            out.append(name)
+    return out
+
+
+# --------------------------------------------------------------------------
 # Photon-energy dependent scans (PhD)
 # --------------------------------------------------------------------------
 #: An ANTARES photon-energy scan is not one entry with a scanned axis, the
@@ -970,6 +1183,9 @@ def _entry_kind(f: h5py.File, g: str) -> Optional[str]:
         return KIND_LABELS.get(str(kind), str(kind) or None)
     if case == 2:
         return "SPEM"
+    if case == 7:
+        rows = _sensor_rows(f, g)
+        return rows[0][1] if rows else None
     if case == 6:
         return "Cut"
     if case in (3, 4):
@@ -1020,6 +1236,13 @@ def list_datasets(path: str) -> "list[dict]":
                 except Exception:
                     kind = None
                 if kind is None:
+                    continue
+                if _classify_entry(f, g) == 7:
+                    for entry, label, title in _sensor_rows(f, g):
+                        out.append({
+                            "entry": entry, "kind": label,
+                            "title": _first_string(f, f"{g}/title") or title,
+                            "start_time": _first_string(f, f"{g}/start_time")})
                     continue
                 out.append({
                     "entry": name,
@@ -1169,6 +1392,9 @@ def load_soleil_nxs(path: str, entry: Optional[str] = None,
                 scan.info["_other_entries"] = others
             return scan
 
+        sensor = None
+        if entry is not None and "#" in entry:
+            entry, sensor = entry.split("#", 1)
         if entry is not None:
             g = entry if entry.startswith("/") else "/" + entry
             if g.lstrip("/") not in f:
@@ -1177,6 +1403,12 @@ def load_soleil_nxs(path: str, entry: Optional[str] = None,
             g = _pick_entry(f, path, top_level)
 
         case = _classify_entry(f, g)
+        if case is None and g.lstrip("/") in _empty_antares_entries(f):
+            raise ValueError(
+                f"Entry '{g}' of {path} holds no scan data: it has the "
+                f"beamline's state at the start of the scan (ANTARES, User) "
+                f"but no scan_data group -- the scan recorded nothing, or "
+                f"the file was saved before its data were written.")
         if case is None:
             raise KeyError(
                 f"Entry '{g}' in {path} doesn't match any known case (its "
@@ -1198,6 +1430,8 @@ def load_soleil_nxs(path: str, entry: Optional[str] = None,
             scan = _parse_case34(f, g, ("data_04", "data_05", "data_06"), ("data_07", "data_08", "data_09"), "data_11")
         elif case == 6:
             scan = _parse_phd_frame(f, g)
+        elif case == 7:
+            scan = _parse_sensor_scan(f, g, sensor)
         else:
             raise AssertionError(f"unreachable case {case}")
 
@@ -1206,7 +1440,7 @@ def load_soleil_nxs(path: str, entry: Optional[str] = None,
         if scan.kind != "unsupported" and case != 5:
             scan.info.update(_read_common_info(f, g))
             scan.fourd_info.update(_read_fourd_info(f, g))
-        scan.info["_group"] = g
+        scan.info["_group"] = g + (f"#{sensor}" if sensor else "")
         scan.info["_case"] = case
         if len(top_level) > 1:
             scan.info["_other_entries"] = [t for t in top_level if "/" + t != g]
@@ -1290,12 +1524,25 @@ class SoleilAntaresLoader(Loader):
                             return True
                     except Exception:
                         continue
+                # Nothing readable, but the beamline's own layout: claimed,
+                # so that listing it says what is missing instead of no
+                # reader being found at all.
+                return bool(_empty_antares_entries(f))
         except Exception:
             return False
         return False
 
     def list_entries(self, path: str) -> list:
-        return list_datasets(path)
+        out = list_datasets(path)
+        if not out:
+            with HANDLES.borrow(path) as f:
+                empty = _empty_antares_entries(f)
+            # Listed, so the file is not silently dropped; opening the row
+            # says what is missing (load_soleil_nxs).
+            out = [{"entry": name, "kind": "No data",
+                    "title": "no scan_data: the scan recorded nothing",
+                    "start_time": None} for name in empty]
+        return out
 
     def load(self, path: str, entry: str = None, progress=None):
         return load_soleil_nxs(path, entry=entry, progress=progress)

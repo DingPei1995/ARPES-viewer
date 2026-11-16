@@ -420,9 +420,23 @@ def test_fermi_fit_and_kz_alignment_are_tools(launcher):
     assert lv.ui.ToolButtons["kzalign"].isEnabled()
     dialog = lv.open_kz_alignment()
     assert dialog is not None and dialog.cut_window.isVisible()
+    assert dialog.method() == "box" and dialog.fit_button.text() == "Fit and assemble"
+    # By hand: the push button opens the Scan-axis cut, where clicks are
+    # points; one function by default.
+    dialog.manual_radio.setChecked(True)
+    scan_cut = dialog.open_scan_cut()
+    assert scan_cut is dialog.contour.cut_windows["deflector"] and scan_cut.isVisible()
+    assert dialog.segments_box.value() == 1 and not dialog.breaks_edit.isEnabled()
+    assert not dialog.fit_button.isEnabled()
+    dialog._on_pick(30.0, float(EKIN[10]))
+    dialog._on_pick(60.0, float(EKIN[12]))
+    assert dialog.fit_button.isEnabled() and len(dialog._pieces) == 1
+    dialog.segments_box.setValue(2)
+    assert dialog.breaks_edit.isEnabled() and not dialog.fit_button.isEnabled()
     dialog.close()
     QApplication.processEvents()
     assert not dialog.cut_window.isVisible()
+    assert not scan_cut.isVisible()
 
 
 def test_settings_are_remembered_per_size(tmp_path):

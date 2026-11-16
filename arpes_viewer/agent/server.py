@@ -44,9 +44,12 @@ viewer_* tools drive the program on screen when it was started with
 `arpes-viewer --agent-bridge`: viewer_status, viewer_rows, viewer_add_files,
 viewer_select, viewer_run_tool (any tool-panel button, e.g. "fermi", "kmap",
 "bz3d", "figure"), viewer_screenshot, viewer_figure, viewer_render_figure,
-viewer_python. With the program on screen, viewer_api_help lists its documented
-operations and viewer_api calls them (the same as L in viewer_python); use them
-before anything else, and ask the person before going around them with
+viewer_python. With the program on screen, every documented operation is also a
+tool of its own, op_<name> (op_fermi_edge, op_kz_align_fermi, op_map_to_k,
+op_smooth, op_figure_from ...): call it directly with its arguments, row names
+from viewer_rows. viewer_api_help gives an operation's full description and
+viewer_api calls any operation by name (the same as L in viewer_python); use
+them before anything else, and ask the person before going around them with
 viewer_python (say why: name the missing operation). If your app defers tool
 schemas, load every arpes-viewer tool in one search, and say what you are doing
 before a long step. Keep outputs small: rows(compact=True), profile(...,
@@ -75,6 +78,111 @@ def _num(description):
 
 def _int(description):
     return {"type": "integer", "description": description}
+
+
+#: Operations not offered as tools of their own: the reference itself
+#: (viewer_api_help), and those handing back Python objects rather than
+#: something a tool can return.
+_NOT_TOOLS = {"help", "data"}
+
+#: ``ARPES_VIEWER_MCP_TOOLS=compact`` leaves out the per-operation tools,
+#: for a client that limits how many tools a server may have: the
+#: operations stay reachable through viewer_api.
+TOOLS_ENV = "ARPES_VIEWER_MCP_TOOLS"
+
+
+def _json_type(parameter) -> dict:
+    """The JSON-Schema of one parameter, from its annotation or default."""
+    import inspect
+    annotation = parameter.annotation
+    default = parameter.default
+    names = {"str": "string", "int": "integer", "float": "number",
+             "bool": "boolean", "dict": "object", "list": "array",
+             "tuple": "array"}
+    if isinstance(annotation, str):
+        kind = names.get(annotation.split("[")[0].strip())
+    elif annotation is not inspect.Parameter.empty:
+        kind = names.get(getattr(annotation, "__name__", ""))
+    else:
+        kind = None
+    if kind is None and default is not inspect.Parameter.empty and default is not None:
+        kind = names.get(type(default).__name__)
+    schema = {"type": kind} if kind else {}
+    if kind == "array":
+        schema["items"] = {}
+    if default is not inspect.Parameter.empty and default is not None \
+            and not isinstance(default, (list, tuple, dict)):
+        schema["default"] = default
+    return schema
+
+
+_ARRAY = {"type": "array", "items": {}}
+_AXIS_REF = {"anyOf": [{"type": "integer"}, {"type": "string"}]}
+#: The parameters whose annotation says nothing (a default of None): what
+#: they take, so that every argument of every tool has a type -- some
+#: clients, and the smaller models behind them, refuse or misuse a
+#: property without one.
+_UNTYPED = {
+    "x": _AXIS_REF, "y": _AXIS_REF, "along": _AXIS_REF,
+    "ranges": {"type": "object"}, "info": {"type": "object"},
+    "normalise_axes": {"anyOf": [{"type": "integer"}, _ARRAY]},
+    ("cut_arithmetic", "ranges"): _ARRAY,
+}
+
+
+def _parameter_notes(doc: str, name: str) -> str:
+    """The sentence of an operation's description that names ``name``
+    (in double back-quotes), as the parameter's own description."""
+    import re
+    text = " ".join(doc.split())
+    for sentence in re.split(r"(?<=[.;:])\s+", text):
+        if f"``{name}``" in sentence:
+            return sentence.replace("``", "")[:300]
+    return ""
+
+
+def operation_tools() -> list:
+    """One tool per documented operation of the program on screen
+    (``L.<name>``, :mod:`ui.common.live`), named ``op_<name>``, its
+    arguments and description read from the operation itself -- so they
+    cannot fall behind it. Calling one is ``viewer_api`` with that
+    operation, in one step: what a smaller model gets right where a
+    look-up in ``viewer_api_help`` followed by ``viewer_api`` it does not."""
+    import inspect
+    from arpes_viewer.ui.common.live import operations
+
+    out = []
+    for group, name, method in operations():
+        if name in _NOT_TOOLS:
+            continue
+        doc = inspect.getdoc(method) or ""
+        signature = inspect.signature(method)
+        properties, required = {}, []
+        for parameter in list(signature.parameters.values())[1:]:
+            if parameter.kind in (parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD):
+                continue
+            schema = _json_type(parameter)
+            if "type" not in schema:
+                schema.update(_UNTYPED.get((name, parameter.name))
+                              or _UNTYPED.get(parameter.name) or _ARRAY)
+            note = _parameter_notes(doc, parameter.name)
+            if parameter.name == "name" and not note:
+                note = "A row of the program's list, by its name (viewer_rows)."
+            if note:
+                schema["description"] = note
+            properties[parameter.name] = schema
+            if parameter.default is inspect.Parameter.empty:
+                required.append(parameter.name)
+        description = (f"[{group}] {' '.join(doc.split())}"[:1200]
+                       + " (Needs the program open with --agent-bridge.)")
+
+        def call(_operation=name, **args):
+            return bridge.request("api", operation=_operation, args=args,
+                                  timeout=600)
+
+        out.append(Tool(f"op_{name}", description, call, properties,
+                        tuple(required)))
+    return out
 
 
 def build_server(workspace: Workspace = None) -> Server:
@@ -325,6 +433,8 @@ def build_server(workspace: Workspace = None) -> Server:
              lambda code: bridge.request("python", code=code),
              {"code": _str("Python source.")}, ("code",)),
     ]
+    if os.environ.get(TOOLS_ENV, "").strip().casefold() != "compact":
+        tools += operation_tools()
     return Server("arpes-viewer", VERSION, tools, INSTRUCTIONS)
 
 

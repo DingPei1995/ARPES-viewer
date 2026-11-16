@@ -67,7 +67,13 @@ l'utiliser.
      est conservée comme fichier.
   2. **MCP** : l'application IA appelle le programme par son serveur MCP
      (`arpes-viewer-mcp`) ; quand le programme est lancé avec le pont agent,
-     `viewer_api` appelle les mêmes opérations.
+     chaque opération est aussi un outil MCP à part entière, `op_<nom>`
+     (`op_fermi_edge`, `op_kz_align_fermi`, `op_map_to_k` …), ses arguments
+     typés et décrits d'après l'opération elle-même, qu'un modèle appelle en
+     une étape ; `viewer_api` appelle n'importe laquelle par son nom. Les
+     petits modèles locaux trouvent ainsi le bon outil bien plus sûrement.
+     Pour une application qui limite le nombre d'outils d'un serveur,
+     `ARPES_VIEWER_MCP_TOOLS=compact` retire les outils `op_*`.
   3. **Scripts sans écran** : les calculs de `arpes_viewer/tools/` et
      l'espace de travail sans fenêtre, pour un script à conserver.
 - **Fenêtres.** Une fenêtre qu'une opération n'ouvre que pour la piloter (un
